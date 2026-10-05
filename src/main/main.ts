@@ -8,7 +8,8 @@ import { listCommits, listRepos, listRuns, lookupUser } from './github';
 import { setupUpdater } from './updater';
 
 // Fixed location shared with the installer, so it can pre-configure the account, code and face.
-app.setPath('userData', join(app.getPath('appData'), 'DevPanel'));
+// DEVPANEL_USER_DATA lets automated tests run against a throwaway profile.
+app.setPath('userData', process.env.DEVPANEL_USER_DATA ?? join(app.getPath('appData'), 'DevPanel'));
 
 const settingsFile = () => join(app.getPath('userData'), 'settings.json');
 const defaults: Settings = { githubUser: '', onboarded: false };

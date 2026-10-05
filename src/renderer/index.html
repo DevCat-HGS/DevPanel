@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://api.github.com"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://github.com https://avatars.githubusercontent.com; connect-src https://api.github.com"
     />
     <title>DevPanel</title>
     <link rel="icon" href="icon.png" />
@@ -15,20 +15,80 @@
     <div class="bg-glow" aria-hidden="true"></div>
     <a class="skip" href="#main">Saltar al contenido</a>
 
-    <!-- Lock screen (desktop only, shown when a face is enrolled) -->
+    <!-- Lock screen: face + code (desktop, once set up) -->
     <section id="lock" class="lock hidden" aria-labelledby="lock-title">
       <div class="lock-card">
-        <img class="lock-logo" src="icon.png" alt="" />
         <div id="face-ring" class="face-ring" aria-hidden="true">
-          <span data-icon="scan"></span>
+          <img id="lock-avatar" class="avatar" src="icon.png" alt="" />
+          <span class="scan-line"></span>
+          <svg class="tick" viewBox="0 0 80 80"><path d="M22 41l12 12 24-26" /></svg>
         </div>
-        <h1 id="lock-title">DevPanel</h1>
+        <h1 id="lock-title">Bienvenido</h1>
         <p id="lock-msg" class="muted" role="status">Mira a la cámara para entrar</p>
-        <button id="lock-face" class="btn primary">Iniciar con rostro</button>
-        <div class="divider"><span>o usa tu PIN</span></div>
+        <button id="lock-face" class="btn primary">Reconocer mi rostro</button>
+        <div class="divider"><span>o ingresa tu código</span></div>
         <div class="pin-row">
-          <input id="lock-pin" type="password" placeholder="PIN de respaldo" aria-label="PIN de respaldo" />
+          <input id="lock-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Código" aria-label="Código de verificación" />
           <button id="lock-pin-btn" class="btn">Entrar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- First-run wizard -->
+    <section id="wizard" class="wizard hidden" aria-labelledby="wz-title">
+      <div class="wz-card">
+        <div id="wz-steps" class="wz-steps" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <div id="wz-1" class="wz-step active">
+          <h2 id="wz-title">Vincula tu GitHub</h2>
+          <p class="muted">Escribe tu usuario o pega el enlace de tu perfil.</p>
+          <div class="row">
+            <input id="wz-user" type="text" autocomplete="off" placeholder="usuario  ó  https://github.com/usuario" aria-label="Usuario o enlace de GitHub" />
+            <button id="wz-user-btn" class="btn primary">Vincular</button>
+          </div>
+          <div id="wz-profile" class="profile hidden">
+            <img id="wz-avatar" alt="" />
+            <div><b id="wz-name"></b><br /><span id="wz-login" class="muted"></span></div>
+          </div>
+          <p id="wz-user-err" class="error" role="alert"></p>
+          <div class="wz-actions"><button id="wz-1-next" class="btn primary" disabled>Continuar</button></div>
+        </div>
+
+        <div id="wz-2" class="wz-step">
+          <h2>Crea tu código de verificación</h2>
+          <p class="muted">De 4 a 8 dígitos. Lo usarás cuando el rostro no funcione. No se puede recuperar, así que guárdalo.</p>
+          <input id="wz-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Tu código" aria-label="Código" />
+          <input id="wz-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Repite el código" aria-label="Repite el código" />
+          <div class="row">
+            <button id="wz-gen" class="btn ghost small">Generar uno</button>
+            <button id="wz-show" class="btn ghost small">Mostrar</button>
+          </div>
+          <p id="wz-pin-err" class="error" role="alert"></p>
+          <div class="wz-actions">
+            <button id="wz-2-back" class="btn ghost">Atrás</button>
+            <button id="wz-2-next" class="btn primary">Continuar</button>
+          </div>
+        </div>
+
+        <div id="wz-3" class="wz-step">
+          <h2>Activa el reconocimiento facial</h2>
+          <div id="wz-ring" class="face-ring" aria-hidden="true">
+            <img class="avatar" src="icon.png" alt="" />
+            <span class="scan-line"></span>
+            <svg class="tick" viewBox="0 0 80 80"><path d="M22 41l12 12 24-26" /></svg>
+          </div>
+          <p id="wz-face-msg" class="muted">Guardamos solo una huella numérica de tu rostro, cifrada en este equipo. Nunca fotos.</p>
+          <div class="wz-actions">
+            <button id="wz-skip" class="btn ghost">Omitir por ahora</button>
+            <button id="wz-face" class="btn primary">Activar</button>
+          </div>
+        </div>
+
+        <div id="wz-4" class="wz-step">
+          <svg class="check-big" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="36" /><path d="M24 41l11 11 21-23" /></svg>
+          <h2>Todo listo</h2>
+          <p id="wz-done-msg" class="muted"></p>
+          <div class="wz-actions"><button id="wz-enter" class="btn primary">Entrar al panel</button></div>
         </div>
       </div>
     </section>
@@ -45,6 +105,10 @@
           <button class="nav active" data-view="projects">
             <span class="ico" data-icon="grid" aria-hidden="true"></span>
             <span class="nav-label">Projects</span>
+          </button>
+          <button class="nav" data-view="tools">
+            <span class="ico" data-icon="tools" aria-hidden="true"></span>
+            <span class="nav-label">Tools</span>
           </button>
           <button class="nav" data-view="settings">
             <span class="ico" data-icon="settings" aria-hidden="true"></span>
@@ -79,9 +143,36 @@
             </label>
           </header>
 
+          <details id="recs" class="recs hidden"></details>
           <div id="stats" class="stats"></div>
           <div id="repos" class="grid" aria-live="polite"></div>
           <div id="detail" class="detail hidden"></div>
+        </section>
+
+        <section id="view-tools" class="view hidden">
+          <header class="view-head">
+            <div>
+              <h2>Herramientas</h2>
+              <p class="muted">Utilidades de desarrollo sin salir del panel. Atajo: Ctrl + K.</p>
+            </div>
+          </header>
+          <div class="tools">
+            <div id="tool-list" class="tool-list"></div>
+            <div class="tool-panel card">
+              <h3 id="tool-title"></h3>
+              <p id="tool-hint" class="muted"></p>
+              <textarea id="tool-input" spellcheck="false" aria-label="Entrada"></textarea>
+              <div id="tool-actions" class="row"></div>
+              <div class="out-head"><span class="muted">Resultado</span><button id="tool-copy" class="btn ghost small">Copiar</button></div>
+              <pre id="tool-output" aria-live="polite"></pre>
+            </div>
+          </div>
+          <div id="env-card" class="card">
+            <h3>Entorno de desarrollo</h3>
+            <p class="muted">Detecta qué herramientas tienes instaladas y qué te recomendamos añadir.</p>
+            <button id="env-check" class="btn small">Verificar entorno</button>
+            <ul id="env-list" class="env-list"></ul>
+          </div>
         </section>
 
         <section id="view-settings" class="view hidden">
@@ -100,7 +191,7 @@
             <h3>Inicio de sesión facial</h3>
             <p id="face-status" class="muted"></p>
             <div class="row">
-              <input id="face-pin" type="password" placeholder="PIN de respaldo (mín. 4)" aria-label="PIN de respaldo" />
+              <input id="face-pin" type="password" placeholder="Código (4–8 dígitos)" aria-label="Código de verificación" inputmode="numeric" maxlength="8" />
               <button id="face-enroll" class="btn primary">Registrar mi rostro</button>
               <button id="face-remove" class="btn danger">Eliminar</button>
             </div>
@@ -109,11 +200,19 @@
 
           <div class="card">
             <h3>Actualizaciones</h3>
+            <p id="channel-info" class="muted"></p>
             <p id="update-msg" class="muted" role="status"></p>
             <button id="update-check" class="btn">Buscar actualizaciones</button>
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="palette" class="palette hidden" role="dialog" aria-label="Paleta de comandos">
+      <div class="pal-box">
+        <input id="pal-input" type="text" autocomplete="off" placeholder="Escribe un comando o proyecto…" aria-label="Buscar comando" />
+        <ul id="pal-list"></ul>
+      </div>
     </div>
 
     <div id="toasts" class="toasts" aria-live="assertive"></div>

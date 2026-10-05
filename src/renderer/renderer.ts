@@ -1,5 +1,10 @@
 import type { Repo, UpdateStatus, WorkflowRun } from '../shared/api';
+import { $, copyText, el, toast } from './dom.js';
 import { hydrateIcons, icon } from './icons.js';
+import { runOnboarding } from './onboarding.js';
+import { initPalette } from './palette.js';
+import { analyzeRepos } from './recs.js';
+import { initEnvCheck, initTools, TOOLS } from './ui-tools.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
 if (!window.devpanel) {
@@ -7,14 +12,6 @@ if (!window.devpanel) {
   window.devpanel = createWebApi();
 }
 const api = window.devpanel;
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-
-function el(tag: string, cls?: string, text?: string): HTMLElement {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
 
 function link(href: string, text: string): HTMLAnchorElement {
   const a = el('a', undefined, text) as HTMLAnchorElement;
@@ -30,15 +27,6 @@ function ago(iso: string): string {
   if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
   if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
   return `hace ${Math.floor(s / 86400)} d`;
-}
-
-function toast(message: string, kind: 'ok' | 'bad' | 'info' = 'info'): void {
-  const t = el('div', `toast ${kind}`, message);
-  $('toasts').append(t);
-  setTimeout(() => {
-    t.classList.add('leaving');
-    setTimeout(() => t.remove(), 250);
-  }, 3750);
 }
 
 // ---------- Theme ----------
@@ -115,41 +103,77 @@ const LANG_COLORS: Record<string, string> = {
   HTML: '#e34c26', CSS: '#563d7c', Java: '#b07219', Kotlin: '#a97bff', Swift: '#f05138',
 };
 
-// ---------- Lock screen (desktop) ----------
+// ---------- Lock screen (desktop): face + code ----------
 async function initLock(): Promise<void> {
   const st = await api.face.status();
-  if (!st.enrolled) return showApp();
+  if (!st.pinSet && !st.enrolled) return showApp();
 
-  $('lock').classList.remove('hidden');
+  const s = await api.settings.get();
+  const avatar = $<HTMLImageElement>('lock-avatar');
+  avatar.onerror = () => {
+    avatar.onerror = null;
+    avatar.src = 'icon.png';
+  };
+  if (s.githubUser) avatar.src = `https://github.com/${encodeURIComponent(s.githubUser)}.png?size=240`;
+  $('lock-title').textContent = s.githubUser ? `Hola, ${s.githubUser}` : 'Bienvenido';
+
+  const lock = $('lock');
+  const card = lock.querySelector('.lock-card') as HTMLElement;
+  const ring = $('face-ring');
   const msg = $('lock-msg');
   const faceBtn = $<HTMLButtonElement>('lock-face');
+  const pinInput = $<HTMLInputElement>('lock-pin');
+
+  lock.classList.remove('hidden');
+  faceBtn.classList.toggle('hidden', !st.enrolled);
+  lock.querySelector('.divider')?.classList.toggle('hidden', !st.enrolled);
+  if (!st.enrolled) msg.textContent = 'Ingresa tu código para entrar';
 
   const unlock = () => {
-    $('lock').classList.add('hidden');
-    void showApp();
+    ring.classList.remove('scanning');
+    ring.classList.add('success');
+    msg.textContent = '¡Bienvenido!';
+    setTimeout(() => {
+      lock.classList.add('leaving');
+      setTimeout(() => {
+        lock.classList.add('hidden');
+        void showApp();
+      }, 450);
+    }, 750);
+  };
+
+  const fail = (text: string) => {
+    ring.classList.remove('scanning');
+    ring.classList.add('fail');
+    setTimeout(() => ring.classList.remove('fail'), 500);
+    msg.textContent = text;
   };
 
   const tryFace = async () => {
     faceBtn.disabled = true;
-    $('face-ring').classList.add('scanning');
+    ring.classList.add('scanning');
     msg.textContent = 'Mirando… quédate frente a la cámara';
     const r = await api.face.verify();
-    $('face-ring').classList.remove('scanning');
     faceBtn.disabled = false;
     if (r.ok) return unlock();
-    msg.textContent = r.error ?? 'No te reconocí, intenta de nuevo o usa el PIN';
+    fail(r.error ?? 'No te reconocí, intenta de nuevo o usa tu código');
   };
 
   const tryPin = async () => {
-    const r = await api.face.unlockWithPin($<HTMLInputElement>('lock-pin').value);
-    if (r.ok) unlock();
-    else msg.textContent = r.error ?? 'PIN incorrecto';
+    const r = await api.face.unlockWithPin(pinInput.value);
+    if (r.ok) return unlock();
+    card.classList.remove('shake');
+    void card.offsetWidth; // restart the animation
+    card.classList.add('shake');
+    pinInput.value = '';
+    msg.textContent = r.error ?? 'Código incorrecto';
   };
 
   faceBtn.onclick = tryFace;
   $('lock-pin-btn').onclick = tryPin;
-  $('lock-pin').addEventListener('keydown', (e) => e.key === 'Enter' && void tryPin());
-  void tryFace();
+  pinInput.addEventListener('keydown', (e) => e.key === 'Enter' && void tryPin());
+  if (st.enrolled) void tryFace();
+  else pinInput.focus();
 }
 
 // ---------- App ----------
@@ -170,7 +194,73 @@ async function showApp(): Promise<void> {
 
   const s = await api.settings.get();
   $<HTMLInputElement>('gh-user').value = s.githubUser;
+  initTools();
+  initEnvCheck();
+  initPalette(paletteItems);
+  void showChannel();
   await Promise.all([loadRepos(), refreshFaceStatus()]);
+}
+
+async function showChannel(): Promise<void> {
+  if (api.platform === 'web') return;
+  const c = await api.update.channel();
+  $('channel-info').textContent =
+    c.channel === 'dev'
+      ? c.allowed
+        ? 'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).'
+        : 'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.'
+      : 'Canal: Estable.';
+}
+
+function goView(name: string): void {
+  document.querySelector<HTMLButtonElement>(`.nav[data-view="${name}"]`)?.click();
+}
+
+function paletteItems() {
+  return [
+    { label: 'Ir a Projects', hint: 'vista', run: () => goView('projects') },
+    { label: 'Ir a Herramientas', hint: 'vista', run: () => goView('tools') },
+    { label: 'Ir a Settings', hint: 'vista', run: () => goView('settings') },
+    { label: 'Cambiar tema claro / oscuro', hint: 'acción', run: () => $('theme-toggle').click() },
+    { label: 'Recargar proyectos', hint: 'acción', run: () => void loadRepos() },
+    ...TOOLS.map((t) => ({
+      label: `Herramienta: ${t.label}`,
+      hint: t.hint,
+      run: () => {
+        goView('tools');
+        document.querySelector<HTMLButtonElement>(`.tool-btn[data-id="${t.id}"]`)?.click();
+      },
+    })),
+    ...allRepos.map((r) => ({
+      label: r.name,
+      hint: 'proyecto',
+      run: () => {
+        goView('projects');
+        void showDetail(r);
+      },
+    })),
+  ];
+}
+
+function renderRecs(): void {
+  const box = $('recs');
+  const recs = analyzeRepos(allRepos);
+  if (!recs.length) return box.classList.add('hidden');
+  box.classList.remove('hidden');
+  const summary = el('summary', undefined, `Recomendaciones (${recs.length})`);
+  const ul = el('ul');
+  ul.append(
+    ...recs.map((x) => {
+      const li = el('li');
+      li.append(el('span', `lvl ${x.level}`), el('b', undefined, x.repo), el('span', 'muted', x.text));
+      li.onclick = () => {
+        const repo = allRepos.find((r) => r.name === x.repo);
+        if (repo) void showDetail(repo);
+      };
+      return li;
+    }),
+  );
+  box.replaceChildren(summary, ul);
 }
 
 document.querySelectorAll<HTMLButtonElement>('.nav').forEach((b) => {
@@ -269,6 +359,7 @@ async function loadRepos(): Promise<void> {
   try {
     allRepos = await api.github.repos();
     renderStats(allRepos);
+    renderRecs();
     renderRepos();
   } catch (e) {
     $('repos').replaceChildren(el('p', 'empty', friendlyError(e)));
@@ -299,14 +390,6 @@ function toggleFav(name: string): void {
   renderRepos();
 }
 
-async function copyText(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast('Copiado al portapapeles', 'ok');
-  } catch {
-    toast('No se pudo copiar', 'bad');
-  }
-}
 
 function runBadge(run?: WorkflowRun): HTMLElement {
   if (!run) return el('span', 'badge warn', 'Sin Actions');
@@ -370,10 +453,17 @@ async function showDetail(repo: Repo): Promise<void> {
 
 // ---------- Settings ----------
 async function saveUser(): Promise<void> {
-  await api.settings.set({ githubUser: $<HTMLInputElement>('gh-user').value.trim() });
-  $('detail').classList.add('hidden');
-  toast('Usuario de GitHub guardado', 'ok');
-  await loadRepos();
+  try {
+    const p = await api.github.lookup($<HTMLInputElement>('gh-user').value);
+    await api.settings.set({ githubUser: p.login });
+    $<HTMLInputElement>('gh-user').value = p.login;
+    $('detail').classList.add('hidden');
+    toast(`Vinculado a @${p.login}`, 'ok');
+    await loadRepos();
+    void showChannel();
+  } catch (e) {
+    toast((e as Error).message, 'bad');
+  }
 }
 $('gh-save').onclick = () => void saveUser();
 $('gh-user').addEventListener('keydown', (e) => e.key === 'Enter' && void saveUser());
@@ -390,7 +480,7 @@ $('face-enroll').onclick = async () => {
   const btn = $<HTMLButtonElement>('face-enroll');
   btn.disabled = true;
   msg.textContent = 'Mira a la cámara y mueve un poco la cabeza…';
-  const r = await api.face.enroll($<HTMLInputElement>('face-pin').value);
+  const r = await api.face.enroll($<HTMLInputElement>('face-pin').value || undefined);
   btn.disabled = false;
   msg.textContent = '';
   toast(r.ok ? 'Rostro registrado' : (r.error ?? 'Error'), r.ok ? 'ok' : 'bad');
@@ -444,4 +534,13 @@ $('update-check').onclick = () => void api.update.check();
 
 hydrateIcons();
 initTheme();
-void initLock();
+async function boot(): Promise<void> {
+  const s = await api.settings.get();
+  if (!s.onboarded) {
+    await runOnboarding();
+    return showApp(); // just configured: no need to lock in this session
+  }
+  await initLock();
+}
+
+void boot();
