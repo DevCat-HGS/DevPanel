@@ -67,3 +67,17 @@ jobs:
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The plain NSIS "Setup" is only used by the auto-updater. People should install with the
+      # custom installer, so it is attached to every release page next to it.
+      - name: Attach the custom installer to this release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if gh release download installer --pattern DevPanel-Installer.exe --dir . --clobber; then
+            gh release upload "v$version" DevPanel-Installer.exe --clobber
+          else
+            echo "No installer release yet; skipping"
+          fi
