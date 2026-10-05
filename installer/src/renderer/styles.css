@@ -294,3 +294,21 @@ select {
 .keypad { gap: 8px; margin: 4px 0 0; }
 .keypad button { height: 46px; }
 .dots { margin: 6px 0 2px; }
+
+/* ---------- Logo halo: closed gradient ring + breathing glow (nothing rotates) ---------- */
+.orbit { display: none; }
+.logo-wrap::before, .logo-wrap::after { content: ''; position: absolute; pointer-events: none; }
+.logo-wrap::before { /* soft breathing glow */
+  inset: -18px; border-radius: 40px;
+  background: radial-gradient(closest-side, rgba(34, 211, 238, 0.38), rgba(59, 130, 246, 0.14) 60%, transparent 78%);
+  filter: blur(14px); animation: breathe 4.5s ease-in-out infinite;
+}
+.logo-wrap::after { /* thin closed ring around the icon */
+  inset: -7px; border-radius: 34px; padding: 2px;
+  background: linear-gradient(135deg, var(--cyan), var(--blue) 50%, var(--orange));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0.85; animation: ring-glow 4.5s ease-in-out infinite;
+}
+@keyframes breathe { 50% { opacity: 0.55; transform: scale(1.06); } }
+@keyframes ring-glow { 50% { opacity: 0.45; } }

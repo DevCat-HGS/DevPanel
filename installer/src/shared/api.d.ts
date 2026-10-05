@@ -10,6 +10,8 @@ export interface GithubProfile {
   avatar: string;
   repos: number;
   followers: number;
+  /** GitHub refused the lookup (rate limit): the typed name is used as-is. */
+  unverified?: boolean;
 }
 
 export interface InstallOptions {

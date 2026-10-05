@@ -257,7 +257,9 @@ async function runLookup(): Promise<void> {
     img.src = p.avatar;
     $('p-name').textContent = p.name ?? p.login;
     $('p-login').textContent = `@${p.login}`;
-    $('p-meta').textContent = `${p.repos} repos públicos · ${p.followers} seguidores`;
+    $('p-meta').textContent = p.unverified
+      ? 'No pude verificarlo ahora (límite de consultas de GitHub); seguiremos con este usuario.'
+      : `${p.repos} repos públicos · ${p.followers} seguidores`;
     const card = $('id-card');
     card.classList.remove('hidden');
     card.style.animation = 'none';

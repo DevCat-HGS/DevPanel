@@ -42,16 +42,53 @@ function pickAsset(rel: any, channel: 'stable' | 'dev'): Latest | null {
   };
 }
 
+const WEB = `https://github.com/${REPO}`;
+
+/** Used when api.github.com is rate-limited (60 req/h per IP): same release, found via the public pages. */
+async function fetchReleaseViaWeb(channel: 'stable' | 'dev'): Promise<Latest> {
+  let tag: string | null = null;
+  if (channel === 'stable') {
+    // /releases/latest redirects to the newest non-prerelease tag
+    const r = await fetch(`${WEB}/releases/latest`, { headers: { 'User-Agent': 'DevPanel-Installer' } });
+    tag = r.url.match(/\/releases\/tag\/([^/?#]+)/)?.[1] ?? null;
+  } else {
+    const r = await fetch(`${WEB}/releases.atom`, { headers: { 'User-Agent': 'DevPanel-Installer' } });
+    tag = (await r.text()).match(/\/releases\/tag\/(v[^"<]+-dev)/)?.[1] ?? null;
+  }
+  if (!tag) throw new Error('No se pudo encontrar la versión. Revisa tu conexión e inténtalo de nuevo.');
+  const version = decodeURIComponent(tag).replace(/^v/, '');
+  const url = `${WEB}/releases/download/${tag}/DevPanel-Setup-${version}.exe`;
+  const head = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'DevPanel-Installer' } });
+  if (!head.ok) throw new Error('Esa versión aún no tiene instalador publicado');
+  const size = Number(head.headers.get('content-length')) || 0;
+  // no checksum available through the web pages: the download still comes from github.com over HTTPS
+  return { info: { version, sizeBytes: size, channel }, asset: { url, size } };
+}
+
 async function fetchRelease(channel: 'stable' | 'dev'): Promise<Latest> {
+  if (latestCache[channel]) return latestCache[channel]!;
+  try {
+    return await fetchReleaseViaApi(channel);
+  } catch (e) {
+    if (!(e instanceof RateLimited)) throw e;
+    return (latestCache[channel] = await fetchReleaseViaWeb(channel));
+  }
+}
+
+class RateLimited extends Error {}
+
+async function fetchReleaseViaApi(channel: 'stable' | 'dev'): Promise<Latest> {
   if (latestCache[channel]) return latestCache[channel]!;
   let found: Latest | null = null;
   if (channel === 'stable') {
     // GitHub's "latest" never points at a prerelease, so this is always a stable build.
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: GH_HEADERS });
+    if (res.status === 403 || res.status === 429) throw new RateLimited();
     if (!res.ok) throw new Error(`No se pudo consultar la última versión estable (GitHub ${res.status})`);
     found = pickAsset(await res.json(), 'stable');
   } else {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, { headers: GH_HEADERS });
+    if (res.status === 403 || res.status === 429) throw new RateLimited();
     if (!res.ok) throw new Error(`No se pudo consultar las versiones de desarrollo (GitHub ${res.status})`);
     const rel = ((await res.json()) as any[]).find((r) => r.prerelease && !r.draft && pickAsset(r, 'dev'));
     found = rel ? pickAsset(rel, 'dev') : null;
@@ -60,17 +97,27 @@ async function fetchRelease(channel: 'stable' | 'dev'): Promise<Latest> {
   return (latestCache[channel] = found);
 }
 
+const lookupCache = new Map<string, GithubProfile>();
+
 async function lookup(input: string): Promise<GithubProfile> {
   const t = input.trim().replace(/^@/, '');
   const m = t.match(/github\.com\/([A-Za-z0-9-]{1,39})/i);
   const user = m ? m[1] : t;
   if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(user))
     throw new Error('Escribe un usuario o enlace de GitHub válido');
+  const cached = lookupCache.get(user.toLowerCase());
+  if (cached) return cached;
   const res = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}`, { headers: GH_HEADERS });
   if (res.status === 404) throw new Error(`No existe el usuario "${user}" en GitHub`);
+  if (res.status === 403 || res.status === 429) {
+    // rate limited: don't block the install, just continue with the name that was typed
+    return { login: user, name: null, avatar: `https://github.com/${encodeURIComponent(user)}.png?size=120`, repos: 0, followers: 0, unverified: true };
+  }
   if (!res.ok) throw new Error(`GitHub respondió ${res.status}. Intenta de nuevo en unos minutos.`);
   const u = await res.json();
-  return { login: u.login, name: u.name, avatar: u.avatar_url, repos: u.public_repos ?? 0, followers: u.followers ?? 0 };
+  const profile = { login: u.login, name: u.name, avatar: u.avatar_url, repos: u.public_repos ?? 0, followers: u.followers ?? 0 };
+  lookupCache.set(user.toLowerCase(), profile);
+  return profile;
 }
 
 async function download(asset: Asset, file: string, signal: AbortSignal): Promise<void> {
