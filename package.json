@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
     "build:web": "tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
     "serve:web": "npm run build:web && npx --yes serve dist/renderer",
-    "start": "npm run build && electron .",
+    "start": "node scripts/start.mjs",
     "dist": "npm run build && electron-builder --win --publish never",
     "release": "npm run build && electron-builder --win --publish always",
     "test": "npm run build && node --test tests/unit.test.mjs",
