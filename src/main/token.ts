@@ -3,6 +3,9 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadSettings } from './settings';
 
+// DEVPANEL_GITHUB_API lets automated tests talk to a local mock instead of api.github.com.
+export const apiBase = () => process.env.DEVPANEL_GITHUB_API ?? 'https://api.github.com';
+
 // Optional GitHub token: raises the API limit (60 -> 5000 req/h) and unlocks private repos.
 // Stored encrypted with the OS keychain; never sent anywhere except api.github.com.
 const binFile = () => join(app.getPath('userData'), 'token.bin');
@@ -32,14 +35,27 @@ export function tokenOwns(user: string): boolean {
 }
 
 export function setupToken(): void {
-  ipcMain.handle('token:status', () => ({ has: existsSync(binFile()), login: tokenLogin() ?? undefined }));
+  ipcMain.handle('token:status', async () => {
+    const has = existsSync(binFile());
+    if (!has) return { has };
+    // /rate_limit is free (it does not count against the limit) and proves the token is really in use
+    try {
+      const res = await fetch(`${apiBase()}/rate_limit`, {
+        headers: { Authorization: `Bearer ${getToken()}`, Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel' },
+      });
+      const core = res.ok ? (await res.json()).resources?.core : null;
+      return { has, login: tokenLogin() ?? undefined, limit: core?.limit, remaining: core?.remaining };
+    } catch {
+      return { has, login: tokenLogin() ?? undefined };
+    }
+  });
 
   ipcMain.handle('token:set', async (_e, token: string) => {
     const t = String(token ?? '').trim();
     if (!/^[A-Za-z0-9_]{20,255}$/.test(t)) return { ok: false, error: 'El token no tiene un formato válido' };
     if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'El cifrado del sistema no está disponible' };
     try {
-      const res = await fetch('https://api.github.com/user', {
+      const res = await fetch(`${apiBase()}/user`, {
         headers: { Authorization: `Bearer ${t}`, Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel' },
       });
       if (res.status === 401) return { ok: false, error: 'GitHub rechazó el token (inválido o vencido)' };

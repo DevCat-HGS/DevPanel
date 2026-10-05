@@ -208,7 +208,6 @@ async function showApp(): Promise<void> {
   appShown = true;
 
   const web = api.platform === 'web';
-  $('platform-badge').textContent = web ? 'Versión web' : 'App de escritorio';
   $('version').textContent = web ? '' : `v${await api.version()}`;
   $('face-card').classList.toggle('hidden', web);
   $('update-check').classList.toggle('hidden', web);
@@ -229,11 +228,45 @@ async function showApp(): Promise<void> {
 }
 
 // ---------- Preferences, token and alerts (desktop) ----------
+type TokenView = 'none' | 'busy' | 'ok' | 'err';
+interface TokenInfo { has: boolean; login?: string; limit?: number; remaining?: number }
+let tokenEditing = false;
+let tokenInfo: TokenInfo = { has: false };
+
+/** The token card is icon-first: key (none), spinner (checking), green check (connected), red cross (error). */
+function renderTokenState(view: TokenView): void {
+  $('token-state').dataset.state = view;
+  $('ts-icon').replaceChildren(view === 'busy' ? el('span', 'spinner') : icon(view === 'ok' ? 'checkcircle' : view === 'err' ? 'xcircle' : 'key'));
+  $('ts-main').textContent = view === 'ok' && tokenInfo.login ? `@${tokenInfo.login}` : '';
+
+  const chips: HTMLElement[] = [];
+  if (view === 'ok') {
+    const chip = (name: string, text: string, tip: string) => {
+      const c = el('span', 'chip');
+      c.title = tip;
+      c.append(icon(name), document.createTextNode(text));
+      return c;
+    };
+    if (tokenInfo.limit !== undefined) chips.push(chip('gauge', `${tokenInfo.remaining}/${tokenInfo.limit}`, 'Consultas restantes de la API por hora'));
+    chips.push(chip('lock', '', 'Incluye tus repos privados'));
+  }
+  $('ts-chips').replaceChildren(...chips);
+  $('ts-actions').classList.toggle('hidden', !tokenInfo.has);
+  $('token-form').classList.toggle('hidden', tokenInfo.has && !tokenEditing && view !== 'busy');
+}
+
+function tokenMsg(kind: 'ok' | 'err', text: string): void {
+  const m = $('token-msg');
+  m.className = `token-msg ${kind}`;
+  m.textContent = text;
+}
+
+/** Re-reads the real state (also proves the saved token still works) and redraws the card. */
 async function refreshTokenStatus(): Promise<void> {
-  const t = await api.token.status();
-  $('token-status').textContent = t.has
-    ? `Token guardado${t.login ? ` (cuenta @${t.login})` : ''}. Se usan tus repos privados y el límite alto de la API.`
-    : 'Sin token: se usa el límite público de GitHub.';
+  renderTokenState('busy');
+  tokenInfo = await api.token.status();
+  tokenEditing = false;
+  renderTokenState(tokenInfo.has ? 'ok' : 'none');
 }
 
 async function initPrefs(): Promise<void> {
@@ -272,18 +305,33 @@ async function initPrefs(): Promise<void> {
 
   await refreshTokenStatus();
   $('token-save').onclick = async () => {
-    const r = await api.token.set($<HTMLInputElement>('token-input').value);
-    toast(r.ok ? `Token guardado para @${r.login}` : (r.error ?? 'No se pudo guardar'), r.ok ? 'ok' : 'bad');
-    if (r.ok) {
-      $<HTMLInputElement>('token-input').value = '';
-      void refreshTokenStatus();
-      void loadRepos();
+    const input = $<HTMLInputElement>('token-input');
+    const btn = $<HTMLButtonElement>('token-save');
+    if (!input.value.trim()) return tokenMsg('err', 'Pega tu token primero.');
+    btn.disabled = true;
+    tokenMsg('ok', '');
+    renderTokenState('busy');
+    const res = await api.token.set(input.value);
+    btn.disabled = false;
+    if (!res.ok) {
+      renderTokenState(tokenInfo.has ? 'ok' : 'err');
+      return tokenMsg('err', res.error ?? 'No se pudo guardar');
     }
+    input.value = '';
+    toast(`Token guardado para @${res.login}`, 'ok');
+    await refreshTokenStatus();
+    void loadRepos();
+  };
+  $('token-refresh').onclick = () => void refreshTokenStatus();
+  $('token-edit').onclick = () => {
+    tokenEditing = !tokenEditing;
+    renderTokenState(tokenInfo.has ? 'ok' : 'none');
+    if (tokenEditing) $('token-input').focus();
   };
   $('token-clear').onclick = async () => {
     await api.token.clear();
-    toast('Token eliminado', 'info');
-    void refreshTokenStatus();
+    tokenMsg('ok', '');
+    await refreshTokenStatus();
     void loadRepos();
   };
 
@@ -359,6 +407,7 @@ document.querySelectorAll<HTMLButtonElement>('.nav').forEach((b) => {
     b.classList.add('active');
     document.querySelectorAll('.view').forEach((v) => v.classList.add('hidden'));
     $(`view-${b.dataset.view}`).classList.remove('hidden');
+    if (b.dataset.view === 'settings' && api.platform !== 'web') void refreshTokenStatus();
   };
 });
 

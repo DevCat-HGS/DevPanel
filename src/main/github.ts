@@ -2,7 +2,7 @@ import type { Commit, GithubProfile, Repo, WorkflowRun } from '../shared/api';
 
 import { getToken, tokenOwns } from './token';
 
-const API = 'https://api.github.com';
+const API = process.env.DEVPANEL_GITHUB_API ?? 'https://api.github.com';
 
 async function gh<T>(path: string): Promise<T> {
   const res = await fetch(`${API}${path}`, {

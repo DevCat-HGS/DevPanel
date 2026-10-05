@@ -120,9 +120,9 @@ try {
   await page.click('.nav[data-view="settings"]');
   await page.fill('#token-input', 'short');
   await page.click('#token-save');
-  await page.waitForSelector('.toast.bad');
-  assert.match(await page.textContent('.toast.bad'), /formato válido/);
-  assert.match(await page.textContent('#token-status'), /Sin token/);
+  await page.waitForFunction(() => document.getElementById('token-msg').textContent.includes('formato válido'));
+  assert.ok(await page.locator('#token-msg.err').isVisible(), 'the error stays on screen (not a vanishing toast)');
+  assert.equal(await page.getAttribute('#token-state', 'data-state'), 'err');
   assert.ok(await page.locator('#pref-alerts').isChecked(), 'build alerts default to on');
   await page.click('#pref-alerts + i');
   const saved = await page.evaluate(() => window.devpanel.settings.get());
@@ -141,7 +141,7 @@ try {
   // ---------- language ----------
   await page.selectOption('#pref-lang', 'en');
   await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Your projects');
-  assert.match(await page.textContent('#token-status'), /No token/);
+  assert.equal(await page.textContent('#token-card h3'), 'GitHub token (optional)');
   assert.equal(await page.locator('#view-settings h3', { hasText: 'Language' }).count(), 1, 'static headings are translated');
   await page.click('.nav[data-view="projects"]');
   assert.ok((await page.locator('.stat .label').allTextContents()).includes('Languages'), 'strings built from code are translated too');
@@ -149,7 +149,7 @@ try {
   await page.click('.nav[data-view="settings"]');
   await page.selectOption('#pref-lang', 'es');
   await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Tus proyectos');
-  assert.match(await page.textContent('#token-status'), /Sin token/);
+  assert.equal(await page.textContent('#token-card h3'), 'Token de GitHub (opcional)');
   log('the language can be switched to English and back, including text built from code');
 
   // ---------- code dialog (same pad as the installer) ----------

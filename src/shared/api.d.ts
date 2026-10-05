@@ -124,7 +124,7 @@ export interface DevPanelApi {
     onSettingsChanged(cb: () => void): void;
   };
   token: {
-    status(): Promise<{ has: boolean; login?: string }>;
+    status(): Promise<{ has: boolean; login?: string; limit?: number; remaining?: number }>;
     /** Validates the token against GitHub and stores it encrypted. */
     set(token: string): Promise<{ ok: boolean; login?: string; error?: string }>;
     clear(): Promise<void>;

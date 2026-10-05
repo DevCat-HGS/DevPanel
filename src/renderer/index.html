@@ -100,14 +100,12 @@
             <span class="ico" data-icon="tools" aria-hidden="true"></span>
             <span class="nav-label">Tools</span>
           </button>
-          <button class="nav" data-view="settings">
-            <span class="ico" data-icon="settings" aria-hidden="true"></span>
-            <span class="nav-label">Settings</span>
-          </button>
         </nav>
         <div id="update-box" class="update-box hidden" role="status"></div>
         <div class="side-foot">
-          <span id="platform-badge" class="muted"></span>
+          <button class="nav nav-settings" data-view="settings" title="Settings" aria-label="Settings">
+            <span class="ico" data-icon="settings" aria-hidden="true"></span>
+          </button>
           <button id="theme-toggle" class="icon-btn" aria-label="Cambiar tema" title="Cambiar tema">
             <span data-icon="moon"></span>
           </button>
@@ -210,12 +208,24 @@
           <div id="token-card" class="card">
             <h3>Token de GitHub (opcional)</h3>
             <p class="muted">Sube el límite de la API de 60 a 5000 consultas por hora y muestra tus repos privados. Se guarda cifrado en este equipo.</p>
-            <p id="token-status" class="muted"></p>
-            <div class="row">
-              <input id="token-input" type="password" autocomplete="off" placeholder="ghp_…  ó  github_pat_…" aria-label="Token de GitHub" />
-              <button id="token-save" class="btn">Guardar</button>
-              <button id="token-clear" class="btn danger">Quitar</button>
+            <p class="muted">En GitHub: <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">Crear un token</a>. Para ver repos privados necesita permiso de lectura (<code>repo</code>, o <code>Contents: Read</code> en un token fine-grained).</p>
+
+            <div id="token-state" class="token-state" data-state="none">
+              <span id="ts-icon" class="ts-icon" aria-hidden="true"></span>
+              <span id="ts-main" class="ts-main"></span>
+              <span id="ts-chips" class="ts-chips"></span>
+              <span id="ts-actions" class="ts-actions hidden">
+                <button id="token-refresh" class="icon-btn" title="Volver a comprobar" aria-label="Volver a comprobar"><span data-icon="refresh"></span></button>
+                <button id="token-edit" class="icon-btn" title="Reemplazar token" aria-label="Reemplazar token"><span data-icon="edit"></span></button>
+                <button id="token-clear" class="icon-btn danger" title="Quitar token" aria-label="Quitar token"><span data-icon="trash"></span></button>
+              </span>
             </div>
+
+            <div id="token-form" class="row">
+              <input id="token-input" type="password" autocomplete="off" placeholder="ghp_…  ó  github_pat_…" aria-label="Token de GitHub" />
+              <button id="token-save" class="icon-btn primary" title="Guardar" aria-label="Guardar"><span data-icon="check"></span></button>
+            </div>
+            <p id="token-msg" class="token-msg" role="status"></p>
           </div>
 
           <div id="prefs-card" class="card">
