@@ -40,6 +40,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "DevPanel",
+      "artifactName": "DevPanel-Setup-${version}.${ext}",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
       "language": "3082",

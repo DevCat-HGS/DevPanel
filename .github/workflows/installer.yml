@@ -1,0 +1,42 @@
+name: Build Installer
+
+# The installer is a thin bootstrapper that downloads the latest DevPanel release,
+# so it only needs rebuilding when its own code changes.
+on:
+  push:
+    branches: [developer, main]
+    paths: ["installer/**", ".github/workflows/installer.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: installer/package-lock.json
+
+      - run: npm ci
+      - run: npm run dist
+
+      # A prerelease never counts as "latest", so the app updater and the
+      # installer's own "latest release" lookup keep pointing at real app builds.
+      - name: Publish to the "installer" release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view installer >/dev/null 2>&1 || \
+            gh release create installer --prerelease --title "DevPanel Installer" \
+              --notes "Descarga **DevPanel-Installer.exe** para instalar DevPanel. Siempre instala la última versión."
+          gh release upload installer release/DevPanel-Installer.exe --clobber
