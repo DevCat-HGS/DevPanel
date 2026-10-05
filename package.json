@@ -1,0 +1,38 @@
+{
+  "name": "devpanel",
+  "productName": "DevPanel",
+  "version": "0.1.0",
+  "description": "Desktop dev dashboard with GitHub auto-update and face login",
+  "author": "DevCat-HGS",
+  "license": "MIT",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win --publish never",
+    "release": "npm run build && electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2"
+  },
+  "build": {
+    "appId": "com.devcat.devpanel",
+    "productName": "DevPanel",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "package.json"],
+    "extraResources": [
+      { "from": "python", "to": "python", "filter": ["*.py", "requirements.txt"] }
+    ],
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": true, "perMachine": false },
+    "publish": [
+      { "provider": "github", "owner": "DevCat-HGS", "repo": "DevPanel", "releaseType": "release" }
+    ]
+  }
+}

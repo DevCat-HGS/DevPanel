@@ -1,0 +1,33 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [developer, main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Every push gets a unique, increasing version: <package.json major.minor>.<run number>
+      - name: Set version
+        shell: bash
+        run: |
+          base=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          npm version "$base.${{ github.run_number }}" --no-git-tag-version
+
+      - name: Build, package and publish release
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

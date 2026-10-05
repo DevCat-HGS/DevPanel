@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Biometric data must never be committed
+face.bin
+pin.json
+*.embedding.json
+python/models/

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'"
+    />
+    <title>DevPanel</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Lock screen -->
+    <section id="lock" class="lock hidden">
+      <div class="lock-card">
+        <h1>DevPanel</h1>
+        <p id="lock-msg">Mira a la cámara para entrar</p>
+        <button id="lock-face" class="btn primary">Iniciar con rostro</button>
+        <div class="pin-row">
+          <input id="lock-pin" type="password" placeholder="PIN de respaldo" />
+          <button id="lock-pin-btn" class="btn">Entrar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- App -->
+    <div id="app" class="app hidden">
+      <aside class="sidebar">
+        <div class="brand">DevPanel <span id="version" class="muted"></span></div>
+        <nav>
+          <button class="nav active" data-view="projects">Projects</button>
+          <button class="nav" data-view="settings">Settings</button>
+        </nav>
+        <div id="update-box" class="update-box hidden"></div>
+      </aside>
+
+      <main class="content">
+        <section id="view-projects" class="view">
+          <h2 id="greeting"></h2>
+          <div id="repos" class="grid"></div>
+          <div id="detail" class="detail hidden"></div>
+        </section>
+
+        <section id="view-settings" class="view hidden">
+          <h2>Settings</h2>
+
+          <div class="card">
+            <h3>GitHub</h3>
+            <div class="row">
+              <input id="gh-user" type="text" placeholder="usuario de GitHub" />
+              <button id="gh-save" class="btn">Guardar</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Inicio de sesión facial</h3>
+            <p id="face-status" class="muted"></p>
+            <div class="row">
+              <input id="face-pin" type="password" placeholder="PIN de respaldo (mín. 4)" />
+              <button id="face-enroll" class="btn primary">Registrar mi rostro</button>
+              <button id="face-remove" class="btn danger">Eliminar</button>
+            </div>
+            <p id="face-msg" class="muted"></p>
+          </div>
+
+          <div class="card">
+            <h3>Actualizaciones</h3>
+            <p id="update-msg" class="muted"></p>
+            <button id="update-check" class="btn">Buscar actualizaciones</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>

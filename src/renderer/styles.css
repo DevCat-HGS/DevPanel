@@ -1,0 +1,97 @@
+:root {
+  --bg: #0d0d0d;
+  --panel: #161616;
+  --border: #262626;
+  --text: #ededed;
+  --muted: #8a8a8a;
+  --accent: #8b5cf6;
+  --ok: #22c55e;
+  --warn: #eab308;
+  --bad: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+}
+
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-size: 13px; }
+
+.app { display: flex; height: 100vh; }
+.sidebar {
+  width: 220px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.brand { font-weight: 700; font-size: 18px; }
+nav { display: flex; flex-direction: column; gap: 4px; }
+.nav {
+  background: none; border: 0; color: var(--muted); text-align: left;
+  padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px;
+}
+.nav:hover { background: #1f1f1f; color: var(--text); }
+.nav.active { background: #1f1f1f; color: var(--text); }
+
+.update-box {
+  margin-top: auto; padding: 12px; border-radius: 10px; font-size: 13px;
+  border: 1px solid var(--accent); background: #1a1530;
+}
+.update-box button { margin-top: 8px; width: 100%; }
+
+.content { flex: 1; padding: 28px; overflow: auto; }
+h2 { margin: 0 0 20px; }
+h3 { margin: 0 0 12px; font-size: 15px; }
+
+.grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.card, .repo {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 14px;
+}
+.repo { margin: 0; cursor: pointer; }
+.repo:hover { border-color: var(--accent); }
+.repo .name { font-weight: 600; margin-bottom: 4px; }
+.repo .meta { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+.detail { margin-top: 24px; }
+.commit { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.commit .sha { color: var(--accent); font-family: Consolas, monospace; margin-right: 8px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+.badge.ok { background: #14301f; color: var(--ok); }
+.badge.bad { background: #351616; color: var(--bad); }
+.badge.warn { background: #33290b; color: var(--warn); }
+
+.row, .pin-row { display: flex; gap: 8px; flex-wrap: wrap; }
+input {
+  background: #0f0f0f; border: 1px solid var(--border); color: var(--text);
+  padding: 9px 12px; border-radius: 8px; font-size: 14px; min-width: 220px;
+}
+.btn {
+  background: #222; border: 1px solid var(--border); color: var(--text);
+  padding: 9px 14px; border-radius: 8px; cursor: pointer; font-size: 14px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); }
+.btn.danger { color: var(--bad); }
+a { color: var(--accent); cursor: pointer; }
+
+.lock { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.lock-card {
+  width: 340px; padding: 32px; text-align: center; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 16px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.lock-card h1 { margin: 0; }
+.pin-row input { flex: 1; min-width: 0; }
