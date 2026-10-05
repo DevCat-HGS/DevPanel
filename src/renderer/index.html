@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://api.github.com"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://api.github.com"
     />
     <title>DevPanel</title>
+    <link rel="icon" href="icon.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -17,6 +18,7 @@
     <!-- Lock screen (desktop only, shown when a face is enrolled) -->
     <section id="lock" class="lock hidden" aria-labelledby="lock-title">
       <div class="lock-card">
+        <img class="lock-logo" src="icon.png" alt="" />
         <div id="face-ring" class="face-ring" aria-hidden="true">
           <span data-icon="scan"></span>
         </div>
@@ -35,7 +37,7 @@
     <div id="app" class="app hidden">
       <aside class="sidebar">
         <div class="brand">
-          <span class="logo" data-icon="logo" aria-hidden="true"></span>
+          <img class="logo" src="icon.png" alt="" />
           <span>DevPanel</span>
           <span id="version" class="chip"></span>
         </div>

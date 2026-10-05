@@ -25,8 +25,9 @@ function createWindow(): BrowserWindow {
     height: 720,
     minWidth: 800,
     minHeight: 560,
-    backgroundColor: '#0d0d0d',
+    backgroundColor: '#070d18',
     title: 'DevPanel',
+    icon: join(__dirname, '..', 'renderer', 'icon.png'),
     webPreferences: {
       preload: join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
