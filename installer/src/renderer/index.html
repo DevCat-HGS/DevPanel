@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com"
     />
     <title>Instalador de DevPanel</title>
     <link rel="stylesheet" href="styles.css" />
@@ -64,6 +64,57 @@
         </div>
       </section>
 
+      <!-- 2b. Account: GitHub + verification code -->
+      <section id="s-account" class="screen">
+        <div class="panel wide">
+          <h2>Vincula tu cuenta</h2>
+
+          <div id="acc-existing" class="existing hidden">
+            <img id="acc-ex-avatar" alt="" />
+            <div><b id="acc-ex-name"></b><br /><span class="muted">Ya configurada: se conservan tu código y tu rostro.</span></div>
+          </div>
+
+          <div id="acc-new">
+            <label class="field">
+              <span>Tu usuario de GitHub o el enlace de tu perfil</span>
+              <div class="dir">
+                <input id="gh" type="text" autocomplete="off" placeholder="usuario  ó  https://github.com/usuario" />
+                <button id="gh-btn" class="btn ghost small">Vincular</button>
+              </div>
+            </label>
+            <div id="profile" class="profile hidden">
+              <img id="avatar" alt="" />
+              <div><b id="p-name"></b><br /><span id="p-login" class="muted"></span></div>
+            </div>
+            <div class="codes">
+              <label class="field"><span>Código de verificación (4 a 8 dígitos)</span>
+                <input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Tu código" /></label>
+              <label class="field"><span>Repítelo</span>
+                <input id="pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Repite el código" /></label>
+            </div>
+            <div class="actions tight">
+              <button id="gen" class="btn ghost small">Generar uno</button>
+              <button id="show" class="btn ghost small">Mostrar</button>
+              <span class="muted">Guárdalo: no se puede recuperar.</span>
+            </div>
+          </div>
+
+          <label id="channel-row" class="field hidden">
+            <span>Canal de actualizaciones</span>
+            <select id="channel">
+              <option value="stable">Estable (recomendado)</option>
+              <option value="dev">Desarrollo (cambios adelantados)</option>
+            </select>
+          </label>
+
+          <p id="acc-err" class="error" role="alert"></p>
+          <div class="actions">
+            <button id="acc-back" class="btn ghost">Atrás</button>
+            <button id="acc-next" class="btn primary" disabled>Instalar</button>
+          </div>
+        </div>
+      </section>
+
       <!-- 3. Progress -->
       <section id="s-progress" class="screen">
         <div class="center">
@@ -90,6 +141,22 @@
             <span class="muted">¿Cancelar la instalación?</span>
             <button id="confirm-no" class="btn ghost small">Continuar</button>
             <button id="confirm-yes" class="btn danger small">Sí, cancelar</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3b. Face enrollment (after install) -->
+      <section id="s-face" class="screen">
+        <div class="center">
+          <div id="fring" class="fring">
+            <img src="icon.png" alt="" />
+            <span class="scan"></span>
+          </div>
+          <h2>Activa el reconocimiento facial</h2>
+          <p id="face-msg" class="muted">Se guarda solo una huella numérica cifrada en este equipo, nunca fotos.</p>
+          <div class="actions">
+            <button id="face-skip" class="btn ghost">Omitir por ahora</button>
+            <button id="face-go" class="btn primary">Activar</button>
           </div>
         </div>
       </section>

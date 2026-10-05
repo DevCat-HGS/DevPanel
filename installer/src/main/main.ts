@@ -1,39 +1,76 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { createHash, randomBytes, scryptSync } from 'node:crypto';
 import { once } from 'node:events';
-import { createWriteStream, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import type { InstallOptions, Progress, ReleaseInfo } from '../shared/api';
+import type { GithubProfile, InstallOptions, Progress, ReleaseInfo } from '../shared/api';
 
 const REPO = 'DevCat-HGS/DevPanel';
+/** The development channel (prereleases) is reserved for this account. */
+const DEV_OWNER = 'DevCat-HGS';
+
+// Same folder the app uses, so the account, code and face configured here are picked up on first launch.
+app.setPath('userData', process.env.DEVPANEL_USER_DATA ?? join(app.getPath('appData'), 'DevPanel'));
+const userData = () => app.getPath('userData');
 const defaultDir = () => join(process.env.LOCALAPPDATA ?? app.getPath('home'), 'Programs', 'DevPanel');
 
 let win: BrowserWindow;
 let abort: AbortController | null = null;
 let setupProc: ChildProcess | null = null;
-let phase: 'idle' | 'download' | 'install' = 'idle';
+let faceProc: ChildProcess | null = null;
+let phase: 'idle' | 'download' | 'install' | 'face' = 'idle';
+let installedDir = '';
 
 interface Asset { url: string; size: number; sha256?: string }
-let latest: { info: ReleaseInfo; asset: Asset } | null = null;
+interface Latest { info: ReleaseInfo; asset: Asset }
+const latestCache: Partial<Record<'stable' | 'dev', Latest>> = {};
 
 const send = (p: Progress) => {
   if (!win.isDestroyed()) win.webContents.send('progress', p);
 };
 
-async function fetchLatest(): Promise<NonNullable<typeof latest>> {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel-Installer' },
-  });
-  if (!res.ok) throw new Error(`No se pudo consultar la última versión (GitHub ${res.status})`);
-  const rel = await res.json();
+const GH_HEADERS = { Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel-Installer' };
+
+function pickAsset(rel: any, channel: 'stable' | 'dev'): Latest | null {
   const a = (rel.assets as any[]).find((x) => /setup.*\.exe$/i.test(x.name));
-  if (!a) throw new Error('La última versión aún no tiene instalador publicado');
+  if (!a) return null;
   const digest = typeof a.digest === 'string' && a.digest.startsWith('sha256:') ? a.digest.slice(7) : undefined;
   return {
-    info: { version: String(rel.tag_name).replace(/^v/, ''), sizeBytes: a.size },
+    info: { version: String(rel.tag_name).replace(/^v/, ''), sizeBytes: a.size, channel },
     asset: { url: a.browser_download_url, size: a.size, sha256: digest },
   };
+}
+
+async function fetchRelease(channel: 'stable' | 'dev'): Promise<Latest> {
+  if (latestCache[channel]) return latestCache[channel]!;
+  let found: Latest | null = null;
+  if (channel === 'stable') {
+    // GitHub's "latest" never points at a prerelease, so this is always a stable build.
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: GH_HEADERS });
+    if (!res.ok) throw new Error(`No se pudo consultar la última versión estable (GitHub ${res.status})`);
+    found = pickAsset(await res.json(), 'stable');
+  } else {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, { headers: GH_HEADERS });
+    if (!res.ok) throw new Error(`No se pudo consultar las versiones de desarrollo (GitHub ${res.status})`);
+    const rel = ((await res.json()) as any[]).find((r) => r.prerelease && !r.draft && pickAsset(r, 'dev'));
+    found = rel ? pickAsset(rel, 'dev') : null;
+  }
+  if (!found) throw new Error('Esa versión aún no tiene instalador publicado');
+  return (latestCache[channel] = found);
+}
+
+async function lookup(input: string): Promise<GithubProfile> {
+  const t = input.trim().replace(/^@/, '');
+  const m = t.match(/github\.com\/([A-Za-z0-9-]{1,39})/i);
+  const user = m ? m[1] : t;
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(user))
+    throw new Error('Escribe un usuario o enlace de GitHub válido');
+  const res = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}`, { headers: GH_HEADERS });
+  if (res.status === 404) throw new Error(`No existe el usuario "${user}" en GitHub`);
+  if (!res.ok) throw new Error(`GitHub respondió ${res.status}. Intenta de nuevo en unos minutos.`);
+  const u = await res.json();
+  return { login: u.login, name: u.name, avatar: u.avatar_url };
 }
 
 async function download(asset: Asset, file: string, signal: AbortSignal): Promise<void> {
@@ -81,10 +118,96 @@ function runSetup(file: string, dir: string): Promise<number> {
   });
 }
 
+// ---------- account (same files the app reads on first launch) ----------
+function saveAccount(account: { github: string; pin: string }): void {
+  if (!/^\d{4,8}$/.test(account.pin)) throw new Error('El código debe tener de 4 a 8 dígitos');
+  mkdirSync(userData(), { recursive: true });
+  const salt = randomBytes(16);
+  writeFileSync(
+    join(userData(), 'pin.json'),
+    JSON.stringify({ salt: salt.toString('hex'), hash: scryptSync(account.pin, salt, 32).toString('hex') }),
+  );
+  writeFileSync(
+    join(userData(), 'settings.json'),
+    JSON.stringify({ githubUser: account.github, onboarded: true }, null, 2),
+  );
+}
+
+function existingAccount(): { githubUser: string } | null {
+  try {
+    const s = JSON.parse(readFileSync(join(userData(), 'settings.json'), 'utf8'));
+    if (s.onboarded && s.githubUser && existsSync(join(userData(), 'pin.json'))) return { githubUser: s.githubUser };
+  } catch {
+    /* no previous setup */
+  }
+  return null;
+}
+
+// ---------- face enrollment (Python sidecar shipped inside the installed app) ----------
+function findPython(): string | null {
+  for (const c of [process.env.DEVPANEL_PYTHON, 'python', 'py'].filter(Boolean) as string[]) {
+    if (spawnSync(c, ['--version'], { windowsHide: true }).status === 0) return c;
+  }
+  return null;
+}
+
+function runToEnd(cmd: string, args: string[], proc: (p: ChildProcess) => void): Promise<{ code: number; out: string }> {
+  return new Promise((resolve) => {
+    const p = spawn(cmd, args, { windowsHide: true });
+    proc(p);
+    let out = '';
+    p.stdout?.on('data', (d) => (out += d));
+    p.on('error', () => resolve({ code: 1, out }));
+    p.on('close', (code) => resolve({ code: code ?? 1, out }));
+  });
+}
+
+async function enrollFace(): Promise<{ ok: boolean; error?: string }> {
+  const dir = join(installedDir, 'resources', 'python');
+  const script = join(dir, 'face_auth.py');
+  if (!existsSync(script)) return { ok: false, error: 'No se encontró el módulo facial en la instalación' };
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'El cifrado del sistema no está disponible' };
+
+  const py = findPython();
+  if (!py)
+    return { ok: false, error: 'Falta Python. Instálalo desde python.org (marca "Add to PATH") y vuelve a intentarlo, o actívalo luego en Settings.' };
+
+  send({ phase: 'face-state', state: 'preparing' });
+  const hasCv = spawnSync(py, ['-c', 'import cv2; cv2.FaceDetectorYN'], { windowsHide: true }).status === 0;
+  if (!hasCv) {
+    const pip = await runToEnd(py, ['-m', 'pip', 'install', '-r', join(dir, 'requirements.txt')], (p) => (faceProc = p));
+    faceProc = null;
+    if (pip.code !== 0) return { ok: false, error: 'No se pudo instalar OpenCV con pip. Revisa tu conexión e inténtalo de nuevo.' };
+  }
+
+  send({ phase: 'face-state', state: 'scanning' });
+  mkdirSync(join(userData(), 'models'), { recursive: true });
+  const r = await runToEnd(py, [script, 'enroll', '--models-dir', join(userData(), 'models')], (p) => (faceProc = p));
+  faceProc = null;
+  try {
+    const result = JSON.parse(r.out.trim().split('\n').filter(Boolean).pop() ?? '');
+    if (!result.ok) return { ok: false, error: result.error ?? 'No se pudo registrar el rostro' };
+    // Only embeddings are stored (never images), encrypted with the OS keychain.
+    writeFileSync(join(userData(), 'face.bin'), safeStorage.encryptString(JSON.stringify(result.embeddings)));
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Se canceló o falló el registro del rostro' };
+  }
+}
+
+// ---------- install ----------
 async function install(opts: InstallOptions): Promise<void> {
   if (phase !== 'idle') return;
   if (!isAbsolute(opts.dir) || /["<>|*?]/.test(opts.dir)) {
     return send({ phase: 'error', message: 'La carpeta de instalación no es válida' });
+  }
+  if (opts.channel === 'dev') {
+    const who = opts.account?.github ?? existingAccount()?.githubUser ?? '';
+    if (who.toLowerCase() !== DEV_OWNER.toLowerCase())
+      return send({ phase: 'error', message: `El canal de desarrollo está reservado para ${DEV_OWNER}` });
+  }
+  if (opts.account && !/^\d{4,8}$/.test(opts.account.pin)) {
+    return send({ phase: 'error', message: 'El código debe tener de 4 a 8 dígitos' });
   }
 
   const tmp = join(app.getPath('temp'), 'devpanel-installer');
@@ -95,7 +218,7 @@ async function install(opts: InstallOptions): Promise<void> {
   try {
     phase = 'download';
     send({ phase: 'download', percent: 0, got: 0, total: 0, speed: 0 });
-    latest ??= await fetchLatest();
+    const latest = await fetchRelease(opts.channel);
     await download(latest.asset, file, abort.signal);
 
     phase = 'install';
@@ -104,16 +227,22 @@ async function install(opts: InstallOptions): Promise<void> {
     if (code !== 0)
       throw new Error(`El instalador terminó con código ${code}. Cierra DevPanel si está abierto e inténtalo de nuevo.`);
 
-    if (!opts.desktopShortcut) {
-      rmSync(join(app.getPath('desktop'), 'DevPanel.lnk'), { force: true });
+    installedDir = opts.dir;
+    if (!opts.desktopShortcut) rmSync(join(app.getPath('desktop'), 'DevPanel.lnk'), { force: true });
+
+    if (opts.account) {
+      saveAccount(opts.account);
+      phase = 'face';
+      send({ phase: 'face' });
+    } else {
+      phase = 'idle';
+      send({ phase: 'done', dir: opts.dir });
     }
-    send({ phase: 'done', dir: opts.dir });
-    if (opts.launchAfter) launch(opts.dir);
   } catch (e) {
+    phase = 'idle';
     if (abort?.signal.aborted) send({ phase: 'cancelled' });
     else send({ phase: 'error', message: (e as Error).message });
   } finally {
-    phase = 'idle';
     abort = null;
     rmSync(file, { force: true });
   }
@@ -128,7 +257,7 @@ function launch(dir: string): void {
 app.whenReady().then(() => {
   win = new BrowserWindow({
     width: 860,
-    height: 540,
+    height: 620,
     frame: false,
     transparent: true,
     resizable: false,
@@ -145,13 +274,15 @@ app.whenReady().then(() => {
   void win.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
 
   ipcMain.handle('info', async () => {
+    const base = { defaultDir: defaultDir(), existing: existingAccount(), devOwner: DEV_OWNER };
     try {
-      latest = await fetchLatest();
-      return { defaultDir: defaultDir(), release: latest.info };
+      return { ...base, release: (await fetchRelease('stable')).info };
     } catch (e) {
-      return { defaultDir: defaultDir(), release: null, error: (e as Error).message };
+      return { ...base, release: null, error: (e as Error).message };
     }
   });
+
+  ipcMain.handle('lookup', (_e, input: string) => lookup(input));
 
   ipcMain.handle('pick-dir', async (_e, current: string) => {
     const r = await dialog.showOpenDialog(win, {
@@ -168,11 +299,29 @@ app.whenReady().then(() => {
   ipcMain.handle('cancel', () => {
     if (phase === 'download') abort?.abort(); // the installer step itself can't be interrupted safely
   });
+
+  ipcMain.handle('face:enroll', async () => {
+    if (phase !== 'face') return { ok: false, error: 'La instalación aún no terminó' };
+    const r = await enrollFace();
+    if (r.ok) {
+      phase = 'idle';
+      send({ phase: 'done', dir: installedDir });
+    }
+    return r;
+  });
+  ipcMain.handle('face:cancel', () => faceProc?.kill());
+  ipcMain.handle('setup:finish', () => {
+    faceProc?.kill();
+    phase = 'idle';
+    send({ phase: 'done', dir: installedDir });
+  });
+
   ipcMain.handle('launch', (_e, dir: string) => launch(dir));
   ipcMain.handle('win:minimize', () => win.minimize());
   ipcMain.handle('win:close', () => {
     if (phase === 'install') return; // never kill the app mid-install
     abort?.abort();
+    faceProc?.kill();
     app.quit();
   });
 });

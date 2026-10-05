@@ -177,3 +177,43 @@ input[type='text'] {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------- Account / face ---------- */
+.panel.wide { width: 560px; gap: 14px; max-height: 100%; overflow: auto; }
+.panel .codes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+.panel .codes input, #gh { width: 100%; }
+input[type='password'] {
+  padding: 11px 14px; border-radius: 12px; font: inherit; font-size: 13px; color: var(--text);
+  background: rgba(7, 13, 24, 0.7); border: 1px solid var(--border);
+}
+.actions.tight { margin-top: 0; gap: 8px; }
+.profile, .existing {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px;
+  background: rgba(34, 211, 238, 0.09); border: 1px solid rgba(34, 211, 238, 0.4); animation: rise 0.4s var(--ease) both;
+}
+.profile img, .existing img { width: 44px; height: 44px; border-radius: 50%; }
+select {
+  padding: 11px 14px; border-radius: 12px; font: inherit; font-size: 13px; color: var(--text);
+  background: rgba(7, 13, 24, 0.9); border: 1px solid var(--border);
+}
+.fring { position: relative; width: 120px; height: 120px; border-radius: 50%; margin-bottom: 8px; border: 2px solid var(--cyan); box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.12); }
+.fring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.fring::before, .fring::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--cyan); opacity: 0; }
+.fring.scanning::before { animation: pulse-ring 1.8s ease-out infinite; }
+.fring.scanning::after { animation: pulse-ring 1.8s ease-out 0.9s infinite; }
+.fring .scan { position: absolute; left: 8%; right: 8%; top: 10%; height: 3px; border-radius: 3px; opacity: 0; background: linear-gradient(90deg, transparent, var(--cyan), transparent); box-shadow: 0 0 14px var(--cyan); }
+.fring.scanning .scan { opacity: 1; animation: scanline 1.5s ease-in-out infinite alternate; }
+.fring.fail { border-color: var(--bad); animation: shake 0.45s; }
+@keyframes pulse-ring { from { opacity: 0.7; transform: scale(1); } to { opacity: 0; transform: scale(1.7); } }
+@keyframes scanline { to { top: 88%; } }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+
+/* ---------- Compact account screen + dark scrollbars ---------- */
+.panel.wide { padding: 22px 30px; gap: 10px; width: 580px; }
+.panel.wide h2 { font-size: 20px; }
+.panel.wide .field { gap: 6px; }
+.panel.wide .actions { margin-top: 2px; }
+.panel.wide .error { min-height: 1.1em; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 197, 255, 0.22); border-radius: 8px; }

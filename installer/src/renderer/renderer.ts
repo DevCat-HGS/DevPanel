@@ -1,10 +1,10 @@
-import type { InstallOptions, Progress } from '../shared/api';
+import type { GithubProfile, InstallOptions, Progress } from '../shared/api';
 
 const api = window.installer;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 // ---------- Screen routing ----------
-type Screen = 'welcome' | 'options' | 'progress' | 'done' | 'error';
+type Screen = 'welcome' | 'options' | 'account' | 'progress' | 'face' | 'done' | 'error';
 function show(name: Screen): void {
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === `s-${name}`));
 }
@@ -60,6 +60,9 @@ function startEmbers(): void {
 let installDir = '';
 let installedDir = '';
 let lastOpts: InstallOptions | null = null;
+let existing: { githubUser: string } | null = null;
+let devOwner = '';
+let linked: GithubProfile | null = null;
 
 function setProgress(percent: number | null): void {
   const ring = document.querySelector('.ring') as HTMLElement;
@@ -79,6 +82,8 @@ function startInstall(): void {
     dir: installDir,
     desktopShortcut: $<HTMLInputElement>('opt-desktop').checked,
     launchAfter: $<HTMLInputElement>('opt-launch').checked,
+    channel: $<HTMLSelectElement>('channel').value === 'dev' ? 'dev' : 'stable',
+    account: existing || !linked ? undefined : { github: linked.login, pin: $<HTMLInputElement>('pin').value },
   };
   $('cancel-row').classList.remove('hidden');
   $('confirm-row').classList.add('hidden');
@@ -105,9 +110,26 @@ api.onProgress((p: Progress) => {
       $('cancel-row').classList.add('hidden');
       $('confirm-row').classList.add('hidden');
       break;
+    case 'face':
+      resetFace();
+      show('face');
+      break;
+    case 'face-state':
+      $('fring').classList.add('scanning');
+      $('face-msg').textContent =
+        p.state === 'preparing'
+          ? 'Preparando el reconocimiento facial (puede tardar un minuto la primera vez)…'
+          : 'Mira a la cámara y mueve un poco la cabeza…';
+      break;
     case 'done':
       installedDir = p.dir;
       show('done');
+      if ($<HTMLInputElement>('opt-launch').checked) {
+        setTimeout(() => {
+          void api.launch(installedDir);
+          api.win.close();
+        }, 1800);
+      }
       break;
     case 'cancelled':
       $('err-title').textContent = 'Instalación cancelada';
@@ -125,8 +147,8 @@ api.onProgress((p: Progress) => {
 // ---------- Wiring ----------
 $('min').onclick = () => api.win.minimize();
 $('close').onclick = () => api.win.close();
-$('go-install').onclick = startInstall;
-$('install2').onclick = startInstall;
+$('go-install').onclick = openAccount;
+$('install2').onclick = openAccount;
 $('go-options').onclick = () => show('options');
 $('back').onclick = () => show('welcome');
 $('pick').onclick = async () => {
@@ -164,6 +186,8 @@ addEventListener('keydown', (e) => {
   startEmbers();
   const info = await api.info();
   installDir = info.defaultDir;
+  existing = info.existing;
+  devOwner = info.devOwner;
   $<HTMLInputElement>('dir').value = installDir;
 
   if (info.release) {
@@ -176,3 +200,106 @@ addEventListener('keydown', (e) => {
     err.classList.remove('hidden');
   }
 })();
+
+
+// ---------- Account step ----------
+function validAccount(): boolean {
+  if (existing) return true;
+  const pin = $<HTMLInputElement>('pin').value;
+  return !!linked && /^\d{4,8}$/.test(pin) && pin === $<HTMLInputElement>('pin2').value;
+}
+
+function refreshAccountButton(): void {
+  const btn = $<HTMLButtonElement>('acc-next');
+  btn.disabled = !validAccount();
+  const pin = $<HTMLInputElement>('pin').value;
+  const err = $('acc-err');
+  if (existing || !linked) return;
+  if (pin && !/^\d{4,8}$/.test(pin)) err.textContent = 'El código debe tener de 4 a 8 dígitos';
+  else if ($<HTMLInputElement>('pin2').value && pin !== $<HTMLInputElement>('pin2').value) err.textContent = 'Los códigos no coinciden';
+  else err.textContent = '';
+}
+
+function updateChannelRow(login: string): void {
+  const owner = !!login && login.toLowerCase() === devOwner.toLowerCase();
+  $('channel-row').classList.toggle('hidden', !owner);
+  if (!owner) $<HTMLSelectElement>('channel').value = 'stable';
+}
+
+function openAccount(): void {
+  $('acc-existing').classList.toggle('hidden', !existing);
+  $('acc-new').classList.toggle('hidden', !!existing);
+  $('acc-err').textContent = '';
+  if (existing) {
+    $('acc-ex-name').textContent = `@${existing.githubUser}`;
+    $<HTMLImageElement>('acc-ex-avatar').src = `https://github.com/${encodeURIComponent(existing.githubUser)}.png?size=88`;
+    updateChannelRow(existing.githubUser);
+  }
+  refreshAccountButton();
+  show('account');
+}
+
+async function linkGithub(): Promise<void> {
+  const btn = $<HTMLButtonElement>('gh-btn');
+  btn.disabled = true;
+  $('acc-err').textContent = '';
+  try {
+    linked = await api.lookup($<HTMLInputElement>('gh').value);
+    $<HTMLImageElement>('avatar').src = linked.avatar;
+    $('p-name').textContent = linked.name ?? linked.login;
+    $('p-login').textContent = `@${linked.login}`;
+    $('profile').classList.remove('hidden');
+    updateChannelRow(linked.login);
+  } catch (e) {
+    linked = null;
+    $('profile').classList.add('hidden');
+    updateChannelRow('');
+    $('acc-err').textContent = (e as Error).message;
+  }
+  btn.disabled = false;
+  refreshAccountButton();
+}
+
+$('gh-btn').onclick = () => void linkGithub();
+$('gh').addEventListener('keydown', (e) => e.key === 'Enter' && void linkGithub());
+$('gh').addEventListener('input', () => {
+  linked = null;
+  $('profile').classList.add('hidden');
+  updateChannelRow('');
+  refreshAccountButton();
+});
+$('pin').addEventListener('input', refreshAccountButton);
+$('pin2').addEventListener('input', refreshAccountButton);
+$('gen').onclick = () => {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
+  $<HTMLInputElement>('pin').value = $<HTMLInputElement>('pin2').value = String(n).padStart(6, '0');
+  $<HTMLInputElement>('pin').type = $<HTMLInputElement>('pin2').type = 'text';
+  refreshAccountButton();
+  $('acc-err').textContent = 'Este es tu código: anótalo, no se puede recuperar.';
+};
+$('show').onclick = () => {
+  const t = $<HTMLInputElement>('pin').type === 'password' ? 'text' : 'password';
+  $<HTMLInputElement>('pin').type = $<HTMLInputElement>('pin2').type = t;
+};
+$('acc-back').onclick = () => show('welcome');
+$('acc-next').onclick = () => validAccount() && startInstall();
+
+// ---------- Face step ----------
+function resetFace(): void {
+  $('fring').classList.remove('scanning', 'fail');
+  $('face-msg').textContent = 'Se guarda solo una huella numérica cifrada en este equipo, nunca fotos.';
+  $<HTMLButtonElement>('face-go').disabled = false;
+}
+
+$('face-go').onclick = async () => {
+  const btn = $<HTMLButtonElement>('face-go');
+  btn.disabled = true;
+  const r = await api.enrollFace();
+  $('fring').classList.remove('scanning');
+  if (r.ok) return; // main sends the 'done' phase
+  btn.disabled = false;
+  $('fring').classList.add('fail');
+  setTimeout(() => $('fring').classList.remove('fail'), 500);
+  $('face-msg').textContent = r.error ?? 'No se pudo registrar el rostro';
+};
+$('face-skip').onclick = () => void api.finishSetup();
