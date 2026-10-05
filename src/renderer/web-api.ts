@@ -15,6 +15,7 @@ const defaults: Settings = {
   localProjects: [],
   lastSeenVersion: '',
   language: 'auto',
+  faceLiveness: false,
 };
 
 async function gh<T>(path: string): Promise<T> {
@@ -96,6 +97,7 @@ export function createWebApi(): DevPanelApi {
       setPin: async () => ({ ok: false, error: 'El código solo está en la app de escritorio' }),
       enroll: async () => ({ ok: false, error: 'El login facial solo está en la app de escritorio' }),
       verify: async () => ({ ok: false, error: 'No disponible en la web' }),
+      onPrompt: () => {},
       unlockWithPin: async () => ({ ok: false, error: 'No disponible en la web' }),
       remove: noop,
     },

@@ -18,6 +18,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from liveness import HeadTurnChallenge, yaw_ratio
+
 ZOO = "https://github.com/opencv/opencv_zoo/raw/main/models"
 MODELS = {
     "detector": ("face_detection_yunet_2023mar.onnx", f"{ZOO}/face_detection_yunet/face_detection_yunet_2023mar.onnx"),
@@ -30,6 +32,8 @@ VERIFY_TIMEOUT_S = 10
 MIN_DET_SCORE = 0.9
 MATCH_THRESHOLD = 0.40  # SFace cosine; OpenCV's recommended default is 0.363
 MATCHES_REQUIRED = 3
+TURN_TIMEOUT_S = 9
+RETURN_TIMEOUT_S = 6
 
 
 def finish(payload: dict) -> None:
@@ -97,29 +101,74 @@ def enroll(detector, recognizer) -> None:
     finish({"ok": True, "embeddings": [s.tolist() for s in samples]})
 
 
-def verify(detector, recognizer) -> None:
+def landmarks(face):
+    return face[4:14].reshape(5, 2)
+
+
+def say(**payload) -> None:
+    """Progress/prompt line for UIs; consumers treat only the LAST line as the result."""
+    print(json.dumps(payload), flush=True)
+
+
+def verify(detector, recognizer, liveness: bool) -> None:
     stored = [np.array(e, dtype=np.float32).reshape(1, -1) for e in json.loads(sys.stdin.read())]
-    cap = open_camera()
-    matches, best = 0, 0.0
-    for frame in frames(cap, VERIFY_TIMEOUT_S):
-        face = best_face(detector, frame)
-        if face is None:
-            continue
+
+    def score_of(frame, face) -> float:
         probe = embed(recognizer, frame, face)
-        score = max(recognizer.match(probe, s, cv2.FaceRecognizerSF_FR_COSINE) for s in stored)
-        best = max(best, float(score))
-        matches = matches + 1 if score >= MATCH_THRESHOLD else 0  # consecutive matches only
-        if matches >= MATCHES_REQUIRED:
+        return float(max(recognizer.match(probe, s, cv2.FaceRecognizerSF_FR_COSINE) for s in stored))
+
+    cap = open_camera()
+    best = 0.0
+
+    def consecutive_matches(timeout_s: float, needed: int) -> bool:
+        nonlocal best
+        run = 0
+        for frame in frames(cap, timeout_s):
+            face = best_face(detector, frame)
+            if face is None:
+                continue
+            score = score_of(frame, face)
+            best = max(best, score)
+            run = run + 1 if score >= MATCH_THRESHOLD else 0  # consecutive matches only
+            if run >= needed:
+                return True
+        return False
+
+    if not consecutive_matches(VERIFY_TIMEOUT_S, MATCHES_REQUIRED):
+        cap.release()
+        finish({"ok": False, "score": best, "error": "No te reconocí. Intenta de nuevo o usa el PIN."})
+
+    if liveness:
+        challenge = HeadTurnChallenge()
+        say(challenge=challenge.direction)
+        announced_back = False
+        for frame in frames(cap, TURN_TIMEOUT_S):
+            face = best_face(detector, frame)
+            if face is None:
+                continue
+            stage = challenge.update(yaw_ratio(landmarks(face)))
+            if stage == "back" and not announced_back:
+                announced_back = True
+                say(prompt="return")
+            if challenge.done:
+                break
+        if not challenge.done:
             cap.release()
-            finish({"ok": True, "score": best})
+            finish({"ok": False, "score": best, "error": "No pude comprobar que eres una persona real. Gira la cabeza hacia el lado que se te pide."})
+        # the same person must come back after the turn (a photo swap mid-challenge fails here)
+        if not consecutive_matches(RETURN_TIMEOUT_S, 2):
+            cap.release()
+            finish({"ok": False, "score": best, "error": "No te reconocí. Intenta de nuevo o usa el PIN."})
+
     cap.release()
-    finish({"ok": False, "score": best, "error": "No te reconocí. Intenta de nuevo o usa el PIN."})
+    finish({"ok": True, "score": best, "live": liveness})
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["enroll", "verify"])
+    ap.add_argument("mode", choices=["enroll", "verify", "selftest"])
     ap.add_argument("--models-dir", required=True)
+    ap.add_argument("--liveness", action="store_true", help="verify: also require a head-turn challenge")
     args = ap.parse_args()
 
     try:
@@ -129,7 +178,11 @@ def main() -> None:
 
     detector = cv2.FaceDetectorYN.create(det_path, "", (320, 320), 0.9, 0.3, 5000)
     recognizer = cv2.FaceRecognizerSF.create(rec_path, "")
-    (enroll if args.mode == "enroll" else verify)(detector, recognizer)
+    if args.mode == "selftest":  # models load and OpenCV works; no camera involved (used by CI)
+        finish({"ok": True, "selftest": True, "opencv": cv2.__version__})
+    if args.mode == "enroll":
+        enroll(detector, recognizer)
+    verify(detector, recognizer, args.liveness)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ const api: DevPanelApi = {
     setPin: (pin) => ipcRenderer.invoke('pin:set', pin),
     enroll: (pin) => ipcRenderer.invoke('face:enroll', pin),
     verify: () => ipcRenderer.invoke('face:verify'),
+    onPrompt: (cb) => ipcRenderer.on('face:prompt', (_e, p) => cb(p)),
     unlockWithPin: (pin) => ipcRenderer.invoke('face:pin', pin),
     remove: () => ipcRenderer.invoke('face:remove'),
   },

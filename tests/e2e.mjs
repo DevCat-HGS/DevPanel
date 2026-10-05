@@ -190,6 +190,15 @@ try {
   await shot(page, '6-lock');
   log('second run shows the lock screen (code only, since face was skipped)');
 
+  // anti-photo challenge prompts (sent by the main process while the face module runs)
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('face:prompt', { challenge: 'left' }));
+  await page.waitForFunction(() => document.getElementById('lock-msg').textContent === 'Gira la cabeza hacia tu izquierda');
+  assert.equal(await page.getAttribute('#face-ring', 'data-turn'), 'left');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('face:prompt', { prompt: 'return' }));
+  await page.waitForFunction(() => document.getElementById('lock-msg').textContent.includes('vuelve a mirar al frente'));
+  assert.equal(await page.getAttribute('#face-ring', 'data-turn'), null);
+  log('the anti-photo challenge prompts show on the lock screen');
+
   await page.keyboard.type('0000');
   await page.waitForSelector('.lock-card.shake');
   assert.ok(await page.locator('#app').isHidden());

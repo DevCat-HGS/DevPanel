@@ -504,3 +504,9 @@ pre.err { color: var(--bad); }
 .notes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .notes p { margin: 0; }
 .update-box .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font: inherit; font-size: 12px; margin-top: 6px; text-decoration: underline; }
+
+/* ---------- Anti-photo challenge hint ---------- */
+.face-ring[data-turn='left'] .avatar { animation: nudge-left 1.1s ease-in-out infinite; }
+.face-ring[data-turn='right'] .avatar { animation: nudge-right 1.1s ease-in-out infinite; }
+@keyframes nudge-left { 50% { transform: translateX(10px) rotateY(-18deg); } }
+@keyframes nudge-right { 50% { transform: translateX(-10px) rotateY(18deg); } }

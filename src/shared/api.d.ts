@@ -60,6 +60,8 @@ export interface Settings {
   lastSeenVersion: string;
   /** Interface language; 'auto' follows the system. */
   language: 'auto' | 'es' | 'en';
+  /** Ask for a head turn when signing in with the face (anti-photo check). */
+  faceLiveness: boolean;
 }
 
 export interface GithubProfile {
@@ -110,6 +112,8 @@ export interface DevPanelApi {
     /** Registers the face; when `pin` is given it is saved first. */
     enroll(pin?: string): Promise<FaceResult>;
     verify(): Promise<FaceResult>;
+    /** Live instructions during the anti-photo challenge. */
+    onPrompt(cb: (p: { challenge?: 'left' | 'right'; prompt?: 'return' }) => void): void;
     unlockWithPin(pin: string): Promise<FaceResult>;
     remove(): Promise<void>;
   };

@@ -256,6 +256,8 @@ async function initPrefs(): Promise<void> {
     toast((e.target as HTMLInputElement).checked ? 'Alertas de build activadas' : 'Alertas de build desactivadas', 'info');
   };
 
+  $<HTMLInputElement>('pref-liveness').checked = s.faceLiveness;
+  $('pref-liveness').onchange = (e) => void api.settings.set({ faceLiveness: (e.target as HTMLInputElement).checked });
   $<HTMLInputElement>('pref-tray').checked = s.closeToTray;
   $<HTMLInputElement>('pref-login').checked = s.openAtLogin;
   $('pref-tray').onchange = (e) => void api.settings.set({ closeToTray: (e.target as HTMLInputElement).checked });
@@ -665,6 +667,18 @@ async function boot(): Promise<void> {
   }
   await initLock();
 }
+
+// Anti-photo challenge: tell the user which way to turn, and nudge the ring in that direction.
+api.face.onPrompt((p) => {
+  const ring = $('face-ring');
+  if (p.challenge) {
+    $('lock-msg').textContent = p.challenge === 'left' ? 'Gira la cabeza hacia tu izquierda' : 'Gira la cabeza hacia tu derecha';
+    ring.dataset.turn = p.challenge;
+  } else if (p.prompt === 'return') {
+    $('lock-msg').textContent = 'Muy bien, ahora vuelve a mirar al frente';
+    delete ring.dataset.turn;
+  }
+});
 
 // Hidden to the tray / by the global shortcut: lock again so the panel is never left open.
 api.app.onHidden(async () => {

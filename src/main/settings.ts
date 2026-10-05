@@ -12,6 +12,7 @@ export const defaults: Settings = {
   localProjects: [],
   lastSeenVersion: '',
   language: 'auto',
+  faceLiveness: true,
 };
 
 const file = () => join(app.getPath('userData'), 'settings.json');
