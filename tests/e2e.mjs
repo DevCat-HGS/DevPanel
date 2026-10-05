@@ -163,6 +163,28 @@ try {
   await page.waitForSelector('#app:not(.hidden)', { timeout: 5000 });
   log('correct code unlocks the dashboard');
 
+  // ---------- tray: close keeps the app alive, hiding re-locks ----------
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+  // close() is asynchronous: wait until the window is hidden (and still alive)
+  let closed;
+  for (let i = 0; i < 40; i++) {
+    closed = await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows()[0];
+      return { destroyed: w.isDestroyed(), visible: !w.isDestroyed() && w.isVisible() };
+    });
+    if (!closed.visible) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.equal(closed.destroyed, false, 'closing the window keeps it alive (tray)');
+  assert.equal(closed.visible, false, 'the window is hidden, not shown');
+  await page.waitForSelector('#lock:not(.hidden)');
+  assert.ok(await page.locator('#app').isHidden(), 'the panel is hidden while re-locked');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].show());
+  await page.fill('#lock-pin', PIN);
+  await page.click('#lock-pin-btn');
+  await page.waitForSelector('#app:not(.hidden)', { timeout: 5000 });
+  log('closing goes to the tray, the panel re-locks when hidden and unlocks with the code');
+
   console.log(`\nAll ${step} checks passed. Screenshots: ${shots}`);
 } catch (e) {
   console.error('\n✘ E2E failed:', e.message);

@@ -98,6 +98,7 @@ export function createWebApi(): DevPanelApi {
       unlockWithPin: async () => ({ ok: false, error: 'No disponible en la web' }),
       remove: noop,
     },
+    app: { onHidden: () => {}, onCheckUpdates: () => {}, onSettingsChanged: () => {} },
     token: {
       status: async () => ({ has: false }),
       set: async () => ({ ok: false, error: 'El token solo está disponible en la app de escritorio' }),

@@ -125,8 +125,12 @@ async function initLock(): Promise<void> {
   const faceBtn = $<HTMLButtonElement>('lock-face');
   const pinInput = $<HTMLInputElement>('lock-pin');
 
-  lock.classList.remove('hidden');
+  lock.classList.remove('hidden', 'leaving');
+  ring.classList.remove('success', 'fail', 'scanning');
+  pinInput.value = '';
+  $('app').classList.add('hidden');
   faceBtn.classList.toggle('hidden', !st.enrolled);
+  msg.textContent = st.enrolled ? 'Mira a la cámara para entrar' : 'Ingresa tu código para entrar';
   lock.querySelector('.divider')?.classList.toggle('hidden', !st.enrolled);
   if (!st.enrolled) msg.textContent = 'Ingresa tu código para entrar';
 
@@ -172,9 +176,13 @@ async function initLock(): Promise<void> {
 
   faceBtn.onclick = tryFace;
   $('lock-pin-btn').onclick = tryPin;
-  pinInput.addEventListener('keydown', (e) => e.key === 'Enter' && void tryPin());
-  if (st.enrolled) void tryFace();
-  else pinInput.focus();
+  pinInput.onkeydown = (e) => e.key === 'Enter' && void tryPin();
+  if (!st.enrolled) pinInput.focus();
+  else if (document.visibilityState === 'visible') void tryFace();
+  else {
+    // locked while hidden in the tray: never turn the camera on until the window is actually shown
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && !lock.classList.contains('hidden') && void tryFace(), { once: true });
+  }
 }
 
 // ---------- App ----------
@@ -182,9 +190,9 @@ let appShown = false;
 let allRepos: Repo[] = [];
 
 async function showApp(): Promise<void> {
+  $('app').classList.remove('hidden');
   if (appShown) return;
   appShown = true;
-  $('app').classList.remove('hidden');
 
   const web = api.platform === 'web';
   $('platform-badge').textContent = web ? 'Versión web' : 'App de escritorio';
@@ -225,6 +233,18 @@ async function initPrefs(): Promise<void> {
     await api.settings.set({ alertsEnabled: (e.target as HTMLInputElement).checked });
     toast((e.target as HTMLInputElement).checked ? 'Alertas de build activadas' : 'Alertas de build desactivadas', 'info');
   };
+
+  $<HTMLInputElement>('pref-tray').checked = s.closeToTray;
+  $<HTMLInputElement>('pref-login').checked = s.openAtLogin;
+  $('pref-tray').onchange = (e) => void api.settings.set({ closeToTray: (e.target as HTMLInputElement).checked });
+  $('pref-login').onchange = async (e) => {
+    await api.settings.set({ openAtLogin: (e.target as HTMLInputElement).checked });
+    toast((e.target as HTMLInputElement).checked ? 'DevPanel se abrirá con Windows' : 'Ya no se abrirá con Windows', 'info');
+  };
+  api.app.onSettingsChanged(async () => {
+    $<HTMLInputElement>('pref-alerts').checked = (await api.settings.get()).alertsEnabled;
+  });
+  api.app.onCheckUpdates(() => void api.update.check());
 
   await refreshTokenStatus();
   $('token-save').onclick = async () => {
@@ -589,5 +609,12 @@ async function boot(): Promise<void> {
   }
   await initLock();
 }
+
+// Hidden to the tray / by the global shortcut: lock again so the panel is never left open.
+api.app.onHidden(async () => {
+  if (!appShown) return;
+  const st = await api.face.status();
+  if (st.pinSet || st.enrolled) void initLock();
+});
 
 void boot();

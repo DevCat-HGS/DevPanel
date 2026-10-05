@@ -111,6 +111,12 @@ export interface DevPanelApi {
     unlockWithPin(pin: string): Promise<FaceResult>;
     remove(): Promise<void>;
   };
+  app: {
+    /** Fired when the window is hidden (tray / shortcut); the renderer re-locks. */
+    onHidden(cb: () => void): void;
+    onCheckUpdates(cb: () => void): void;
+    onSettingsChanged(cb: () => void): void;
+  };
   token: {
     status(): Promise<{ has: boolean; login?: string }>;
     /** Validates the token against GitHub and stores it encrypted. */
