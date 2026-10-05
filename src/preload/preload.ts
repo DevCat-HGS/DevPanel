@@ -26,6 +26,7 @@ const api: DevPanelApi = {
     check: () => ipcRenderer.invoke('update:check'),
     download: () => ipcRenderer.invoke('update:download'),
     install: () => ipcRenderer.invoke('update:install'),
+    channel: () => ipcRenderer.invoke('update:channel'),
     onStatus: (cb) =>
       ipcRenderer.on('update:status', (_e, s: UpdateStatus) => cb(s)),
   },

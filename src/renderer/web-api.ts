@@ -95,6 +95,7 @@ export function createWebApi(): DevPanelApi {
       check: noop,
       download: noop,
       install: noop,
+      channel: async () => ({ channel: 'stable' as const, allowed: true }),
       onStatus: () => {},
     },
   };

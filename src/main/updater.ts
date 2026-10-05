@@ -4,7 +4,16 @@ import type { UpdateStatus } from '../shared/api';
 
 const CHECK_EVERY_MS = 30 * 60 * 1000;
 
-export function setupUpdater(win: BrowserWindow): void {
+/** Only this GitHub account may run and update on the development ("-dev") channel. */
+export const DEV_CHANNEL_OWNER = 'DevCat-HGS';
+
+export const isDevBuild = () => app.getVersion().includes('-');
+
+export function canUseDevChannel(githubUser: string): boolean {
+  return githubUser.trim().toLowerCase() === DEV_CHANNEL_OWNER.toLowerCase();
+}
+
+export function setupUpdater(win: BrowserWindow, getGithubUser: () => string): void {
   const send = (s: UpdateStatus) => {
     if (!win.isDestroyed()) win.webContents.send('update:status', s);
   };
@@ -32,6 +41,8 @@ export function setupUpdater(win: BrowserWindow): void {
 
   const check = async () => {
     if (!app.isPackaged) return send({ state: 'dev' });
+    // A "-dev" build follows prereleases only for the owner; anyone else is kept on stable releases.
+    autoUpdater.allowPrerelease = isDevBuild() && canUseDevChannel(getGithubUser());
     try {
       await autoUpdater.checkForUpdates();
     } catch {
@@ -42,6 +53,10 @@ export function setupUpdater(win: BrowserWindow): void {
   ipcMain.handle('update:check', check);
   ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
   ipcMain.handle('update:install', () => autoUpdater.quitAndInstall(true, true));
+  ipcMain.handle('update:channel', () => ({
+    channel: isDevBuild() ? 'dev' : 'stable',
+    allowed: !isDevBuild() || canUseDevChannel(getGithubUser()),
+  }));
 
   win.webContents.once('did-finish-load', () => {
     void check();

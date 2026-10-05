@@ -85,6 +85,8 @@ export interface DevPanelApi {
     check(): Promise<void>;
     download(): Promise<void>;
     install(): Promise<void>;
+    /** Which release channel this build follows and whether this account may use it. */
+    channel(): Promise<{ channel: 'stable' | 'dev'; allowed: boolean }>;
     onStatus(cb: (s: UpdateStatus) => void): void;
   };
 }

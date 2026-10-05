@@ -67,7 +67,7 @@ app.whenReady().then(() => {
 
   setupFace();
   const win = createWindow();
-  setupUpdater(win);
+  setupUpdater(win, () => loadSettings().githubUser);
 });
 
 app.on('window-all-closed', () => app.quit());
