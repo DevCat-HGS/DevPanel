@@ -250,26 +250,35 @@ function runLines(
 async function enrollFace(): Promise<{ ok: boolean; error?: string }> {
   const dir = join(installedDir, 'resources', 'python');
   const script = join(dir, 'face_auth.py');
-  if (!existsSync(script)) return { ok: false, error: 'No se encontró el módulo facial en la instalación' };
+  const exe = join(dir, 'face_auth.exe'); // PyInstaller build: no Python or pip needed
+  const hasExe = existsSync(exe);
+  if (!hasExe && !existsSync(script)) return { ok: false, error: 'No se encontró el módulo facial en la instalación' };
   if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'El cifrado del sistema no está disponible' };
 
-  const py = findPython();
-  if (!py)
-    return { ok: false, error: 'Falta Python. Instálalo desde python.org (marca "Add to PATH") y vuelve a intentarlo, o actívalo luego en Settings.' };
+  mkdirSync(join(userData(), 'models'), { recursive: true });
+  let cmd = exe;
+  let args = ['enroll', '--models-dir', join(userData(), 'models')];
 
-  send({ phase: 'face-state', state: 'preparing' });
-  const hasCv = spawnSync(py, ['-c', 'import cv2; cv2.FaceDetectorYN'], { windowsHide: true }).status === 0;
-  if (!hasCv) {
-    const pip = await runToEnd(py, ['-m', 'pip', 'install', '-r', join(dir, 'requirements.txt')], (p) => (faceProc = p));
-    faceProc = null;
-    if (pip.code !== 0) return { ok: false, error: 'No se pudo instalar OpenCV con pip. Revisa tu conexión e inténtalo de nuevo.' };
+  if (!hasExe) {
+    // development/portable fallback: needs Python (and OpenCV, installed with pip on demand)
+    const py = findPython();
+    if (!py)
+      return { ok: false, error: 'Falta Python. Instálalo desde python.org (marca "Add to PATH") y vuelve a intentarlo, o actívalo luego en Settings.' };
+    send({ phase: 'face-state', state: 'preparing' });
+    const hasCv = spawnSync(py, ['-c', 'import cv2; cv2.FaceDetectorYN'], { windowsHide: true }).status === 0;
+    if (!hasCv) {
+      const pip = await runToEnd(py, ['-m', 'pip', 'install', '-r', join(dir, 'requirements.txt')], (p) => (faceProc = p));
+      faceProc = null;
+      if (pip.code !== 0) return { ok: false, error: 'No se pudo instalar OpenCV con pip. Revisa tu conexión e inténtalo de nuevo.' };
+    }
+    cmd = py;
+    args = [script, ...args];
   }
 
   send({ phase: 'face-state', state: 'scanning' });
-  mkdirSync(join(userData(), 'models'), { recursive: true });
   const lastLine = await runLines(
-    py,
-    [script, 'enroll', '--models-dir', join(userData(), 'models')],
+    cmd,
+    args,
     (line) => {
       try {
         const m = JSON.parse(line);

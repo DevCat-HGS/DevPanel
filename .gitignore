@@ -11,3 +11,7 @@ face.bin
 pin.json
 *.embedding.json
 python/models/
+
+# PyInstaller output (built in CI)
+python/face_auth.exe
+build/pyi/

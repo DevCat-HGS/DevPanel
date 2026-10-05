@@ -43,7 +43,9 @@
         "to": "python",
         "filter": [
           "*.py",
-          "requirements.txt"
+          "requirements.txt",
+          "face_auth.exe",
+          "!test_*.py"
         ]
       }
     ],

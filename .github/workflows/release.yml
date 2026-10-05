@@ -65,6 +65,20 @@ jobs:
             fs.writeFileSync('package.json', JSON.stringify(p, null, 2));
           "
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The face module ships as face_auth.exe (PyInstaller), so users do not need Python installed.
+      - name: Package the face module
+        shell: bash
+        run: |
+          pip install opencv-python numpy pyinstaller
+          (cd python && python -m unittest -q test_liveness)
+          PYTHONPATH=python python -m PyInstaller --onefile --name face_auth python/face_auth.py \
+            --distpath python --workpath build/pyi --specpath build/pyi --paths python --noconfirm --log-level WARN
+          python/face_auth.exe selftest --models-dir "$RUNNER_TEMP/face-models"
+
       - name: Build, package and publish release
         run: npm run release
         env:
