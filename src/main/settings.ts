@@ -11,6 +11,7 @@ export const defaults: Settings = {
   openAtLogin: false,
   localProjects: [],
   lastSeenVersion: '',
+  language: 'auto',
 };
 
 const file = () => join(app.getPath('userData'), 'settings.json');

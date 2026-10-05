@@ -58,6 +58,8 @@ export interface Settings {
   /** Absolute paths of local project folders added by the user. */
   localProjects: string[];
   lastSeenVersion: string;
+  /** Interface language; 'auto' follows the system. */
+  language: 'auto' | 'es' | 'en';
 }
 
 export interface GithubProfile {

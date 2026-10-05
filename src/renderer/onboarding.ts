@@ -1,4 +1,5 @@
-import { $ } from './dom.js';
+import { $, toast } from './dom.js';
+import { mountCodeSetup } from './pinpad.js';
 
 /** First-run wizard: link GitHub, create the verification code, optionally enroll the face. */
 export function runOnboarding(): Promise<void> {
@@ -65,30 +66,18 @@ export function runOnboarding(): Promise<void> {
       const img = document.querySelector<HTMLImageElement>('#wz-ring .avatar');
       if (img) img.src = avatar;
       go(2);
+      startCode();
     };
 
-    // ---- step 2: verification code ----
-    const pin = $<HTMLInputElement>('wz-pin');
-    const pin2 = $<HTMLInputElement>('wz-pin2');
-    const errPin = $('wz-pin-err');
-    $('wz-gen').onclick = () => {
-      const n = crypto.getRandomValues(new Uint32Array(1))[0] % 10_000;
-      pin.value = pin2.value = String(n).padStart(4, '0');
-      pin.type = pin2.type = 'text';
-      errPin.textContent = 'Este es tu código: anótalo en un lugar seguro, no se puede recuperar.';
-    };
-    $('wz-show').onclick = () => {
-      pin.type = pin2.type = pin.type === 'password' ? 'text' : 'password';
-    };
+    // ---- step 2: verification code (animated pad) ----
+    const startCode = () =>
+      mountCodeSetup($('wz-code-host'), async (pin) => {
+        const r = await api.face.setPin(pin);
+        if (r.ok) return go(3);
+        toast(r.error ?? 'No se pudo guardar el código', 'bad');
+        startCode();
+      });
     $('wz-2-back').onclick = () => go(1);
-    $('wz-2-next').onclick = async () => {
-      if (!/^\d{4}$/.test(pin.value)) return void (errPin.textContent = 'El código debe tener 4 dígitos');
-      if (pin.value !== pin2.value) return void (errPin.textContent = 'Los códigos no coinciden');
-      const r = await api.face.setPin(pin.value);
-      if (!r.ok) return void (errPin.textContent = r.error ?? 'No se pudo guardar el código');
-      errPin.textContent = '';
-      go(3);
-    };
 
     // ---- step 3: face ----
     const ring = $('wz-ring');

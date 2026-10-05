@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { newFailures, type RunInfo } from './alerts-core';
 import { getToken } from './token';
 import { listRepos } from './github';
+import { mt } from './i18n-main';
 import { loadSettings } from './settings';
 
 const CHECK_EVERY_MS = 10 * 60 * 1000;
@@ -49,8 +50,8 @@ export function setupAlerts(getWindow: () => BrowserWindow | null): void {
       writeFileSync(seenFile(), JSON.stringify(seen));
       for (const f of failures) {
         const n = new Notification({
-          title: `Build fallido · ${f.repo}`,
-          body: `El último workflow terminó con errores${f.branch ? ` en ${f.branch}` : ''}. Haz clic para verlo.`,
+          title: `${mt('Build fallido')} · ${f.repo}`,
+          body: `${mt('El último workflow terminó con errores')}${f.branch ? ` ${mt('en')} ${f.branch}` : ''}. ${mt('Haz clic para verlo.')}`,
         });
         n.on('click', () => void shell.openExternal(f.url));
         n.show();

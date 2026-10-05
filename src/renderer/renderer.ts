@@ -4,6 +4,8 @@ import { hydrateIcons, icon } from './icons.js';
 import { runOnboarding } from './onboarding.js';
 import { initPalette } from './palette.js';
 import { analyzeRepos } from './recs.js';
+import { setLangPref, type LangPref } from './i18n.js';
+import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { initLocal } from './ui-local.js';
 import { initEnvCheck, initTools, TOOLS } from './ui-tools.js';
 
@@ -13,6 +15,10 @@ if (!window.devpanel) {
   window.devpanel = createWebApi();
 }
 const api = window.devpanel;
+
+// Language first (auto-detected from the system unless the user chose one), so nothing flashes in Spanish.
+const startSettings = await api.settings.get();
+setLangPref(startSettings.language ?? 'auto');
 
 function link(href: string, text: string): HTMLAnchorElement {
   const a = el('a', undefined, text) as HTMLAnchorElement;
@@ -105,6 +111,9 @@ const LANG_COLORS: Record<string, string> = {
 };
 
 // ---------- Lock screen (desktop): face + code ----------
+let lockPad: PadHandle | null = null;
+let onLockPin: (pin: string) => void | Promise<void> = () => {};
+
 async function initLock(): Promise<void> {
   const st = await api.face.status();
   if (!st.pinSet && !st.enrolled) return showApp();
@@ -123,11 +132,11 @@ async function initLock(): Promise<void> {
   const ring = $('face-ring');
   const msg = $('lock-msg');
   const faceBtn = $<HTMLButtonElement>('lock-face');
-  const pinInput = $<HTMLInputElement>('lock-pin');
 
   lock.classList.remove('hidden', 'leaving');
   ring.classList.remove('success', 'fail', 'scanning');
-  pinInput.value = '';
+  lockPad ??= mountPad($('lock-pad'), (pin) => void onLockPin(pin));
+  lockPad.reset();
   $('app').classList.add('hidden');
   faceBtn.classList.toggle('hidden', !st.enrolled);
   msg.textContent = st.enrolled ? 'Mira a la cámara para entrar' : 'Ingresa tu código para entrar';
@@ -164,21 +173,24 @@ async function initLock(): Promise<void> {
     fail(r.error ?? 'No te reconocí, intenta de nuevo o usa tu código');
   };
 
-  const tryPin = async () => {
-    const r = await api.face.unlockWithPin(pinInput.value);
-    if (r.ok) return unlock();
+  onLockPin = async (pin: string) => {
+    const r = await api.face.unlockWithPin(pin);
+    if (r.ok) {
+      lockPad!.good();
+      return unlock();
+    }
     card.classList.remove('shake');
     void card.offsetWidth; // restart the animation
     card.classList.add('shake');
-    pinInput.value = '';
+    lockPad!.shake();
     msg.textContent = r.error ?? 'Código incorrecto';
+    setTimeout(() => lockPad!.reset(), 600);
   };
 
   faceBtn.onclick = tryFace;
-  $('lock-pin-btn').onclick = tryPin;
-  pinInput.onkeydown = (e) => e.key === 'Enter' && void tryPin();
-  if (!st.enrolled) pinInput.focus();
-  else if (document.visibilityState === 'visible') void tryFace();
+  if (!st.enrolled) {
+    /* code only: the pad is already waiting for digits */
+  } else if (document.visibilityState === 'visible') void tryFace();
   else {
     // locked while hidden in the tray: never turn the camera on until the window is actually shown
     document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && !lock.classList.contains('hidden') && void tryFace(), { once: true });
@@ -222,6 +234,13 @@ async function refreshTokenStatus(): Promise<void> {
 }
 
 async function initPrefs(): Promise<void> {
+  const lang = $<HTMLSelectElement>('pref-lang');
+  lang.value = (await api.settings.get()).language ?? 'auto';
+  lang.onchange = async () => {
+    await api.settings.set({ language: lang.value as LangPref });
+    setLangPref(lang.value as LangPref);
+  };
+
   const web = api.platform === 'web';
   $('token-card').classList.toggle('hidden', web);
   $('prefs-card').classList.toggle('hidden', web);
@@ -542,12 +561,44 @@ async function refreshFaceStatus(): Promise<void> {
     : 'Sin rostro registrado. La app abre sin bloqueo.';
 }
 
+/** Opens the "create your code" dialog; resolves with the new code, or null if cancelled. */
+function openCodeDialog(): Promise<string | null> {
+  const modal = $('pin-modal');
+  return new Promise((resolve) => {
+    const close = (pin: string | null) => {
+      modal.classList.add('hidden');
+      document.removeEventListener('keydown', onEsc);
+      resolve(pin);
+    };
+    const onEsc = (e: KeyboardEvent) => e.key === 'Escape' && close(null);
+    document.addEventListener('keydown', onEsc);
+    $('pin-modal-cancel').onclick = () => close(null);
+    modal.classList.remove('hidden');
+    mountCodeSetup($('pin-modal-host'), (pin) => close(pin));
+  });
+}
+
+$('pin-change').onclick = async () => {
+  const pin = await openCodeDialog();
+  if (!pin) return;
+  const r = await api.face.setPin(pin);
+  toast(r.ok ? 'Código actualizado' : (r.error ?? 'Error'), r.ok ? 'ok' : 'bad');
+  await refreshFaceStatus();
+};
+
 $('face-enroll').onclick = async () => {
   const msg = $('face-msg');
   const btn = $<HTMLButtonElement>('face-enroll');
+  // face enrollment needs a code as the fallback: ask for one first if there is none yet
+  if (!(await api.face.status()).pinSet) {
+    const pin = await openCodeDialog();
+    if (!pin) return;
+    const saved = await api.face.setPin(pin);
+    if (!saved.ok) return toast(saved.error ?? 'Error', 'bad');
+  }
   btn.disabled = true;
   msg.textContent = 'Mira a la cámara y mueve un poco la cabeza…';
-  const r = await api.face.enroll($<HTMLInputElement>('face-pin').value || undefined);
+  const r = await api.face.enroll();
   btn.disabled = false;
   msg.textContent = '';
   toast(r.ok ? 'Rostro registrado' : (r.error ?? 'Error'), r.ok ? 'ok' : 'bad');

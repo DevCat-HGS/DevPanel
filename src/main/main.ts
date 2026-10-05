@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Settings } from '../shared/api';
 import { setupAlerts } from './alerts';
 import { setupEnv } from './env';
+import { mt } from './i18n-main';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
 import { listCommits, listRepos, listRuns, lookupUser } from './github';
@@ -83,16 +84,16 @@ function toggleWindow(): void {
 
 function buildTrayMenu(): Menu {
   return Menu.buildFromTemplate([
-    { label: 'Abrir DevPanel', click: showWindow },
+    { label: mt('Abrir DevPanel'), click: showWindow },
     {
-      label: 'Buscar actualizaciones',
+      label: mt('Buscar actualizaciones'),
       click: () => {
         showWindow();
         win?.webContents.send('app:check-updates');
       },
     },
     {
-      label: 'Avisarme si falla un build',
+      label: mt('Avisarme si falla un build'),
       type: 'checkbox',
       checked: loadSettings().alertsEnabled,
       click: (item) => {
@@ -101,8 +102,8 @@ function buildTrayMenu(): Menu {
       },
     },
     { type: 'separator' },
-    { label: `Mostrar / ocultar  (${SHORTCUT.replace('CommandOrControl', 'Ctrl')})`, click: toggleWindow },
-    { label: 'Salir', click: () => app.quit() },
+    { label: `${mt('Mostrar / ocultar')}  (${SHORTCUT.replace('CommandOrControl', 'Ctrl')})`, click: toggleWindow },
+    { label: mt('Salir'), click: () => app.quit() },
   ]);
 }
 
@@ -127,6 +128,7 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
     const next = saveSettings(patch);
     if (typeof patch.openAtLogin === 'boolean') applyLoginItem(next.openAtLogin);
+    if (patch.language) tray?.setContextMenu(buildTrayMenu());
     return next;
   });
   ipcMain.handle('github:lookup', (_e, input: string) => lookupUser(input));

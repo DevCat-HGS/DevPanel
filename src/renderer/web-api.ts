@@ -14,6 +14,7 @@ const defaults: Settings = {
   openAtLogin: false,
   localProjects: [],
   lastSeenVersion: '',
+  language: 'auto',
 };
 
 async function gh<T>(path: string): Promise<T> {

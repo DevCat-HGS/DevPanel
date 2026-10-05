@@ -27,10 +27,7 @@
         <p id="lock-msg" class="muted" role="status">Mira a la cámara para entrar</p>
         <button id="lock-face" class="btn primary">Reconocer mi rostro</button>
         <div class="divider"><span>o ingresa tu código</span></div>
-        <div class="pin-row">
-          <input id="lock-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Código" aria-label="Código de verificación" />
-          <button id="lock-pin-btn" class="btn">Entrar</button>
-        </div>
+        <div id="lock-pad"></div>
       </div>
     </section>
 
@@ -55,19 +52,8 @@
         </div>
 
         <div id="wz-2" class="wz-step">
-          <h2>Crea tu código de verificación</h2>
-          <p class="muted">Son 4 dígitos. Lo usarás cuando el rostro no funcione. No se puede recuperar, así que guárdalo.</p>
-          <input id="wz-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Tu código" aria-label="Código" />
-          <input id="wz-pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Repite el código" aria-label="Repite el código" />
-          <div class="row">
-            <button id="wz-gen" class="btn ghost small">Generar uno</button>
-            <button id="wz-show" class="btn ghost small">Mostrar</button>
-          </div>
-          <p id="wz-pin-err" class="error" role="alert"></p>
-          <div class="wz-actions">
-            <button id="wz-2-back" class="btn ghost">Atrás</button>
-            <button id="wz-2-next" class="btn primary">Continuar</button>
-          </div>
+          <div id="wz-code-host" class="code-host"></div>
+          <div class="wz-actions"><button id="wz-2-back" class="btn ghost">Atrás</button></div>
         </div>
 
         <div id="wz-3" class="wz-step">
@@ -169,7 +155,7 @@
               <button id="term-stop" class="btn small danger" disabled>Detener</button>
               <button id="term-clear" class="btn small ghost">Limpiar</button>
             </div>
-            <pre id="term-out" aria-live="polite"></pre>
+            <pre id="term-out" aria-live="polite" data-no-i18n></pre>
           </div>
         </section>
 
@@ -211,6 +197,16 @@
             </div>
           </div>
 
+          <div class="card">
+            <h3>Idioma</h3>
+            <p class="muted">Elige el idioma de la interfaz. “Automático” sigue el idioma de tu sistema.</p>
+            <select id="pref-lang" aria-label="Idioma">
+              <option value="auto">Automático</option>
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+
           <div id="token-card" class="card">
             <h3>Token de GitHub (opcional)</h3>
             <p class="muted">Sube el límite de la API de 60 a 5000 consultas por hora y muestra tus repos privados. Se guarda cifrado en este equipo.</p>
@@ -234,8 +230,8 @@
             <h3>Inicio de sesión facial</h3>
             <p id="face-status" class="muted"></p>
             <div class="row">
-              <input id="face-pin" type="password" placeholder="Código (4 dígitos)" aria-label="Código de verificación" inputmode="numeric" maxlength="4" />
               <button id="face-enroll" class="btn primary">Registrar mi rostro</button>
+              <button id="pin-change" class="btn ghost">Cambiar código</button>
               <button id="face-remove" class="btn danger">Eliminar</button>
             </div>
             <p id="face-msg" class="muted" role="status"></p>
@@ -249,6 +245,13 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="pin-modal" class="palette hidden" role="dialog" aria-label="Cambiar código">
+      <div class="pal-box setup-box">
+        <div id="pin-modal-host" class="code-host"></div>
+        <button id="pin-modal-cancel" class="btn ghost">Cancelar</button>
+      </div>
     </div>
 
     <div id="palette" class="palette hidden" role="dialog" aria-label="Paleta de comandos">

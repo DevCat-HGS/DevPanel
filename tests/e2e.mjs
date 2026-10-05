@@ -11,7 +11,7 @@ const shots = process.env.E2E_SHOTS ?? join(tmpdir(), 'devpanel-shots');
 mkdirSync(shots, { recursive: true });
 const userData = mkdtempSync(join(tmpdir(), 'devpanel-e2e-'));
 const GH_USER = process.env.E2E_GH_USER ?? 'octocat';
-const PIN = '1234';
+let PIN = '1234';
 
 // a throwaway git project for the "Local" view
 const proj = mkdtempSync(join(tmpdir(), 'devpanel-proj-'));
@@ -49,16 +49,17 @@ try {
   log(`GitHub link resolves to @${GH_USER}`);
 
   await page.click('#wz-1-next');
-  await page.fill('#wz-pin', '12');
-  await page.fill('#wz-pin2', '12');
-  await page.click('#wz-2-next');
-  assert.match(await page.textContent('#wz-pin-err'), /4 dígitos/);
-  await page.fill('#wz-pin', PIN);
-  await page.fill('#wz-pin2', '4321');
-  await page.click('#wz-2-next');
-  assert.match(await page.textContent('#wz-pin-err'), /no coinciden/);
-  await page.fill('#wz-pin2', PIN);
-  await page.click('#wz-2-next');
+  await page.waitForSelector('#wz-2.active .keypad');
+  await page.keyboard.type('12');
+  assert.equal(await page.locator('#wz-2 .dots i.on').count(), 2, 'incomplete codes do nothing yet');
+  await page.keyboard.type('34'); // the 4th digit confirms by itself and asks to repeat
+  await page.waitForFunction(() => document.querySelector('#wz-2 .cs-title').textContent.includes('Repite'));
+  await page.keyboard.type('4321'); // mismatch
+  await page.waitForFunction(() => document.querySelector('#wz-2 .cs-err').textContent.includes('coinciden'));
+  await page.waitForFunction(() => document.querySelector('#wz-2 .cs-title').textContent.includes('Crea'));
+  await page.keyboard.type(PIN);
+  await page.waitForFunction(() => document.querySelector('#wz-2 .cs-title').textContent.includes('Repite'));
+  await page.keyboard.type(PIN);
   await page.waitForSelector('#wz-3.active');
   await shot(page, '2-wizard-face');
   log('code validation works and the face step is reached');
@@ -126,6 +127,34 @@ try {
   assert.equal(saved.alertsEnabled, false);
   log('invalid tokens are rejected and the alerts preference persists');
 
+  // ---------- language ----------
+  await page.selectOption('#pref-lang', 'en');
+  await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Your projects');
+  assert.match(await page.textContent('#token-status'), /No token/);
+  assert.equal(await page.locator('#view-settings h3', { hasText: 'Language' }).count(), 1, 'static headings are translated');
+  await page.click('.nav[data-view="projects"]');
+  assert.ok((await page.locator('.stat .label').allTextContents()).includes('Languages'), 'strings built from code are translated too');
+  await shot(page, '5a-english');
+  await page.click('.nav[data-view="settings"]');
+  await page.selectOption('#pref-lang', 'es');
+  await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Tus proyectos');
+  assert.match(await page.textContent('#token-status'), /Sin token/);
+  log('the language can be switched to English and back, including text built from code');
+
+  // ---------- code dialog (same pad as the installer) ----------
+  await page.click('#pin-change');
+  await page.waitForSelector('#pin-modal:not(.hidden) .keypad');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#pin-modal.hidden', { state: 'attached' });
+  await page.click('#pin-change');
+  await page.waitForSelector('#pin-modal:not(.hidden) .keypad');
+  await page.keyboard.type('5678');
+  await page.waitForFunction(() => document.querySelector('#pin-modal .cs-title').textContent.includes('Repite'));
+  await page.keyboard.type('5678');
+  await page.waitForSelector('.toast.ok:has-text("Código actualizado")');
+  PIN = '5678';
+  log('the code can be changed with the pad dialog (and cancelled with Escape)');
+
   // ---------- palette ----------
   await page.keyboard.press('Control+k');
   await page.waitForSelector('#palette:not(.hidden)');
@@ -152,14 +181,14 @@ try {
   await shot(page, '6-lock');
   log('second run shows the lock screen (code only, since face was skipped)');
 
-  await page.fill('#lock-pin', '000000');
-  await page.click('#lock-pin-btn');
+  await page.keyboard.type('0000');
   await page.waitForSelector('.lock-card.shake');
   assert.ok(await page.locator('#app').isHidden());
+  // the pad clears itself after the shake; typing earlier is ignored on purpose
+  await page.waitForFunction(() => document.querySelectorAll('#lock-pad .dots i.on').length === 0);
   log('wrong code is rejected with the shake animation');
 
-  await page.fill('#lock-pin', PIN);
-  await page.click('#lock-pin-btn');
+  await page.keyboard.type(PIN);
   await page.waitForSelector('#app:not(.hidden)', { timeout: 5000 });
   log('correct code unlocks the dashboard');
 
@@ -180,8 +209,7 @@ try {
   await page.waitForSelector('#lock:not(.hidden)');
   assert.ok(await page.locator('#app').isHidden(), 'the panel is hidden while re-locked');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].show());
-  await page.fill('#lock-pin', PIN);
-  await page.click('#lock-pin-btn');
+  await page.keyboard.type(PIN);
   await page.waitForSelector('#app:not(.hidden)', { timeout: 5000 });
   log('closing goes to the tray, the panel re-locks when hidden and unlocks with the code');
 
