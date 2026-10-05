@@ -1,4 +1,5 @@
 import type { Repo, UpdateStatus, WorkflowRun } from '../shared/api';
+import { hydrateIcons, icon } from './icons.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
 if (!window.devpanel) {
@@ -34,7 +35,72 @@ function ago(iso: string): string {
 function toast(message: string, kind: 'ok' | 'bad' | 'info' = 'info'): void {
   const t = el('div', `toast ${kind}`, message);
   $('toasts').append(t);
-  setTimeout(() => t.remove(), 4000);
+  setTimeout(() => {
+    t.classList.add('leaving');
+    setTimeout(() => t.remove(), 250);
+  }, 3750);
+}
+
+// ---------- Theme ----------
+function applyTheme(theme: 'dark' | 'light'): void {
+  document.documentElement.dataset.theme = theme;
+  const btn = $('theme-toggle');
+  btn.replaceChildren(icon(theme === 'dark' ? 'moon' : 'sun'));
+  try {
+    localStorage.setItem('devpanel.theme', theme);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function initTheme(): void {
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem('devpanel.theme');
+  } catch {
+    /* storage unavailable */
+  }
+  applyTheme(saved === 'light' ? 'light' : 'dark');
+  $('theme-toggle').onclick = () =>
+    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+}
+
+// ---------- Stats (animated counters) ----------
+function countUp(node: HTMLElement, to: number): void {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || to === 0) {
+    node.textContent = String(to);
+    return;
+  }
+  const start = performance.now();
+  const dur = 700;
+  const tick = (now: number) => {
+    const p = Math.min(1, (now - start) / dur);
+    node.textContent = String(Math.round(to * (1 - Math.pow(1 - p, 3))));
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function renderStats(repos: Repo[]): void {
+  const week = Date.now() - 7 * 86_400_000;
+  const items: [string, number][] = [
+    ['Proyectos', repos.length],
+    ['Activos esta semana', repos.filter((r) => new Date(r.pushed_at).getTime() > week).length],
+    ['Lenguajes', new Set(repos.map((r) => r.language).filter(Boolean)).size],
+  ];
+  $('stats').replaceChildren(
+    ...items.map(([label, value], i) => {
+      const card = el('div', 'stat');
+      card.style.setProperty('--i', String(i));
+      const num = el('div', 'num', '0');
+      card.append(num, el('div', 'label', label));
+      countUp(num, value);
+      return card;
+    }),
+  );
+  $('subtitle').textContent = repos.length
+    ? `Última actividad ${ago(repos[0].pushed_at)}`
+    : '';
 }
 
 function friendlyError(e: unknown): string {
@@ -65,8 +131,10 @@ async function initLock(): Promise<void> {
 
   const tryFace = async () => {
     faceBtn.disabled = true;
+    $('face-ring').classList.add('scanning');
     msg.textContent = 'Mirando… quédate frente a la cámara';
     const r = await api.face.verify();
+    $('face-ring').classList.remove('scanning');
     faceBtn.disabled = false;
     if (r.ok) return unlock();
     msg.textContent = r.error ?? 'No te reconocí, intenta de nuevo o usa el PIN';
@@ -129,7 +197,16 @@ function skeletons(n = 6): HTMLElement[] {
 
 function renderRepos(): void {
   const q = $<HTMLInputElement>('repo-search').value.trim().toLowerCase();
-  const list = allRepos.filter((r) =>
+  const sort = $<HTMLSelectElement>('repo-sort').value;
+  const byFav = (a: Repo, b: Repo) => Number(favs.has(b.name)) - Number(favs.has(a.name));
+  const sorted = [...allRepos].sort((a, b) =>
+    sort === 'name'
+      ? a.name.localeCompare(b.name)
+      : sort === 'fav'
+        ? byFav(a, b) || b.pushed_at.localeCompare(a.pushed_at)
+        : b.pushed_at.localeCompare(a.pushed_at),
+  );
+  const list = sorted.filter((r) =>
     `${r.name} ${r.description ?? ''} ${r.language ?? ''}`.toLowerCase().includes(q),
   );
   const box = $('repos');
@@ -138,22 +215,50 @@ function renderRepos(): void {
     return;
   }
   box.replaceChildren(
-    ...list.map((r) => {
-      const card = el('button', 'repo');
+    ...list.map((r, i) => {
+      const card = el('div', 'repo');
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), card.click());
+      card.style.setProperty('--i', String(Math.min(i, 14)));
+
+      const top = el('div', 'top');
+      top.append(el('div', 'name', r.name));
+      if (Date.now() - new Date(r.pushed_at).getTime() < 86_400_000) {
+        const live = el('span', 'live');
+        live.title = 'Actividad en las últimas 24 h';
+        top.append(live);
+      }
+
       const lang = el('span', 'lang');
       const dot = el('span', 'dot');
       dot.style.background = LANG_COLORS[r.language ?? ''] ?? '#6b7280';
       lang.append(dot, r.language ?? '—');
-      card.append(
-        el('div', 'name', r.name),
-        el('div', 'desc', r.description ?? 'Sin descripción'),
-        (() => {
-          const meta = el('div', 'meta');
-          meta.append(lang, ` · ${r.default_branch} · ${ago(r.pushed_at)}`);
-          return meta;
-        })(),
-      );
-      card.onclick = () => void showDetail(r);
+      const branch = el('span', 'branch');
+      branch.append(icon('branch'), r.default_branch);
+      branch.querySelector('svg')!.setAttribute('width', '13');
+      const meta = el('div', 'meta');
+      meta.append(lang, branch, el('span', undefined, ago(r.pushed_at)));
+
+      const star = el('button', `star${favs.has(r.name) ? ' on' : ''}`, favs.has(r.name) ? '★' : '☆');
+      star.setAttribute('aria-label', 'Marcar como favorito');
+      star.onclick = (e) => {
+        e.stopPropagation();
+        toggleFav(r.name);
+      };
+      top.append(star);
+
+      card.append(top, el('div', 'desc', r.description ?? 'Sin descripción'), meta);
+      card.addEventListener('pointermove', (e) => {
+        const b = card.getBoundingClientRect();
+        card.style.setProperty('--mx', `${e.clientX - b.left}px`);
+        card.style.setProperty('--my', `${e.clientY - b.top}px`);
+      });
+      card.onclick = () => {
+        document.querySelectorAll('.repo.selected').forEach((n) => n.classList.remove('selected'));
+        card.classList.add('selected');
+        void showDetail(r);
+      };
       return card;
     }),
   );
@@ -163,6 +268,7 @@ async function loadRepos(): Promise<void> {
   $('repos').replaceChildren(...skeletons());
   try {
     allRepos = await api.github.repos();
+    renderStats(allRepos);
     renderRepos();
   } catch (e) {
     $('repos').replaceChildren(el('p', 'empty', friendlyError(e)));
@@ -170,10 +276,45 @@ async function loadRepos(): Promise<void> {
 }
 
 $('repo-search').addEventListener('input', renderRepos);
+$('repo-sort').addEventListener('change', renderRepos);
+
+// ---------- Favorites (stored per device) ----------
+const favs = new Set<string>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('devpanel.favs') ?? '[]') as string[];
+    } catch {
+      return [];
+    }
+  })(),
+);
+
+function toggleFav(name: string): void {
+  if (!favs.delete(name)) favs.add(name);
+  try {
+    localStorage.setItem('devpanel.favs', JSON.stringify([...favs]));
+  } catch {
+    /* storage unavailable */
+  }
+  renderRepos();
+}
+
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Copiado al portapapeles', 'ok');
+  } catch {
+    toast('No se pudo copiar', 'bad');
+  }
+}
 
 function runBadge(run?: WorkflowRun): HTMLElement {
   if (!run) return el('span', 'badge warn', 'Sin Actions');
-  if (run.status !== 'completed') return el('span', 'badge warn', 'En curso');
+  if (run.status !== 'completed') {
+    const b = el('span', 'badge warn');
+    b.append(el('span', 'live'), 'En curso');
+    return b;
+  }
   return run.conclusion === 'success'
     ? el('span', 'badge ok', 'Build passing')
     : el('span', 'badge bad', `Build ${run.conclusion}`);
@@ -190,15 +331,34 @@ async function showDetail(repo: Repo): Promise<void> {
       api.github.runs(repo.name),
     ]);
     const head = el('div', 'detail-head');
-    head.append(el('h3', undefined, repo.name), runBadge(runs[0]), link(repo.html_url, 'Abrir en GitHub ↗'));
-    if (runs[0]) head.append(link(runs[0].html_url, 'Ver Actions ↗'));
+    const ext = (href: string, text: string) => {
+      const a = link(href, text);
+      a.append(icon('external'));
+      a.querySelector('svg')!.setAttribute('width', '13');
+      return a;
+    };
+    head.append(el('h3', undefined, repo.name), runBadge(runs[0]), ext(repo.html_url, 'GitHub'));
+    if (runs[0]) head.append(ext(runs[0].html_url, 'Actions'));
+
+    const cloneUrl = `${repo.html_url}.git`;
+    const actions = el('div', 'actions');
+    const copyClone = el('button', 'btn small', 'Copiar git clone');
+    copyClone.onclick = () => void copyText(`git clone ${cloneUrl}`);
+    const vscode = link(`vscode://vscode.git/clone?url=${encodeURIComponent(cloneUrl)}`, 'Abrir en VS Code');
+    vscode.className = 'btn small';
+    const copyLink = el('button', 'btn small', 'Copiar enlace');
+    copyLink.onclick = () => void copyText(repo.html_url);
+    actions.append(copyClone, vscode, copyLink);
+    head.append(actions);
     d.replaceChildren(
       head,
       ...(commits.length
-        ? commits.map((c) => {
+        ? commits.map((c, i) => {
             const row = el('div', 'commit');
-            row.append(link(c.url, c.sha), c.message, el('span', 'muted', ` — ${c.author}, ${ago(c.date)}`));
-            row.firstElementChild!.className = 'sha';
+            row.style.setProperty('--i', String(i));
+            const sha = link(c.url, c.sha);
+            sha.className = 'sha';
+            row.append(sha, el('span', 'msg', c.message), el('span', 'muted', `${c.author} · ${ago(c.date)}`));
             return row;
           })
         : [el('p', 'empty', 'Sin commits.')]),
@@ -282,4 +442,6 @@ function renderUpdate(s: UpdateStatus): void {
 api.update.onStatus(renderUpdate);
 $('update-check').onclick = () => void api.update.check();
 
+hydrateIcons();
+initTheme();
 void initLock();

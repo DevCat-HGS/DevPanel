@@ -1,9 +1,8 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://api.github.com"
@@ -12,14 +11,19 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div class="bg-glow" aria-hidden="true"></div>
     <a class="skip" href="#main">Saltar al contenido</a>
 
     <!-- Lock screen (desktop only, shown when a face is enrolled) -->
     <section id="lock" class="lock hidden" aria-labelledby="lock-title">
       <div class="lock-card">
+        <div id="face-ring" class="face-ring" aria-hidden="true">
+          <span data-icon="scan"></span>
+        </div>
         <h1 id="lock-title">DevPanel</h1>
-        <p id="lock-msg" role="status">Mira a la cámara para entrar</p>
+        <p id="lock-msg" class="muted" role="status">Mira a la cámara para entrar</p>
         <button id="lock-face" class="btn primary">Iniciar con rostro</button>
+        <div class="divider"><span>o usa tu PIN</span></div>
         <div class="pin-row">
           <input id="lock-pin" type="password" placeholder="PIN de respaldo" aria-label="PIN de respaldo" />
           <button id="lock-pin-btn" class="btn">Entrar</button>
@@ -31,32 +35,49 @@
     <div id="app" class="app hidden">
       <aside class="sidebar">
         <div class="brand">
-          <span class="logo" aria-hidden="true">◆</span> DevPanel
-          <span id="version" class="muted"></span>
+          <span class="logo" data-icon="logo" aria-hidden="true"></span>
+          <span>DevPanel</span>
+          <span id="version" class="chip"></span>
         </div>
         <nav aria-label="Principal">
           <button class="nav active" data-view="projects">
-            <span aria-hidden="true">▦</span><span class="nav-label">Projects</span>
+            <span class="ico" data-icon="grid" aria-hidden="true"></span>
+            <span class="nav-label">Projects</span>
           </button>
           <button class="nav" data-view="settings">
-            <span aria-hidden="true">⚙</span><span class="nav-label">Settings</span>
+            <span class="ico" data-icon="settings" aria-hidden="true"></span>
+            <span class="nav-label">Settings</span>
           </button>
         </nav>
         <div id="update-box" class="update-box hidden" role="status"></div>
-        <div id="platform-badge" class="muted platform"></div>
+        <div class="side-foot">
+          <span id="platform-badge" class="muted"></span>
+          <button id="theme-toggle" class="icon-btn" aria-label="Cambiar tema" title="Cambiar tema">
+            <span data-icon="moon"></span>
+          </button>
+        </div>
       </aside>
 
       <main id="main" class="content">
         <section id="view-projects" class="view">
           <header class="view-head">
-            <h2 id="greeting">Tus proyectos</h2>
-            <input
-              id="repo-search"
-              type="search"
-              placeholder="Buscar proyecto…  ( / )"
-              aria-label="Buscar proyecto"
-            />
+            <div>
+              <h2 id="greeting">Tus proyectos</h2>
+              <p id="subtitle" class="muted"></p>
+            </div>
+            <select id="repo-sort" aria-label="Ordenar proyectos">
+              <option value="recent">Más recientes</option>
+              <option value="name">Nombre A–Z</option>
+              <option value="fav">Favoritos primero</option>
+            </select>
+            <label class="search">
+              <span data-icon="search" aria-hidden="true"></span>
+              <input id="repo-search" type="search" placeholder="Buscar proyecto…" aria-label="Buscar proyecto" />
+              <kbd>/</kbd>
+            </label>
           </header>
+
+          <div id="stats" class="stats"></div>
           <div id="repos" class="grid" aria-live="polite"></div>
           <div id="detail" class="detail hidden"></div>
         </section>
@@ -66,6 +87,7 @@
 
           <div class="card">
             <h3>GitHub</h3>
+            <p class="muted">Usuario cuyos repositorios públicos se muestran.</p>
             <div class="row">
               <input id="gh-user" type="text" placeholder="usuario de GitHub" aria-label="Usuario de GitHub" />
               <button id="gh-save" class="btn">Guardar</button>

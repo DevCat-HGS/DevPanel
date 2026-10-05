@@ -41,7 +41,7 @@ export function setupUpdater(win: BrowserWindow): void {
 
   ipcMain.handle('update:check', check);
   ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
-  ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
+  ipcMain.handle('update:install', () => autoUpdater.quitAndInstall(true, true));
 
   win.webContents.once('did-finish-load', () => {
     void check();

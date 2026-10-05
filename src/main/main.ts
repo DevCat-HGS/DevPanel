@@ -36,7 +36,8 @@ function createWindow(): BrowserWindow {
   });
   win.setMenuBarVisibility(false);
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url);
+    // vscode:// lets the "Abrir en VS Code" action clone a repo straight into the editor
+    if (url.startsWith('https://') || url.startsWith('vscode://')) void shell.openExternal(url);
     return { action: 'deny' };
   });
   void win.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
