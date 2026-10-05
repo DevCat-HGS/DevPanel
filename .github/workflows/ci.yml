@@ -3,9 +3,12 @@ name: CI
 on:
   pull_request:
     branches: [developer, main]
+  push:
+    branches: [developer]
 
 jobs:
-  build:
+  checks:
+    name: Typecheck + unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,8 +22,16 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
-      # Type-checks main, preload and renderer, and produces the web bundle
-      - run: npm run build:web && npx tsc -p tsconfig.main.json --noEmit
+      # Compiles main, preload and renderer, then runs the node:test unit tests
+      - run: npm test
+
+      - name: Installer compiles
+        working-directory: installer
+        run: |
+          npm ci
+          npm run build
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
       - uses: actions/setup-python@v5
         with:
@@ -28,3 +39,29 @@ jobs:
 
       - name: Python sidecar compiles
         run: python -m py_compile python/face_auth.py
+
+  e2e:
+    name: End-to-end (Electron)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Drives the real app: onboarding wizard, lock screen, tools, palette
+      - run: npm run test:e2e
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          E2E_SHOTS: ${{ runner.temp }}/devpanel-shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: ${{ runner.temp }}/devpanel-shots
+          if-no-files-found: ignore
