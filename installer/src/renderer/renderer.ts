@@ -4,8 +4,11 @@ const api = window.installer;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 // ---------- Screen routing ----------
-type Screen = 'welcome' | 'options' | 'account' | 'progress' | 'face' | 'done' | 'error';
+type Screen = 'welcome' | 'options' | 'gh' | 'pin' | 'channel' | 'progress' | 'face' | 'done' | 'error';
+const STEP_OF: Partial<Record<Screen, number>> = { gh: 0, pin: 1, channel: 2, progress: 2, face: 3 };
+
 function show(name: Screen): void {
+  updateStepper(name);
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === `s-${name}`));
 }
 
@@ -63,6 +66,8 @@ let lastOpts: InstallOptions | null = null;
 let existing: { githubUser: string } | null = null;
 let devOwner = '';
 let linked: GithubProfile | null = null;
+let chosenPin = '';
+let chosenChannel: 'stable' | 'dev' = 'stable';
 
 function setProgress(percent: number | null): void {
   const ring = document.querySelector('.ring') as HTMLElement;
@@ -82,8 +87,8 @@ function startInstall(): void {
     dir: installDir,
     desktopShortcut: $<HTMLInputElement>('opt-desktop').checked,
     launchAfter: $<HTMLInputElement>('opt-launch').checked,
-    channel: $<HTMLSelectElement>('channel').value === 'dev' ? 'dev' : 'stable',
-    account: existing || !linked ? undefined : { github: linked.login, pin: $<HTMLInputElement>('pin').value },
+    channel: chosenChannel,
+    account: existing || !linked || !chosenPin ? undefined : { github: linked.login, pin: chosenPin },
   };
   $('cancel-row').classList.remove('hidden');
   $('confirm-row').classList.add('hidden');
@@ -116,14 +121,17 @@ api.onProgress((p: Progress) => {
       break;
     case 'face-state':
       $('fring').classList.add('scanning');
-      $('face-msg').textContent =
-        p.state === 'preparing'
-          ? 'Preparando el reconocimiento facial (puede tardar un minuto la primera vez)…'
-          : 'Mira a la cámara y mueve un poco la cabeza…';
+      if (p.state === 'preparing') {
+        $('face-msg').textContent = 'Preparando el reconocimiento facial (puede tardar un minuto la primera vez)…';
+        $('face-step').textContent = '';
+      } else {
+        setFaceProgress(p.progress ?? 0, p.total ?? 5);
+      }
       break;
     case 'done':
       installedDir = p.dir;
       show('done');
+      confetti();
       if ($<HTMLInputElement>('opt-launch').checked) {
         setTimeout(() => {
           void api.launch(installedDir);
@@ -202,90 +210,232 @@ addEventListener('keydown', (e) => {
 })();
 
 
-// ---------- Account step ----------
-function validAccount(): boolean {
-  if (existing) return true;
-  const pin = $<HTMLInputElement>('pin').value;
-  return !!linked && /^\d{4,8}$/.test(pin) && pin === $<HTMLInputElement>('pin2').value;
+// ---------- Stepper ----------
+function updateStepper(name: Screen): void {
+  const idx = STEP_OF[name];
+  const bar = $('stepper');
+  bar.classList.toggle('hidden', idx === undefined);
+  if (idx === undefined) return;
+  bar.querySelectorAll('span').forEach((n, i) => {
+    n.classList.toggle('on', i === idx);
+    n.classList.toggle('done', i < idx);
+  });
 }
 
-function refreshAccountButton(): void {
-  const btn = $<HTMLButtonElement>('acc-next');
-  btn.disabled = !validAccount();
-  const pin = $<HTMLInputElement>('pin').value;
-  const err = $('acc-err');
-  if (existing || !linked) return;
-  if (pin && !/^\d{4,8}$/.test(pin)) err.textContent = 'El código debe tener de 4 a 8 dígitos';
-  else if ($<HTMLInputElement>('pin2').value && pin !== $<HTMLInputElement>('pin2').value) err.textContent = 'Los códigos no coinciden';
-  else err.textContent = '';
-}
+// ---------- Conversational setup ----------
+const isOwner = (login: string) => !!login && login.toLowerCase() === devOwner.toLowerCase();
 
-function updateChannelRow(login: string): void {
-  const owner = !!login && login.toLowerCase() === devOwner.toLowerCase();
-  $('channel-row').classList.toggle('hidden', !owner);
-  if (!owner) $<HTMLSelectElement>('channel').value = 'stable';
-}
-
+/** Entry point from "Instalar ahora": a returning user skips the questions. */
 function openAccount(): void {
-  $('acc-existing').classList.toggle('hidden', !existing);
-  $('acc-new').classList.toggle('hidden', !!existing);
-  $('acc-err').textContent = '';
-  if (existing) {
-    $('acc-ex-name').textContent = `@${existing.githubUser}`;
-    $<HTMLImageElement>('acc-ex-avatar').src = `https://github.com/${encodeURIComponent(existing.githubUser)}.png?size=88`;
-    updateChannelRow(existing.githubUser);
-  }
-  refreshAccountButton();
-  show('account');
+  chosenChannel = 'stable';
+  if (existing) return isOwner(existing.githubUser) ? show('channel') : startInstall();
+  show('gh');
+  setTimeout(() => $<HTMLInputElement>('gh').focus(), 350);
 }
 
-async function linkGithub(): Promise<void> {
-  const btn = $<HTMLButtonElement>('gh-btn');
-  btn.disabled = true;
-  $('acc-err').textContent = '';
-  try {
-    linked = await api.lookup($<HTMLInputElement>('gh').value);
-    $<HTMLImageElement>('avatar').src = linked.avatar;
-    $('p-name').textContent = linked.name ?? linked.login;
-    $('p-login').textContent = `@${linked.login}`;
-    $('profile').classList.remove('hidden');
-    updateChannelRow(linked.login);
-  } catch (e) {
-    linked = null;
-    $('profile').classList.add('hidden');
-    updateChannelRow('');
-    $('acc-err').textContent = (e as Error).message;
-  }
-  btn.disabled = false;
-  refreshAccountButton();
-}
+// -- step 1: GitHub, looked up live while typing
+let lookupTimer: number | undefined;
+let lookupSeq = 0;
 
-$('gh-btn').onclick = () => void linkGithub();
-$('gh').addEventListener('keydown', (e) => e.key === 'Enter' && void linkGithub());
-$('gh').addEventListener('input', () => {
+function resetCard(): void {
   linked = null;
-  $('profile').classList.add('hidden');
-  updateChannelRow('');
-  refreshAccountButton();
+  $('id-card').classList.add('hidden');
+  $<HTMLButtonElement>('gh-next').disabled = true;
+}
+
+async function runLookup(): Promise<void> {
+  const value = $<HTMLInputElement>('gh').value.trim();
+  const seq = ++lookupSeq;
+  $('gh-err').textContent = '';
+  if (!value) return resetCard();
+  $('gh-spin').classList.remove('hidden');
+  try {
+    const p = await api.lookup(value);
+    if (seq !== lookupSeq) return; // a newer keystroke superseded this one
+    linked = p;
+    const img = $<HTMLImageElement>('avatar');
+    img.src = p.avatar;
+    $('p-name').textContent = p.name ?? p.login;
+    $('p-login').textContent = `@${p.login}`;
+    $('p-meta').textContent = `${p.repos} repos públicos · ${p.followers} seguidores`;
+    const card = $('id-card');
+    card.classList.remove('hidden');
+    card.style.animation = 'none';
+    void card.offsetWidth; // replay the pop-in on every new match
+    card.style.animation = '';
+    $<HTMLButtonElement>('gh-next').disabled = false;
+  } catch (e) {
+    if (seq !== lookupSeq) return;
+    resetCard();
+    $('gh-err').textContent = (e as Error).message;
+  } finally {
+    if (seq === lookupSeq) $('gh-spin').classList.add('hidden');
+  }
+}
+
+$('gh').addEventListener('input', () => {
+  resetCard();
+  clearTimeout(lookupTimer);
+  lookupTimer = window.setTimeout(() => void runLookup(), 450);
 });
-$('pin').addEventListener('input', refreshAccountButton);
-$('pin2').addEventListener('input', refreshAccountButton);
-$('gen').onclick = () => {
-  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
-  $<HTMLInputElement>('pin').value = $<HTMLInputElement>('pin2').value = String(n).padStart(6, '0');
-  $<HTMLInputElement>('pin').type = $<HTMLInputElement>('pin2').type = 'text';
-  refreshAccountButton();
-  $('acc-err').textContent = 'Este es tu código: anótalo, no se puede recuperar.';
+$('gh').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  clearTimeout(lookupTimer);
+  if (linked) $('gh-next').click();
+  else void runLookup();
+});
+$('gh-back').onclick = () => show('welcome');
+$('gh-next').onclick = () => {
+  if (!linked) return;
+  startPin();
 };
-$('show').onclick = () => {
-  const t = $<HTMLInputElement>('pin').type === 'password' ? 'text' : 'password';
-  $<HTMLInputElement>('pin').type = $<HTMLInputElement>('pin2').type = t;
+
+// -- step 2: animated PIN pad (keyboard works too)
+type PinPhase = 'create' | 'confirm' | 'generated';
+let pinPhase: PinPhase = 'create';
+let pinFirst = '';
+let pinBuf = '';
+
+function renderDots(): void {
+  const dots = [...$('dots').children] as HTMLElement[];
+  const reveal = $('dots').classList.contains('reveal');
+  dots.forEach((d, i) => {
+    d.classList.toggle('on', i < pinBuf.length);
+    d.textContent = reveal && i < pinBuf.length ? pinBuf[i] : '';
+  });
+  $<HTMLButtonElement>('keypad').querySelector<HTMLButtonElement>('.ok')!.disabled = pinBuf.length < 4;
+}
+
+function setPinPhase(phase: PinPhase): void {
+  pinPhase = phase;
+  pinBuf = '';
+  $('dots').classList.remove('reveal', 'good');
+  $('pin-err').textContent = '';
+  $('pin-noted').classList.add('hidden');
+  $('pin-title').textContent = phase === 'confirm' ? 'Repite tu código' : 'Crea tu código secreto';
+  $('pin-sub').textContent =
+    phase === 'confirm' ? 'Escríbelo otra vez para asegurarnos de que lo recuerdas.' : 'Son 4 dígitos. Es tu llave si el rostro falla.';
+  renderDots();
+}
+
+function startPin(): void {
+  chosenPin = '';
+  pinFirst = '';
+  setPinPhase('create');
+  show('pin');
+}
+
+function pressKey(k: string): void {
+  if (!$('s-pin').classList.contains('active') || pinPhase === 'generated') return;
+  if (k === 'back') pinBuf = pinBuf.slice(0, -1);
+  else if (k === 'ok') return void submitPin();
+  else if (/^\d$/.test(k) && pinBuf.length < 4) pinBuf += k;
+  $('pin-err').textContent = '';
+  renderDots();
+  if (pinBuf.length === 4 && k !== 'back') setTimeout(submitPin, 220);
+}
+
+function submitPin(): void {
+  if (pinBuf.length < 4) return;
+  if (pinPhase === 'create') {
+    pinFirst = pinBuf;
+    return setPinPhase('confirm');
+  }
+  if (pinBuf !== pinFirst) {
+    const dots = $('dots');
+    dots.classList.remove('shake');
+    void dots.offsetWidth;
+    dots.classList.add('shake');
+    $('pin-err').textContent = 'No coinciden. Empecemos de nuevo.';
+    setTimeout(() => setPinPhase('create'), 650);
+    return;
+  }
+  pinAccepted(pinBuf);
+}
+
+function pinAccepted(pin: string): void {
+  chosenPin = pin;
+  $('dots').classList.add('good');
+  setTimeout(() => (linked && isOwner(linked.login) ? show('channel') : startInstall()), 550);
+}
+
+$('keypad').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest('button');
+  if (b?.dataset.k) pressKey(b.dataset.k);
+});
+document.addEventListener('keydown', (e) => {
+  if (!$('s-pin').classList.contains('active')) return;
+  const key = e.key === 'Backspace' ? 'back' : e.key === 'Enter' ? 'ok' : e.key;
+  if (!/^(\d|back|ok)$/.test(key)) return;
+  const btn = $('keypad').querySelector<HTMLButtonElement>(`[data-k="${key}"]`);
+  btn?.classList.add('press');
+  setTimeout(() => btn?.classList.remove('press'), 120);
+  pressKey(key);
+});
+$('pin-gen').onclick = () => {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 10_000;
+  pinBuf = String(n).padStart(4, '0');
+  pinPhase = 'generated';
+  $('dots').classList.add('reveal');
+  $('pin-title').textContent = 'Este es tu código';
+  $('pin-sub').textContent = 'Anótalo en un lugar seguro: no se puede recuperar.';
+  $('pin-noted').classList.remove('hidden');
+  renderDots();
 };
-$('acc-back').onclick = () => show('welcome');
-$('acc-next').onclick = () => validAccount() && startInstall();
+$('pin-noted').onclick = () => pinAccepted(pinBuf);
+$('pin-back').onclick = () => show('gh');
+
+// -- step 3 (owner only): channel cards
+document.querySelectorAll<HTMLButtonElement>('.choice').forEach((c) => {
+  c.onclick = () => {
+    document.querySelectorAll('.choice').forEach((n) => {
+      n.classList.toggle('selected', n === c);
+      n.setAttribute('aria-checked', String(n === c));
+    });
+    chosenChannel = c.dataset.channel === 'dev' ? 'dev' : 'stable';
+  };
+});
+$('ch-back').onclick = () => (existing ? show('welcome') : show('pin'));
+$('ch-next').onclick = () => startInstall();
 
 // ---------- Face step ----------
+const FACE_HINTS = [
+  'Mira de frente a la cámara',
+  'Gira un poco la cabeza a la izquierda',
+  'Ahora un poco a la derecha',
+  'Levanta ligeramente la barbilla',
+  'Última: sonríe, ya casi está',
+];
+
+function setFaceProgress(done: number, total: number): void {
+  ($('seg-arc') as unknown as SVGCircleElement).style.strokeDashoffset = String(402 * (1 - done / total));
+  $('face-step').textContent = `Captura ${Math.min(done + 1, total)} de ${total}`;
+  $('face-msg').textContent = done >= total ? '¡Listo!' : FACE_HINTS[Math.min(done, FACE_HINTS.length - 1)];
+}
+
+function confetti(): void {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  const colors = ['#22d3ee', '#3b82f6', '#fb923c', '#34d399', '#f1f5f9'];
+  for (let i = 0; i < 46; i++) {
+    const p = document.createElement('i');
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 140 + Math.random() * 220;
+    p.style.background = colors[i % colors.length];
+    p.style.setProperty('--x', `${Math.cos(angle) * dist}px`);
+    p.style.setProperty('--y', `${Math.sin(angle) * dist + 120}px`);
+    p.style.setProperty('--r', `${Math.random() * 720 - 360}deg`);
+    p.style.animationDelay = `${Math.random() * 0.15}s`;
+    box.append(p);
+  }
+  document.querySelector('.window')!.append(box);
+  setTimeout(() => box.remove(), 2200);
+}
 function resetFace(): void {
+  $<HTMLImageElement>('face-avatar').src = linked?.avatar ?? 'icon.png';
+  ($('seg-arc') as unknown as SVGCircleElement).style.strokeDashoffset = '402';
+  $('face-step').textContent = '';
   $('fring').classList.remove('scanning', 'fail');
   $('face-msg').textContent = 'Se guarda solo una huella numérica cifrada en este equipo, nunca fotos.';
   $<HTMLButtonElement>('face-go').disabled = false;

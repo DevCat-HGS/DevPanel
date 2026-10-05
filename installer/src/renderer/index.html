@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com https://github.com"
     />
     <title>Instalador de DevPanel</title>
     <link rel="stylesheet" href="styles.css" />
@@ -20,6 +20,10 @@
           <button id="close" aria-label="Cerrar">&#10005;</button>
         </div>
       </header>
+
+      <nav id="stepper" class="stepper hidden" aria-label="Progreso">
+        <span data-s="0">Cuenta</span><span data-s="1">Código</span><span data-s="2">Instalar</span><span data-s="3">Rostro</span>
+      </nav>
 
       <!-- 1. Welcome -->
       <section id="s-welcome" class="screen active">
@@ -64,53 +68,74 @@
         </div>
       </section>
 
-      <!-- 2b. Account: GitHub + verification code -->
-      <section id="s-account" class="screen">
-        <div class="panel wide">
-          <h2>Vincula tu cuenta</h2>
-
-          <div id="acc-existing" class="existing hidden">
-            <img id="acc-ex-avatar" alt="" />
-            <div><b id="acc-ex-name"></b><br /><span class="muted">Ya configurada: se conservan tu código y tu rostro.</span></div>
+      <!-- 2b. Conversational setup: one question per screen -->
+      <section id="s-gh" class="screen">
+        <div class="ask">
+          <p class="eyebrow">Paso 1 de 3 · Tu cuenta</p>
+          <h2>¿Cuál es tu usuario de GitHub?</h2>
+          <p class="muted">Escríbelo o pega el enlace de tu perfil. Te buscamos mientras escribes.</p>
+          <div class="bigfield">
+            <span class="at">@</span>
+            <input id="gh" type="text" autocomplete="off" spellcheck="false" placeholder="tu-usuario" />
+            <span id="gh-spin" class="spin hidden" aria-hidden="true"></span>
           </div>
-
-          <div id="acc-new">
-            <label class="field">
-              <span>Tu usuario de GitHub o el enlace de tu perfil</span>
-              <div class="dir">
-                <input id="gh" type="text" autocomplete="off" placeholder="usuario  ó  https://github.com/usuario" />
-                <button id="gh-btn" class="btn ghost small">Vincular</button>
-              </div>
-            </label>
-            <div id="profile" class="profile hidden">
-              <img id="avatar" alt="" />
-              <div><b id="p-name"></b><br /><span id="p-login" class="muted"></span></div>
+          <div id="id-card" class="id-card hidden">
+            <img id="avatar" alt="" />
+            <div class="who">
+              <b id="p-name"></b>
+              <span id="p-login" class="muted"></span>
+              <span id="p-meta" class="muted"></span>
             </div>
-            <div class="codes">
-              <label class="field"><span>Código de verificación (4 a 8 dígitos)</span>
-                <input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Tu código" /></label>
-              <label class="field"><span>Repítelo</span>
-                <input id="pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Repite el código" /></label>
-            </div>
-            <div class="actions tight">
-              <button id="gen" class="btn ghost small">Generar uno</button>
-              <button id="show" class="btn ghost small">Mostrar</button>
-              <span class="muted">Guárdalo: no se puede recuperar.</span>
-            </div>
+            <span class="verified" aria-hidden="true">✓</span>
           </div>
-
-          <label id="channel-row" class="field hidden">
-            <span>Canal de actualizaciones</span>
-            <select id="channel">
-              <option value="stable">Estable (recomendado)</option>
-              <option value="dev">Desarrollo (cambios adelantados)</option>
-            </select>
-          </label>
-
-          <p id="acc-err" class="error" role="alert"></p>
+          <p id="gh-err" class="error" role="alert"></p>
           <div class="actions">
-            <button id="acc-back" class="btn ghost">Atrás</button>
-            <button id="acc-next" class="btn primary" disabled>Instalar</button>
+            <button id="gh-back" class="btn ghost">Atrás</button>
+            <button id="gh-next" class="btn primary" disabled>Soy yo, continuar</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="s-pin" class="screen">
+        <div class="ask center-ask">
+          <p class="eyebrow">Paso 2 de 3 · Tu código</p>
+          <h2 id="pin-title">Crea tu código secreto</h2>
+          <p id="pin-sub" class="muted">Son 4 dígitos. Es tu llave si el rostro falla.</p>
+          <div id="dots" class="dots" aria-label="Dígitos ingresados">
+            <i></i><i></i><i></i><i></i>
+          </div>
+          <div id="keypad" class="keypad">
+            <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+            <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+            <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+            <button data-k="back" aria-label="Borrar">⌫</button><button data-k="0">0</button>
+            <button data-k="ok" class="ok" aria-label="Confirmar">✓</button>
+          </div>
+          <p id="pin-err" class="error" role="alert"></p>
+          <div class="actions tight">
+            <button id="pin-back" class="btn ghost small">Atrás</button>
+            <button id="pin-gen" class="btn ghost small">Generar uno por mí</button>
+            <button id="pin-noted" class="btn primary small hidden">Lo anoté, continuar</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="s-channel" class="screen">
+        <div class="ask">
+          <p class="eyebrow">Paso 3 de 3 · Canal</p>
+          <h2>¿Qué versión quieres?</h2>
+          <p class="muted">Como eres el dueño del proyecto, puedes recibir los cambios antes que nadie.</p>
+          <div class="choices" role="radiogroup">
+            <button class="choice selected" data-channel="stable" role="radio" aria-checked="true">
+              <b>Estable</b><span>Versiones probadas. Recomendado.</span>
+            </button>
+            <button class="choice" data-channel="dev" role="radio" aria-checked="false">
+              <b>Desarrollo</b><span>Cambios adelantados desde la rama developer.</span>
+            </button>
+          </div>
+          <div class="actions">
+            <button id="ch-back" class="btn ghost">Atrás</button>
+            <button id="ch-next" class="btn primary">Instalar</button>
           </div>
         </div>
       </section>
@@ -149,9 +174,14 @@
       <section id="s-face" class="screen">
         <div class="center">
           <div id="fring" class="fring">
-            <img src="icon.png" alt="" />
+            <svg class="seg" viewBox="0 0 140 140" aria-hidden="true">
+              <circle class="seg-track" cx="70" cy="70" r="64" />
+              <circle id="seg-arc" class="seg-arc" cx="70" cy="70" r="64" />
+            </svg>
+            <img id="face-avatar" src="icon.png" alt="" />
             <span class="scan"></span>
           </div>
+          <p id="face-step" class="eyebrow"></p>
           <h2>Activa el reconocimiento facial</h2>
           <p id="face-msg" class="muted">Se guarda solo una huella numérica cifrada en este equipo, nunca fotos.</p>
           <div class="actions">

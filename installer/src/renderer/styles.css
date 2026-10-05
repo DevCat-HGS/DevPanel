@@ -217,3 +217,80 @@ select {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(148, 197, 255, 0.22); border-radius: 8px; }
+
+/* ---------- Stepper ---------- */
+.stepper { position: absolute; top: 52px; left: 0; right: 0; z-index: 4; display: flex; justify-content: center; gap: 26px; animation: fade-in 0.4s; }
+.stepper span { position: relative; font-size: 12px; color: var(--muted); padding-left: 16px; transition: color 0.3s; }
+.stepper span::before { content: ''; position: absolute; left: 0; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%; background: rgba(148, 197, 255, 0.25); transition: background 0.3s, box-shadow 0.3s, transform 0.3s var(--ease); }
+.stepper span.done { color: var(--text); }
+.stepper span.done::before { background: var(--cyan); }
+.stepper span.on { color: var(--text); font-weight: 600; }
+.stepper span.on::before { background: var(--cyan); box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.25), 0 0 14px var(--cyan); transform: scale(1.2); }
+
+/* ---------- Conversational questions ---------- */
+.ask { width: 520px; display: flex; flex-direction: column; gap: 12px; }
+.ask.center-ask { align-items: center; text-align: center; width: 420px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan); font-weight: 600; margin: 0; }
+.ask h2 { font-size: 32px; letter-spacing: -0.03em; line-height: 1.1; }
+.ask .muted { margin: 0; }
+.screen.active .ask > * { animation: rise 0.55s var(--ease) both; }
+.screen.active .ask > *:nth-child(2) { animation-delay: 0.06s; }
+.screen.active .ask > *:nth-child(3) { animation-delay: 0.12s; }
+.screen.active .ask > *:nth-child(4) { animation-delay: 0.18s; }
+.screen.active .ask > *:nth-child(n+5) { animation-delay: 0.24s; }
+
+.bigfield { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 18px; border-radius: 18px; background: rgba(7, 13, 24, 0.7); border: 1px solid var(--border); transition: border-color 0.3s, box-shadow 0.3s; }
+.bigfield:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 5px rgba(34, 211, 238, 0.14), 0 10px 40px rgba(34, 211, 238, 0.12); }
+.bigfield .at { font-size: 26px; color: var(--cyan); font-weight: 700; }
+.bigfield input { flex: 1; min-width: 0; border: 0; background: none; padding: 12px 0; font: inherit; font-size: 26px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; -webkit-user-select: text; user-select: text; outline: none; }
+.spin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid rgba(34, 211, 238, 0.25); border-top-color: var(--cyan); animation: spin 0.7s linear infinite; }
+
+.id-card { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-radius: 18px; background: linear-gradient(120deg, rgba(34, 211, 238, 0.12), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(34, 211, 238, 0.45); animation: pop-in 0.55s var(--ease) both !important; }
+.id-card img { width: 62px; height: 62px; border-radius: 50%; border: 2px solid var(--cyan); box-shadow: 0 0 22px rgba(34, 211, 238, 0.35); }
+.id-card .who { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.id-card .who b { font-size: 18px; }
+.verified { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #04121f; background: var(--cyan); animation: pop 0.5s 0.25s var(--ease) both; }
+
+/* ---------- PIN pad ---------- */
+.dots { display: flex; gap: 12px; margin: 10px 0 4px; height: 30px; align-items: center; }
+.dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(148, 197, 255, 0.35); display: grid; place-items: center; font: 700 15px/1 Consolas, monospace; font-style: normal; color: transparent; transition: background 0.2s, border-color 0.2s, transform 0.3s var(--ease); }
+.dots i.on { background: var(--cyan); border-color: var(--cyan); transform: scale(1.25); box-shadow: 0 0 14px rgba(34, 211, 238, 0.6); }
+.dots.reveal i.on { width: 24px; height: 30px; border-radius: 8px; background: rgba(34, 211, 238, 0.12); color: var(--cyan); transform: none; box-shadow: none; }
+.dots.shake { animation: shake 0.45s; }
+.dots.good i.on { background: #34d399; border-color: #34d399; box-shadow: 0 0 14px rgba(52, 211, 153, 0.6); }
+.keypad { display: grid; grid-template-columns: repeat(3, 68px); gap: 10px; margin: 8px 0 2px; }
+.keypad button { height: 52px; border-radius: 16px; font: 600 20px Inter, 'Segoe UI', sans-serif; color: var(--text); cursor: pointer; background: rgba(148, 197, 255, 0.07); border: 1px solid var(--border); transition: transform 0.15s var(--ease), background 0.2s, border-color 0.2s; }
+.keypad button:hover { background: rgba(34, 211, 238, 0.14); border-color: var(--cyan); transform: translateY(-2px); }
+.keypad button:active, .keypad button.press { transform: scale(0.92); background: rgba(34, 211, 238, 0.28); }
+.keypad button.ok { background: linear-gradient(135deg, var(--cyan), var(--blue)); color: #04121f; border-color: transparent; }
+.keypad button:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+/* ---------- Channel cards ---------- */
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 8px 0; }
+.choice { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 20px; border-radius: 18px; cursor: pointer; font: inherit; color: var(--text); background: rgba(148, 197, 255, 0.05); border: 1px solid var(--border); transition: transform 0.25s var(--ease), border-color 0.25s, background 0.25s, box-shadow 0.25s; }
+.choice b { font-size: 18px; }
+.choice span { color: var(--muted); font-size: 13px; }
+.choice:hover { transform: translateY(-4px); border-color: var(--cyan); }
+.choice.selected { border-color: var(--cyan); background: rgba(34, 211, 238, 0.12); box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.14), 0 14px 36px rgba(34, 211, 238, 0.16); }
+
+/* ---------- Face: segmented progress around the avatar ---------- */
+.fring { width: 140px; height: 140px; border: 0; box-shadow: none; }
+.fring img { position: absolute; inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px); }
+.fring .seg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.fring .seg circle { fill: none; stroke-width: 5; }
+.seg-track { stroke: rgba(148, 197, 255, 0.14); }
+.seg-arc { stroke: var(--cyan); stroke-linecap: round; stroke-dasharray: 402; stroke-dashoffset: 402; transition: stroke-dashoffset 0.6s var(--ease); filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.7)); }
+.fring.fail .seg-arc { stroke: var(--bad); }
+
+/* ---------- Confetti on success ---------- */
+.confetti { position: absolute; left: 50%; top: 42%; width: 0; height: 0; z-index: 6; pointer-events: none; }
+.confetti i { position: absolute; width: 8px; height: 14px; border-radius: 2px; animation: confetti 1.6s var(--ease) forwards; }
+@keyframes confetti { 0% { transform: translate(0, 0) rotate(0); opacity: 1; } 100% { transform: translate(var(--x), var(--y)) rotate(var(--r)); opacity: 0; } }
+@keyframes pop-in { 0% { opacity: 0; transform: scale(0.85) translateY(14px); } 60% { transform: scale(1.03); } 100% { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } }
+
+/* ---------- Spacing under the stepper ---------- */
+#s-gh, #s-pin, #s-channel, #s-progress, #s-face { padding-top: 78px; }
+.keypad { gap: 8px; margin: 4px 0 0; }
+.keypad button { height: 46px; }
+.dots { margin: 6px 0 2px; }

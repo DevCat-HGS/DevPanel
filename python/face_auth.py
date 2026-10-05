@@ -86,6 +86,8 @@ def enroll(detector, recognizer) -> None:
         # space the samples out so the user has time to shift pose slightly
         if face is not None and time.time() - last > 0.8:
             samples.append(embed(recognizer, frame, face)[0])
+            # progress line for UIs; consumers read only the LAST line as the result
+            print(json.dumps({"progress": len(samples), "total": ENROLL_SAMPLES}), flush=True)
             last = time.time()
             if len(samples) >= ENROLL_SAMPLES:
                 break

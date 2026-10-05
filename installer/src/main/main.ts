@@ -70,7 +70,7 @@ async function lookup(input: string): Promise<GithubProfile> {
   if (res.status === 404) throw new Error(`No existe el usuario "${user}" en GitHub`);
   if (!res.ok) throw new Error(`GitHub respondió ${res.status}. Intenta de nuevo en unos minutos.`);
   const u = await res.json();
-  return { login: u.login, name: u.name, avatar: u.avatar_url };
+  return { login: u.login, name: u.name, avatar: u.avatar_url, repos: u.public_repos ?? 0, followers: u.followers ?? 0 };
 }
 
 async function download(asset: Asset, file: string, signal: AbortSignal): Promise<void> {
@@ -120,7 +120,7 @@ function runSetup(file: string, dir: string): Promise<number> {
 
 // ---------- account (same files the app reads on first launch) ----------
 function saveAccount(account: { github: string; pin: string }): void {
-  if (!/^\d{4,8}$/.test(account.pin)) throw new Error('El código debe tener de 4 a 8 dígitos');
+  if (!/^\d{4}$/.test(account.pin)) throw new Error('El código debe tener 4 dígitos');
   mkdirSync(userData(), { recursive: true });
   const salt = randomBytes(16);
   writeFileSync(
@@ -162,6 +162,34 @@ function runToEnd(cmd: string, args: string[], proc: (p: ChildProcess) => void):
   });
 }
 
+function runLines(
+  cmd: string,
+  args: string[],
+  onLine: (line: string) => void,
+  proc: (p: ChildProcess) => void,
+): Promise<string> {
+  return new Promise((resolve) => {
+    const p = spawn(cmd, args, { windowsHide: true });
+    proc(p);
+    let buf = '';
+    let last = '';
+    p.stdout?.on('data', (d) => {
+      buf += d;
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const l of lines.filter(Boolean)) {
+        last = l;
+        onLine(l);
+      }
+    });
+    p.on('error', () => resolve(last));
+    p.on('close', () => {
+      if (buf.trim()) last = buf.trim();
+      resolve(last);
+    });
+  });
+}
+
 async function enrollFace(): Promise<{ ok: boolean; error?: string }> {
   const dir = join(installedDir, 'resources', 'python');
   const script = join(dir, 'face_auth.py');
@@ -182,10 +210,23 @@ async function enrollFace(): Promise<{ ok: boolean; error?: string }> {
 
   send({ phase: 'face-state', state: 'scanning' });
   mkdirSync(join(userData(), 'models'), { recursive: true });
-  const r = await runToEnd(py, [script, 'enroll', '--models-dir', join(userData(), 'models')], (p) => (faceProc = p));
+  const lastLine = await runLines(
+    py,
+    [script, 'enroll', '--models-dir', join(userData(), 'models')],
+    (line) => {
+      try {
+        const m = JSON.parse(line);
+        if (typeof m.progress === 'number')
+          send({ phase: 'face-state', state: 'scanning', progress: m.progress, total: m.total });
+      } catch {
+        /* not a progress line */
+      }
+    },
+    (p) => (faceProc = p),
+  );
   faceProc = null;
   try {
-    const result = JSON.parse(r.out.trim().split('\n').filter(Boolean).pop() ?? '');
+    const result = JSON.parse(lastLine);
     if (!result.ok) return { ok: false, error: result.error ?? 'No se pudo registrar el rostro' };
     // Only embeddings are stored (never images), encrypted with the OS keychain.
     writeFileSync(join(userData(), 'face.bin'), safeStorage.encryptString(JSON.stringify(result.embeddings)));
@@ -206,8 +247,17 @@ async function install(opts: InstallOptions): Promise<void> {
     if (who.toLowerCase() !== DEV_OWNER.toLowerCase())
       return send({ phase: 'error', message: `El canal de desarrollo está reservado para ${DEV_OWNER}` });
   }
-  if (opts.account && !/^\d{4,8}$/.test(opts.account.pin)) {
-    return send({ phase: 'error', message: 'El código debe tener de 4 a 8 dígitos' });
+  if (opts.account && !/^\d{4}$/.test(opts.account.pin)) {
+    return send({ phase: 'error', message: 'El código debe tener 4 dígitos' });
+  }
+
+  if (process.env.DEVPANEL_DRY_RUN) {
+    // UI tests: never download or install anything. 'face' jumps straight to the face step.
+    if (process.env.DEVPANEL_DRY_RUN === 'face') {
+      phase = 'face';
+      return send({ phase: 'face' });
+    }
+    return send({ phase: 'download', percent: 42, got: 33_000_000, total: 78_000_000, speed: 4_200_000 });
   }
 
   const tmp = join(app.getPath('temp'), 'devpanel-installer');
@@ -302,6 +352,16 @@ app.whenReady().then(() => {
 
   ipcMain.handle('face:enroll', async () => {
     if (phase !== 'face') return { ok: false, error: 'La instalación aún no terminó' };
+    if (process.env.DEVPANEL_DRY_RUN === 'face') {
+      // simulated enrollment (no camera, no Python) so the animation can be tested
+      for (let i = 0; i <= 5; i++) {
+        send({ phase: 'face-state', state: 'scanning', progress: i, total: 5 });
+        await new Promise((r) => setTimeout(r, 450));
+      }
+      phase = 'idle';
+      send({ phase: 'done', dir: installedDir });
+      return { ok: true };
+    }
     const r = await enrollFace();
     if (r.ok) {
       phase = 'idle';
