@@ -7,6 +7,7 @@ import { analyzeRepos } from './recs.js';
 import { setLangPref, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { initLocal } from './ui-local.js';
+import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
 import { initEnvCheck, initTools, TOOLS } from './ui-tools.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
@@ -218,6 +219,8 @@ async function showApp(): Promise<void> {
   initTools();
   initEnvCheck();
   initLocal();
+  initNotes();
+  void checkWhatsNew();
   $('nav-local').classList.toggle('hidden', web);
   initPalette(paletteItems);
   void showChannel();
@@ -628,7 +631,9 @@ function renderUpdate(s: UpdateStatus): void {
       box.classList.remove('hidden');
       const b = el('button', 'btn primary', 'Descargar');
       b.onclick = () => void api.update.download();
-      box.append(el('div', undefined, `Nueva versión v${s.version}`), b);
+      const more = el('button', 'link', 'Novedades');
+      more.onclick = () => void showNotes(s.version);
+      box.append(el('div', undefined, `Nueva versión v${s.version}`), b, more);
       break;
     }
     case 'downloading':

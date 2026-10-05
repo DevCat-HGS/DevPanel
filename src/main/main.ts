@@ -7,6 +7,7 @@ import { mt } from './i18n-main';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
 import { listCommits, listRepos, listRuns, lookupUser } from './github';
+import { setupNotes } from './notes';
 import { loadSettings, saveSettings } from './settings';
 import { setupToken } from './token';
 import { setupUpdater } from './updater';
@@ -139,6 +140,7 @@ app.whenReady().then(() => {
   setupFace();
   setupEnv();
   setupToken();
+  setupNotes();
   win = createWindow();
   const getWin = () => (win && !win.isDestroyed() ? win : null);
   setupLocal(getWin);

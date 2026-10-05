@@ -241,10 +241,21 @@
             <h3>Actualizaciones</h3>
             <p id="channel-info" class="muted"></p>
             <p id="update-msg" class="muted" role="status"></p>
-            <button id="update-check" class="btn">Buscar actualizaciones</button>
+            <div class="row">
+              <button id="update-check" class="btn">Buscar actualizaciones</button>
+              <button id="notes-btn" class="btn ghost">Ver novedades</button>
+            </div>
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="notes-modal" class="palette hidden" role="dialog" aria-labelledby="notes-title">
+      <div class="pal-box notes-box">
+        <h2 id="notes-title"></h2>
+        <div id="notes-body" class="notes" data-no-i18n></div>
+        <button id="notes-close" class="btn primary">Entendido</button>
+      </div>
     </div>
 
     <div id="pin-modal" class="palette hidden" role="dialog" aria-label="Cambiar código">

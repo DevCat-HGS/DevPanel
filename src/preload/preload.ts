@@ -47,6 +47,7 @@ const api: DevPanelApi = {
     onOutput: (cb) => ipcRenderer.on('local:output', (_e, m) => cb(m)),
     onExit: (cb) => ipcRenderer.on('local:exit', (_e, m) => cb(m)),
   },
+  notes: { get: (v) => ipcRenderer.invoke('notes:get', v) },
   env: { check: () => ipcRenderer.invoke('env:check') },
   update: {
     check: () => ipcRenderer.invoke('update:check'),

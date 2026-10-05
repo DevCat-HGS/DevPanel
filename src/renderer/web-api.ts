@@ -117,6 +117,7 @@ export function createWebApi(): DevPanelApi {
       onOutput: () => {},
       onExit: () => {},
     },
+    notes: { get: async () => null },
     env: { check: async () => [] },
     // The web build is always the latest deploy.
     update: {

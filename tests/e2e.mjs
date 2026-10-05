@@ -127,6 +127,15 @@ try {
   assert.equal(saved.alertsEnabled, false);
   log('invalid tokens are rejected and the alerts preference persists');
 
+  // ---------- release notes dialog ----------
+  await page.click('#notes-btn');
+  await page.waitForSelector('#notes-modal:not(.hidden)');
+  await page.waitForFunction(() => document.getElementById('notes-body').textContent.includes('notas'));
+  assert.match(await page.textContent('#notes-title'), /versión/);
+  await page.click('#notes-close');
+  await page.waitForSelector('#notes-modal.hidden', { state: 'attached' });
+  log('the release notes dialog opens and closes (no notes exist for a dev checkout)');
+
   // ---------- language ----------
   await page.selectOption('#pref-lang', 'en');
   await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Your projects');

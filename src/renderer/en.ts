@@ -278,6 +278,12 @@ export const EN: Record<string, string> = {
 
   // ---- updates & channel
   'Actualizaciones': 'Updates',
+  'Ver novedades': "See what's new",
+  'Entendido': 'Got it',
+  'Novedades de la versión {v}': "What's new in version {v}",
+  'Aún no hay notas para esta versión.': 'There are no notes for this version yet.',
+  'Cargando…': 'Loading…',
+  'Novedades': "What's new",
   'Buscar actualizaciones': 'Check for updates',
   'La versión web siempre está en la última versión.': 'The web version is always the latest.',
   'Modo desarrollo: el actualizador solo funciona en la app instalada.': 'Development mode: the updater only works in the installed app.',

@@ -35,6 +35,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release notes are built from the commit history
 
       - uses: actions/setup-node@v4
         with:
@@ -67,6 +69,17 @@ jobs:
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Release notes from the commit messages since the previous release of this channel.
+      - name: Write release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          node scripts/release-notes.mjs --tag "v$version" > notes.md
+          cat notes.md
+          gh release edit "v$version" --notes-file notes.md
 
       # The plain NSIS "Setup" is only used by the auto-updater. People should install with the
       # custom installer, so it is attached to every release page next to it.

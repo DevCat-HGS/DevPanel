@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import * as t from '../dist/renderer/tools.js';
 import { analyzeRepos } from '../dist/renderer/recs.js';
 import { newFailures } from '../dist/main/alerts-core.js';
+import { buildNotes, parseSubject } from '../scripts/release-notes.mjs';
+import { htmlToText, parseNotes } from '../dist/renderer/notes-md.js';
 import { parseGitStatus, isSafeScriptName, stripAnsi } from '../dist/main/local-core.js';
 
 test('json: format, minify, validate', () => {
@@ -113,4 +115,30 @@ test('only safe npm script names are accepted', () => {
 test('ansi escapes are stripped from terminal output', () => {
   assert.equal(stripAnsi('\u001b[31mroja\u001b[0m ok'), 'roja ok');
   assert.equal(stripAnsi('linea\r\nfin'), 'linea\r\nfin');
+});
+
+test('release notes group conventional commits and skip merges', () => {
+  assert.deepEqual(parseSubject('feat(app): add x'), { type: 'feat', scope: 'app', text: 'add x' });
+  assert.equal(parseSubject('ci!: break it').type, 'other');
+  assert.equal(parseSubject('random message').type, 'other');
+  const md = buildNotes(['feat(app): one', 'fix: two', 'docs: three', 'Merge branch x', 'ci(release): four', 'feat: five']);
+  assert.match(md, /## ✨ Novedades/);
+  assert.match(md, /- \*\*app:\*\* one/);
+  assert.match(md, /- five/);
+  assert.match(md, /## 🐛 Correcciones[\s\S]*- two/);
+  assert.match(md, /## 🔧 Mejoras internas[\s\S]*- three[\s\S]*\*\*release:\*\* four/);
+  assert.ok(!md.includes('Merge'));
+  assert.ok(md.indexOf('Novedades') < md.indexOf('Correcciones') && md.indexOf('Correcciones') < md.indexOf('Mejoras'));
+  assert.match(buildNotes([]), /Sin cambios destacados/);
+});
+
+test('release notes parser handles markdown and the HTML electron-updater returns', () => {
+  const md = parseNotes('## Cambios\n- uno **importante**\n- dos\n\nTexto suelto');
+  assert.deepEqual(md.map((b) => b.type), ['h', 'li', 'li', 'p']);
+  assert.equal(md[1].text, 'uno importante');
+  const html = parseNotes('<h2>Cambios</h2><ul><li>uno &amp; dos</li><li>tres</li></ul><script>alert(1)</script>');
+  assert.equal(html[0].text, 'Cambios');
+  assert.equal(html[1].text, 'uno & dos');
+  assert.equal(html.length, 4, 'tags are stripped; scripts never become markup');
+  assert.equal(htmlToText('a<br>b'), 'a\nb');
 });

@@ -141,6 +141,10 @@ export interface DevPanelApi {
     onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
     onExit(cb: (m: { id: number; code: number }) => void): void;
   };
+  notes: {
+    /** Release notes (markdown) of a version, or of the running one; null if none. */
+    get(version?: string): Promise<string | null>;
+  };
   env: {
     /** Detects the dev tools installed on this machine (desktop only). */
     check(): Promise<EnvTool[]>;
