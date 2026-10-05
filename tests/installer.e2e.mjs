@@ -19,6 +19,10 @@ const launch = async () => {
   const app = await electron.launch({ args: ['installer'], env });
   const page = await app.firstWindow();
   await page.waitForSelector('#s-welcome.active');
+  // texts are asserted in Spanish: pin the language instead of following the machine's
+  await page.evaluate(() => localStorage.setItem('devpanel.installer.lang', 'es'));
+  await page.reload();
+  await page.waitForSelector('#s-welcome.active');
   await page.waitForFunction(() => !document.getElementById('go-install').disabled, null, { timeout: 20000 });
   return { app, page };
 };

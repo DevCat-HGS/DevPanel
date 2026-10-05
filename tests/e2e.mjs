@@ -10,6 +10,8 @@ import { _electron as electron } from 'playwright-core';
 const shots = process.env.E2E_SHOTS ?? join(tmpdir(), 'devpanel-shots');
 mkdirSync(shots, { recursive: true });
 const userData = mkdtempSync(join(tmpdir(), 'devpanel-e2e-'));
+// The suite asserts Spanish texts; without this the app would follow the (English) CI runner's language.
+writeFileSync(join(userData, 'settings.json'), JSON.stringify({ language: 'es' }));
 const GH_USER = process.env.E2E_GH_USER ?? 'octocat';
 let PIN = '1234';
 
