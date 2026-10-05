@@ -12,10 +12,16 @@ on:
     branches: [developer, main]
     paths-ignore:
       - "installer/**"
+      - "tests/**"
       - "docs/**"
+      - "docker/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".dockerignore"
       - "**/*.md"
       - ".github/workflows/installer.yml"
       - ".github/workflows/ci.yml"
+      - ".github/workflows/docker.yml"
 
 permissions:
   contents: write
