@@ -106,6 +106,10 @@
             <span class="ico" data-icon="grid" aria-hidden="true"></span>
             <span class="nav-label">Projects</span>
           </button>
+          <button id="nav-local" class="nav" data-view="local">
+            <span class="ico" data-icon="folder" aria-hidden="true"></span>
+            <span class="nav-label">Local</span>
+          </button>
           <button class="nav" data-view="tools">
             <span class="ico" data-icon="tools" aria-hidden="true"></span>
             <span class="nav-label">Tools</span>
@@ -147,6 +151,26 @@
           <div id="stats" class="stats"></div>
           <div id="repos" class="grid" aria-live="polite"></div>
           <div id="detail" class="detail hidden"></div>
+        </section>
+
+        <section id="view-local" class="view hidden">
+          <header class="view-head">
+            <div>
+              <h2>Proyectos locales</h2>
+              <p class="muted">Carpetas de tu equipo: estado de git y scripts de npm sin salir del panel.</p>
+            </div>
+            <button id="local-add" class="btn primary">Agregar carpeta</button>
+          </header>
+          <div id="local-list" class="local-list"></div>
+          <div class="term">
+            <div class="term-head">
+              <span id="term-title">Terminal</span>
+              <span class="spacer"></span>
+              <button id="term-stop" class="btn small danger" disabled>Detener</button>
+              <button id="term-clear" class="btn small ghost">Limpiar</button>
+            </div>
+            <pre id="term-out" aria-live="polite"></pre>
+          </div>
         </section>
 
         <section id="view-tools" class="view hidden">

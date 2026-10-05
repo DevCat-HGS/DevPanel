@@ -1,7 +1,8 @@
 // End-to-end smoke test: drives the real Electron app with Playwright against a throwaway profile.
 //   npm run test:e2e            (needs network: it queries the public GitHub API)
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron as electron } from 'playwright-core';
@@ -12,8 +13,17 @@ const userData = mkdtempSync(join(tmpdir(), 'devpanel-e2e-'));
 const GH_USER = process.env.E2E_GH_USER ?? 'octocat';
 const PIN = '1234';
 
+// a throwaway git project for the "Local" view
+const proj = mkdtempSync(join(tmpdir(), 'devpanel-proj-'));
+const git = (...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t.t', ...a], { cwd: proj });
+writeFileSync(join(proj, 'package.json'), JSON.stringify({ name: 'demo', scripts: { hello: "node -e \"console.log('hola-desde-script')\"" } }));
+git('init', '-q', '-b', 'trabajo');
+git('add', '.');
+git('commit', '-q', '-m', 'primer commit');
+writeFileSync(join(proj, 'nuevo.txt'), 'sin commitear');
+
 // VS Code-like hosts export ELECTRON_RUN_AS_NODE=1, which makes Electron start as plain Node.
-const env = { ...process.env, DEVPANEL_USER_DATA: userData };
+const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj };
 delete env.ELECTRON_RUN_AS_NODE;
 const launch = () => electron.launch({ args: ['.'], env });
 
@@ -84,6 +94,25 @@ try {
   assert.ok((await page.locator('#env-list li').count()) >= 5);
   log('environment check lists the dev tools');
 
+  // ---------- local projects + terminal ----------
+  await page.click('.nav[data-view="local"]');
+  await page.click('#local-add');
+  await page.waitForSelector('.local-card');
+  assert.match(await page.textContent('.local-card .chips'), /trabajo/);
+  assert.match(await page.textContent('.local-card .chips'), /1 cambios/);
+  assert.match(await page.textContent('.local-card .chips'), /primer commit/);
+  await page.click('.script-btn:has-text("hello")');
+  await page.waitForFunction(() => document.getElementById('term-out').textContent.includes('hola-desde-script'), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.getElementById('term-out').textContent.includes('código 0'), null, { timeout: 30000 });
+  await shot(page, '4b-local');
+  log('local project shows branch, changes and last commit, and runs an npm script in the terminal');
+
+  const blocked = await page.evaluate(async (p) => window.devpanel.local.run(p, 'build && calc'), proj);
+  assert.ok('error' in blocked, 'unsafe script names are refused');
+  const foreign = await page.evaluate(async () => window.devpanel.local.run('C:/Windows', 'hello'));
+  assert.ok('error' in foreign, 'unregistered folders are refused');
+  log('the terminal refuses unsafe script names and folders that were never added');
+
   // ---------- settings: token + alerts ----------
   await page.click('.nav[data-view="settings"]');
   await page.fill('#token-input', 'short');
@@ -145,4 +174,5 @@ try {
 } finally {
   await app?.close().catch(() => {});
   rmSync(userData, { recursive: true, force: true });
+  rmSync(proj, { recursive: true, force: true });
 }

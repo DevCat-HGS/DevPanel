@@ -104,6 +104,17 @@ export function createWebApi(): DevPanelApi {
       clear: async () => {},
     },
     alerts: { check: async () => {}, onFailure: () => {} },
+    local: {
+      list: async () => [],
+      add: async () => null,
+      remove: async () => {},
+      git: async () => ({ ok: false, output: 'Solo disponible en la app de escritorio' }),
+      run: async () => ({ error: 'Solo disponible en la app de escritorio' }),
+      stop: async () => {},
+      open: async () => {},
+      onOutput: () => {},
+      onExit: () => {},
+    },
     env: { check: async () => [] },
     // The web build is always the latest deploy.
     update: {

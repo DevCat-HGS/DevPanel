@@ -4,6 +4,7 @@ import { hydrateIcons, icon } from './icons.js';
 import { runOnboarding } from './onboarding.js';
 import { initPalette } from './palette.js';
 import { analyzeRepos } from './recs.js';
+import { initLocal } from './ui-local.js';
 import { initEnvCheck, initTools, TOOLS } from './ui-tools.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
@@ -196,6 +197,8 @@ async function showApp(): Promise<void> {
   $<HTMLInputElement>('gh-user').value = s.githubUser;
   initTools();
   initEnvCheck();
+  initLocal();
+  $('nav-local').classList.toggle('hidden', web);
   initPalette(paletteItems);
   void showChannel();
   void initPrefs();
@@ -262,6 +265,7 @@ function paletteItems() {
   return [
     { label: 'Ir a Projects', hint: 'vista', run: () => goView('projects') },
     { label: 'Ir a Herramientas', hint: 'vista', run: () => goView('tools') },
+    ...(api.platform === 'web' ? [] : [{ label: 'Ir a Proyectos locales', hint: 'vista', run: () => goView('local') }]),
     { label: 'Ir a Settings', hint: 'vista', run: () => goView('settings') },
     { label: 'Cambiar tema claro / oscuro', hint: 'acción', run: () => $('theme-toggle').click() },
     { label: 'Recargar proyectos', hint: 'acción', run: () => void loadRepos() },

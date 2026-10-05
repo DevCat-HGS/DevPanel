@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as t from '../dist/renderer/tools.js';
 import { analyzeRepos } from '../dist/renderer/recs.js';
 import { newFailures } from '../dist/main/alerts-core.js';
+import { parseGitStatus, isSafeScriptName, stripAnsi } from '../dist/main/local-core.js';
 
 test('json: format, minify, validate', () => {
   assert.equal(t.formatJson('{"a":1}'), '{\n  "a": 1\n}');
@@ -91,4 +92,25 @@ test('alerts: first sight only records; later failures notify once', () => {
   state = newFailures(state.seen, [run(4, null, 'in_progress')]);
   assert.equal(state.failures.length, 0, 'runs still in progress are ignored');
   assert.equal(state.seen.r, 3);
+});
+
+test('git status parsing covers upstream, ahead/behind, dirty and edge cases', () => {
+  assert.deepEqual(parseGitStatus('## main...origin/main [ahead 2, behind 1]\n M a.ts\n?? b.ts\n'),
+    { branch: 'main', upstream: 'origin/main', ahead: 2, behind: 1, dirty: 2 });
+  assert.deepEqual(parseGitStatus('## develop...origin/develop\n'),
+    { branch: 'develop', upstream: 'origin/develop', ahead: 0, behind: 0, dirty: 0 });
+  assert.equal(parseGitStatus('## feature/x\n M a\n').upstream, null);
+  assert.equal(parseGitStatus('## No commits yet on main\n').branch, 'main');
+  assert.equal(parseGitStatus('## HEAD (no branch)\n').branch, 'HEAD suelto');
+  assert.equal(parseGitStatus('## main...origin/main [behind 3]\n').behind, 3);
+});
+
+test('only safe npm script names are accepted', () => {
+  for (const ok of ['build', 'test:e2e', 'dev-server', 'lint_fix', 'a.b']) assert.ok(isSafeScriptName(ok), ok);
+  for (const bad of ['', 'a b', 'build && calc', 'x;y', '$(id)', '../x', 'a'.repeat(65)]) assert.ok(!isSafeScriptName(bad), bad);
+});
+
+test('ansi escapes are stripped from terminal output', () => {
+  assert.equal(stripAnsi('\u001b[31mroja\u001b[0m ok'), 'roja ok');
+  assert.equal(stripAnsi('linea\r\nfin'), 'linea\r\nfin');
 });

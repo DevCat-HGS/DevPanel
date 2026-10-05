@@ -28,6 +28,17 @@ export interface WorkflowRun {
   updated_at: string;
 }
 
+export interface LocalProject {
+  path: string;
+  name: string;
+  exists: boolean;
+  isGit: boolean;
+  /** npm scripts found in package.json. */
+  scripts: string[];
+  git?: { branch: string; upstream: string | null; ahead: number; behind: number; dirty: number };
+  lastCommit?: { subject: string; when: string };
+}
+
 export interface EnvTool {
   name: string;
   version: string | null;
@@ -109,6 +120,18 @@ export interface DevPanelApi {
   alerts: {
     check(): Promise<void>;
     onFailure(cb: (f: { repo: string; url: string }) => void): void;
+  };
+  local: {
+    list(): Promise<LocalProject[]>;
+    /** Opens the folder picker and registers the project; null if cancelled. */
+    add(): Promise<LocalProject[] | null>;
+    remove(path: string): Promise<void>;
+    git(path: string, action: 'fetch' | 'pull'): Promise<{ ok: boolean; output: string }>;
+    run(path: string, script: string): Promise<{ id: number } | { error: string }>;
+    stop(id: number): Promise<void>;
+    open(path: string, how: 'folder' | 'code'): Promise<void>;
+    onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
+    onExit(cb: (m: { id: number; code: number }) => void): void;
   };
   env: {
     /** Detects the dev tools installed on this machine (desktop only). */

@@ -31,6 +31,17 @@ const api: DevPanelApi = {
     check: () => ipcRenderer.invoke('alerts:check'),
     onFailure: (cb) => ipcRenderer.on('alert:failure', (_e, f) => cb(f)),
   },
+  local: {
+    list: () => ipcRenderer.invoke('local:list'),
+    add: () => ipcRenderer.invoke('local:add'),
+    remove: (p) => ipcRenderer.invoke('local:remove', p),
+    git: (p, a) => ipcRenderer.invoke('local:git', p, a),
+    run: (p, s) => ipcRenderer.invoke('local:run', p, s),
+    stop: (id) => ipcRenderer.invoke('local:stop', id),
+    open: (p, how) => ipcRenderer.invoke('local:open', p, how),
+    onOutput: (cb) => ipcRenderer.on('local:output', (_e, m) => cb(m)),
+    onExit: (cb) => ipcRenderer.on('local:exit', (_e, m) => cb(m)),
+  },
   env: { check: () => ipcRenderer.invoke('env:check') },
   update: {
     check: () => ipcRenderer.invoke('update:check'),

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Settings } from '../shared/api';
 import { setupAlerts } from './alerts';
 import { setupEnv } from './env';
+import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
 import { listCommits, listRepos, listRuns, lookupUser } from './github';
 import { loadSettings, saveSettings } from './settings';
@@ -56,8 +57,10 @@ app.whenReady().then(() => {
   setupEnv();
   setupToken();
   const win = createWindow();
+  setupLocal(() => (win.isDestroyed() ? null : win));
   setupAlerts(() => (win.isDestroyed() ? null : win));
   setupUpdater(win, () => loadSettings().githubUser);
 });
 
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', stopAllLocal);
