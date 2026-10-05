@@ -1,11 +1,28 @@
 name: Build & Release
 
+# Release channels
+#   main      -> STABLE releases      (v0.1.<run>)        - what users install
+#   developer -> DEVELOPMENT releases (v0.1.<run>-dev)    - prereleases with upcoming changes
+#
+# The "-dev" suffix is what keeps the channels apart: electron-updater only offers
+# prereleases to apps that are themselves "-dev" builds, and GitHub's "latest" release
+# (used by the installer) never points at a prerelease.
 on:
   push:
     branches: [developer, main]
+    paths-ignore:
+      - "installer/**"
+      - "docs/**"
+      - "**/*.md"
+      - ".github/workflows/installer.yml"
+      - ".github/workflows/ci.yml"
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -20,12 +37,25 @@ jobs:
 
       - run: npm ci
 
-      # Every push gets a unique, increasing version: <package.json major.minor>.<run number>
-      - name: Set version
+      - name: Resolve channel and version
         shell: bash
         run: |
           base=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
-          npm version "$base.${{ github.run_number }}" --no-git-tag-version
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            version="$base.${{ github.run_number }}"
+            release_type="release"
+          else
+            version="$base.${{ github.run_number }}-dev"
+            release_type="prerelease"
+          fi
+          echo "Publishing $version as $release_type"
+          npm version "$version" --no-git-tag-version
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.build.publish[0].releaseType = '$release_type';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2));
+          "
 
       - name: Build, package and publish release
         run: npm run release

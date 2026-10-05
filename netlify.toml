@@ -1,4 +1,8 @@
-# Web deployment of DevPanel (the same renderer UI that runs inside Electron).
+# Web build of DevPanel (the same renderer UI that runs inside Electron).
+#
+# Branch model (see README):
+#   main      -> production site   (set as the production branch in Netlify)
+#   developer -> branch deploy     (developer--<site>.netlify.app, used as a live dev preview)
 [build]
   command = "npm run build:web"
   publish = "dist/renderer"
@@ -8,8 +12,6 @@
   # The web build doesn't need Electron's ~100MB binary
   ELECTRON_SKIP_BINARY_DOWNLOAD = "1"
 
-# Branch deploys: every push to `developer` gets its own URL (developer--<site>.netlify.app).
-# Set the site's production branch in Netlify (Site configuration > Build & deploy > Branches).
 [context.branch-deploy]
   command = "npm run build:web"
 
