@@ -1,0 +1,8 @@
+# Local web preview of DevPanel:  docker compose up --build   ->  http://localhost:8080
+services:
+  web:
+    build: .
+    image: devpanel-web:local
+    ports:
+      - "8080:80"
+    restart: unless-stopped
