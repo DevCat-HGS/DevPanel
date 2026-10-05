@@ -10,9 +10,10 @@
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
     "build:web": "tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
     "serve:web": "npm run build:web && npx --yes serve dist/renderer",
-    "start":"npm run build && electron .",
+    "start": "npm run build && electron .",
     "dist": "npm run build && electron-builder --win --publish never",
-    "release": "npm run build && electron-builder --win --publish always"
+    "release": "npm run build && electron-builder --win --publish always",
+    "test": "npm run build && node --test tests/unit.test.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"
@@ -26,12 +27,27 @@
   "build": {
     "appId": "com.devcat.devpanel",
     "productName": "DevPanel",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "package.json"],
-    "extraResources": [
-      { "from": "python", "to": "python", "filter": ["*.py", "requirements.txt"] }
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
     ],
-    "win": { "target": "nsis", "icon": "build/icon.ico" },
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python",
+        "filter": [
+          "*.py",
+          "requirements.txt"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -52,7 +68,12 @@
       "installerHeader": "build/installerHeader.bmp"
     },
     "publish": [
-      { "provider": "github", "owner": "DevCat-HGS", "repo": "DevPanel", "releaseType": "release" }
+      {
+        "provider": "github",
+        "owner": "DevCat-HGS",
+        "repo": "DevPanel",
+        "releaseType": "release"
+      }
     ]
   }
 }
