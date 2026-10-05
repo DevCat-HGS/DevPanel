@@ -150,6 +150,16 @@ async function download(asset: Asset, file: string, signal: AbortSignal): Promis
     throw new Error('La descarga está corrupta (la suma de verificación no coincide)');
 }
 
+/**
+ * DevPanel keeps running in the system tray after its window is closed, and Windows cannot replace
+ * an .exe that is in use. Since the user is installing/updating DevPanel, stop it first.
+ */
+async function closeRunningApp(): Promise<void> {
+  if (process.platform !== 'win32') return;
+  const r = spawnSync('taskkill', ['/F', '/T', '/IM', 'DevPanel.exe'], { windowsHide: true });
+  if (r.status === 0) await new Promise((res) => setTimeout(res, 1200)); // let Windows release the files
+}
+
 function runSetup(file: string, dir: string): Promise<number> {
   return new Promise((resolve, reject) => {
     // NSIS requires /D= last and unquoted, so arguments are passed verbatim.
@@ -320,6 +330,7 @@ async function install(opts: InstallOptions): Promise<void> {
 
     phase = 'install';
     send({ phase: 'install' });
+    await closeRunningApp();
     const code = await runSetup(file, opts.dir);
     if (code !== 0)
       throw new Error(`El instalador terminó con código ${code}. Cierra DevPanel si está abierto e inténtalo de nuevo.`);
