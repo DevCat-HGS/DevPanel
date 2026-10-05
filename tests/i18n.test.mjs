@@ -47,3 +47,14 @@ test('index.html has an English version for every Spanish text and attribute', (
   const untranslated = [...found].filter((t) => t && !NEUTRAL.has(t) && !(t in EN));
   assert.deepEqual(untranslated, [], 'untranslated strings in index.html');
 });
+
+test('installer: every Spanish text in its HTML has an English version', async () => {
+  const { EN: INST } = await import('../installer/dist/renderer/en.js');
+  const html = readFileSync('installer/src/renderer/index.html', 'utf8').replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*?<\/script>/g, '');
+  const found = new Set();
+  for (const m of html.matchAll(/>([^<>]*[A-Za-zÁ-ú][^<>]*)</g)) found.add(m[1].replace(/\s+/g, ' ').trim());
+  for (const m of html.matchAll(/(?:placeholder|aria-label|title)="([^"]+)"/g)) found.add(m[1]);
+  const neutral = new Set(['DevPanel', 'Dev', 'Panel', 'EN', 'Language / Idioma', 'ES']);
+  const missing = [...found].filter((x) => x && !neutral.has(x) && !(x in INST));
+  assert.deepEqual(missing, [], 'untranslated strings in the installer HTML');
+});

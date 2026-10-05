@@ -1,7 +1,33 @@
 import type { GithubProfile, InstallOptions, Progress } from '../shared/api';
+import { currentLang, setLangPref, type LangPref } from './i18n.js';
 
 const api = window.installer;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+// Language: system-detected unless the user toggled it (remembered on this machine).
+const LANG_KEY = 'devpanel.installer.lang';
+function savedLang(): LangPref {
+  try {
+    const v = localStorage.getItem(LANG_KEY);
+    return v === 'es' || v === 'en' ? v : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+function applyLang(pref: LangPref): void {
+  const lang = setLangPref(pref);
+  $('lang').textContent = lang === 'es' ? 'EN' : 'ES'; // shows the language you would switch to
+}
+applyLang(savedLang());
+$('lang').onclick = () => {
+  const next: LangPref = currentLang() === 'es' ? 'en' : 'es';
+  try {
+    localStorage.setItem(LANG_KEY, next);
+  } catch {
+    /* storage unavailable: the choice just won't be remembered */
+  }
+  applyLang(next);
+};
 
 // ---------- Screen routing ----------
 type Screen = 'welcome' | 'options' | 'gh' | 'pin' | 'channel' | 'progress' | 'face' | 'done' | 'error';

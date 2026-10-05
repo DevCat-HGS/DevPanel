@@ -37,6 +37,13 @@ try {
   await page.screenshot({ path: join(shots, 'i1-welcome.png') });
   log('welcome loads the latest stable version');
 
+  await page.click('#lang');
+  await page.waitForFunction(() => document.getElementById('go-install').textContent === 'Install now');
+  await page.screenshot({ path: join(shots, 'i1b-english.png') });
+  await page.click('#lang');
+  await page.waitForFunction(() => document.getElementById('go-install').textContent === 'Instalar ahora');
+  log('the installer switches between Spanish and English');
+
   await page.click('#go-install');
   await page.waitForSelector('#s-gh.active');
   assert.ok(await page.locator('#gh-next').isDisabled());
