@@ -22,6 +22,7 @@ const api: DevPanelApi = {
     unlockWithPin: (pin) => ipcRenderer.invoke('face:pin', pin),
     remove: () => ipcRenderer.invoke('face:remove'),
   },
+  env: { check: () => ipcRenderer.invoke('env:check') },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     download: () => ipcRenderer.invoke('update:download'),

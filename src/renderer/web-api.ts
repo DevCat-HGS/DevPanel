@@ -90,6 +90,7 @@ export function createWebApi(): DevPanelApi {
       unlockWithPin: async () => ({ ok: false, error: 'No disponible en la web' }),
       remove: noop,
     },
+    env: { check: async () => [] },
     // The web build is always the latest deploy.
     update: {
       check: noop,

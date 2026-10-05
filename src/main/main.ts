@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Settings } from '../shared/api';
+import { setupEnv } from './env';
 import { setupFace } from './face';
 import { listCommits, listRepos, listRuns, lookupUser } from './github';
 import { setupUpdater } from './updater';
@@ -66,6 +67,7 @@ app.whenReady().then(() => {
   );
 
   setupFace();
+  setupEnv();
   const win = createWindow();
   setupUpdater(win, () => loadSettings().githubUser);
 });

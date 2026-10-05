@@ -6,6 +6,10 @@ export interface Repo {
   pushed_at: string;
   default_branch: string;
   private: boolean;
+  archived?: boolean;
+  license?: { spdx_id: string } | null;
+  topics?: string[];
+  open_issues_count?: number;
 }
 
 export interface Commit {
@@ -22,6 +26,13 @@ export interface WorkflowRun {
   conclusion: string | null;
   html_url: string;
   updated_at: string;
+}
+
+export interface EnvTool {
+  name: string;
+  version: string | null;
+  /** Why it matters for DevPanel / dev work, shown when missing. */
+  hint: string;
 }
 
 export interface Settings {
@@ -80,6 +91,10 @@ export interface DevPanelApi {
     verify(): Promise<FaceResult>;
     unlockWithPin(pin: string): Promise<FaceResult>;
     remove(): Promise<void>;
+  };
+  env: {
+    /** Detects the dev tools installed on this machine (desktop only). */
+    check(): Promise<EnvTool[]>;
   };
   update: {
     check(): Promise<void>;
