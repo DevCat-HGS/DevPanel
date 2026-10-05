@@ -445,3 +445,12 @@ pre.err { color: var(--bad); }
 #pal-list li.sel { background: var(--accent-soft); }
 @keyframes fade { from { opacity: 0; } }
 @media (max-width: 720px) { .tools { grid-template-columns: 1fr; } .tool-list { flex-direction: row; flex-wrap: wrap; position: static; } }
+
+/* ---------- Toggles & private badge ---------- */
+.toggle { display: flex; align-items: center; gap: 12px; font-size: 14px; cursor: pointer; padding: 6px 0; }
+.toggle input { display: none; }
+.toggle i { position: relative; width: 42px; height: 24px; border-radius: 999px; flex-shrink: 0; background: var(--border); transition: background 0.3s; }
+.toggle i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.35s var(--ease); }
+.toggle input:checked + i { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.toggle input:checked + i::after { transform: translateX(18px); }
+.chip.priv { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }

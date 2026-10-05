@@ -6,7 +6,15 @@ import type { Commit, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared
  */
 const API = 'https://api.github.com';
 const SETTINGS_KEY = 'devpanel.settings';
-const defaults: Settings = { githubUser: '', onboarded: false };
+const defaults: Settings = {
+  githubUser: '',
+  onboarded: false,
+  alertsEnabled: false,
+  closeToTray: false,
+  openAtLogin: false,
+  localProjects: [],
+  lastSeenVersion: '',
+};
 
 async function gh<T>(path: string): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -90,6 +98,12 @@ export function createWebApi(): DevPanelApi {
       unlockWithPin: async () => ({ ok: false, error: 'No disponible en la web' }),
       remove: noop,
     },
+    token: {
+      status: async () => ({ has: false }),
+      set: async () => ({ ok: false, error: 'El token solo está disponible en la app de escritorio' }),
+      clear: async () => {},
+    },
+    alerts: { check: async () => {}, onFailure: () => {} },
     env: { check: async () => [] },
     // The web build is always the latest deploy.
     update: {

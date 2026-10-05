@@ -84,6 +84,19 @@ try {
   assert.ok((await page.locator('#env-list li').count()) >= 5);
   log('environment check lists the dev tools');
 
+  // ---------- settings: token + alerts ----------
+  await page.click('.nav[data-view="settings"]');
+  await page.fill('#token-input', 'short');
+  await page.click('#token-save');
+  await page.waitForSelector('.toast.bad');
+  assert.match(await page.textContent('.toast.bad'), /formato válido/);
+  assert.match(await page.textContent('#token-status'), /Sin token/);
+  assert.ok(await page.locator('#pref-alerts').isChecked(), 'build alerts default to on');
+  await page.click('#pref-alerts + i');
+  const saved = await page.evaluate(() => window.devpanel.settings.get());
+  assert.equal(saved.alertsEnabled, false);
+  log('invalid tokens are rejected and the alerts preference persists');
+
   // ---------- palette ----------
   await page.keyboard.press('Control+k');
   await page.waitForSelector('#palette:not(.hidden)');

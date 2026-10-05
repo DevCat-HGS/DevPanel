@@ -22,6 +22,15 @@ const api: DevPanelApi = {
     unlockWithPin: (pin) => ipcRenderer.invoke('face:pin', pin),
     remove: () => ipcRenderer.invoke('face:remove'),
   },
+  token: {
+    status: () => ipcRenderer.invoke('token:status'),
+    set: (t) => ipcRenderer.invoke('token:set', t),
+    clear: () => ipcRenderer.invoke('token:clear'),
+  },
+  alerts: {
+    check: () => ipcRenderer.invoke('alerts:check'),
+    onFailure: (cb) => ipcRenderer.on('alert:failure', (_e, f) => cb(f)),
+  },
   env: { check: () => ipcRenderer.invoke('env:check') },
   update: {
     check: () => ipcRenderer.invoke('update:check'),

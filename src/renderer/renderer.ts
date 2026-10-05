@@ -198,7 +198,49 @@ async function showApp(): Promise<void> {
   initEnvCheck();
   initPalette(paletteItems);
   void showChannel();
+  void initPrefs();
   await Promise.all([loadRepos(), refreshFaceStatus()]);
+}
+
+// ---------- Preferences, token and alerts (desktop) ----------
+async function refreshTokenStatus(): Promise<void> {
+  const t = await api.token.status();
+  $('token-status').textContent = t.has
+    ? `Token guardado${t.login ? ` (cuenta @${t.login})` : ''}. Se usan tus repos privados y el límite alto de la API.`
+    : 'Sin token: se usa el límite público de GitHub.';
+}
+
+async function initPrefs(): Promise<void> {
+  const web = api.platform === 'web';
+  $('token-card').classList.toggle('hidden', web);
+  $('prefs-card').classList.toggle('hidden', web);
+  if (web) return;
+
+  const s = await api.settings.get();
+  $<HTMLInputElement>('pref-alerts').checked = s.alertsEnabled;
+  $('pref-alerts').onchange = async (e) => {
+    await api.settings.set({ alertsEnabled: (e.target as HTMLInputElement).checked });
+    toast((e.target as HTMLInputElement).checked ? 'Alertas de build activadas' : 'Alertas de build desactivadas', 'info');
+  };
+
+  await refreshTokenStatus();
+  $('token-save').onclick = async () => {
+    const r = await api.token.set($<HTMLInputElement>('token-input').value);
+    toast(r.ok ? `Token guardado para @${r.login}` : (r.error ?? 'No se pudo guardar'), r.ok ? 'ok' : 'bad');
+    if (r.ok) {
+      $<HTMLInputElement>('token-input').value = '';
+      void refreshTokenStatus();
+      void loadRepos();
+    }
+  };
+  $('token-clear').onclick = async () => {
+    await api.token.clear();
+    toast('Token eliminado', 'info');
+    void refreshTokenStatus();
+    void loadRepos();
+  };
+
+  api.alerts.onFailure((f) => toast(`Build fallido en ${f.repo}`, 'bad'));
 }
 
 async function showChannel(): Promise<void> {
@@ -314,6 +356,7 @@ function renderRepos(): void {
 
       const top = el('div', 'top');
       top.append(el('div', 'name', r.name));
+      if (r.private) top.append(el('span', 'chip priv', 'privado'));
       if (Date.now() - new Date(r.pushed_at).getTime() < 86_400_000) {
         const live = el('span', 'live');
         live.title = 'Actividad en las últimas 24 h';

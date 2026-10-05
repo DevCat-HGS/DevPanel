@@ -1,28 +1,17 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Settings } from '../shared/api';
+import { setupAlerts } from './alerts';
 import { setupEnv } from './env';
 import { setupFace } from './face';
 import { listCommits, listRepos, listRuns, lookupUser } from './github';
+import { loadSettings, saveSettings } from './settings';
+import { setupToken } from './token';
 import { setupUpdater } from './updater';
 
 // Fixed location shared with the installer, so it can pre-configure the account, code and face.
 // DEVPANEL_USER_DATA lets automated tests run against a throwaway profile.
 app.setPath('userData', process.env.DEVPANEL_USER_DATA ?? join(app.getPath('appData'), 'DevPanel'));
-
-const settingsFile = () => join(app.getPath('userData'), 'settings.json');
-const defaults: Settings = { githubUser: '', onboarded: false };
-
-function loadSettings(): Settings {
-  try {
-    if (existsSync(settingsFile()))
-      return { ...defaults, ...JSON.parse(readFileSync(settingsFile(), 'utf8')) };
-  } catch {
-    /* fall back to defaults */
-  }
-  return { ...defaults };
-}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -53,11 +42,7 @@ function createWindow(): BrowserWindow {
 app.whenReady().then(() => {
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('settings:get', () => loadSettings());
-  ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
-    const next = { ...loadSettings(), ...patch };
-    writeFileSync(settingsFile(), JSON.stringify(next, null, 2));
-    return next;
-  });
+  ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => saveSettings(patch));
   ipcMain.handle('github:lookup', (_e, input: string) => lookupUser(input));
   ipcMain.handle('github:repos', () => listRepos(loadSettings().githubUser));
   ipcMain.handle('github:commits', (_e, repo: string) =>
@@ -69,7 +54,9 @@ app.whenReady().then(() => {
 
   setupFace();
   setupEnv();
+  setupToken();
   const win = createWindow();
+  setupAlerts(() => (win.isDestroyed() ? null : win));
   setupUpdater(win, () => loadSettings().githubUser);
 });
 

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as t from '../dist/renderer/tools.js';
 import { analyzeRepos } from '../dist/renderer/recs.js';
+import { newFailures } from '../dist/main/alerts-core.js';
 
 test('json: format, minify, validate', () => {
   assert.equal(t.formatJson('{"a":1}'), '{\n  "a": 1\n}');
@@ -69,4 +70,25 @@ test('recommendations flag stale, undocumented and busy repos', () => {
   assert.equal(recs.length, 5);
   assert.equal(recs[0].level, 'warn');
   assert.equal(analyzeRepos([repo({ archived: true, description: null })], now).length, 0);
+});
+
+test('alerts: first sight only records; later failures notify once', () => {
+  const run = (id, conclusion, status = 'completed') => ({ repo: 'r', id, status, conclusion, url: 'u' });
+  let state = newFailures({}, [run(1, 'failure')]);
+  assert.equal(state.failures.length, 0, 'old failure at startup is not announced');
+  assert.equal(state.seen.r, 1);
+
+  state = newFailures(state.seen, [run(2, 'success')]);
+  assert.equal(state.failures.length, 0);
+
+  state = newFailures(state.seen, [run(3, 'failure')]);
+  assert.equal(state.failures.length, 1);
+  assert.equal(state.failures[0].id, 3);
+
+  state = newFailures(state.seen, [run(3, 'failure')]);
+  assert.equal(state.failures.length, 0, 'the same run is never announced twice');
+
+  state = newFailures(state.seen, [run(4, null, 'in_progress')]);
+  assert.equal(state.failures.length, 0, 'runs still in progress are ignored');
+  assert.equal(state.seen.r, 3);
 });

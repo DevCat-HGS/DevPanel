@@ -39,6 +39,14 @@ export interface Settings {
   githubUser: string;
   /** true once the GitHub account, code and (optionally) face were set up. */
   onboarded: boolean;
+  /** Notify (system notification) when a GitHub Actions run fails. */
+  alertsEnabled: boolean;
+  /** Closing the window keeps DevPanel running in the system tray. */
+  closeToTray: boolean;
+  openAtLogin: boolean;
+  /** Absolute paths of local project folders added by the user. */
+  localProjects: string[];
+  lastSeenVersion: string;
 }
 
 export interface GithubProfile {
@@ -91,6 +99,16 @@ export interface DevPanelApi {
     verify(): Promise<FaceResult>;
     unlockWithPin(pin: string): Promise<FaceResult>;
     remove(): Promise<void>;
+  };
+  token: {
+    status(): Promise<{ has: boolean; login?: string }>;
+    /** Validates the token against GitHub and stores it encrypted. */
+    set(token: string): Promise<{ ok: boolean; login?: string; error?: string }>;
+    clear(): Promise<void>;
+  };
+  alerts: {
+    check(): Promise<void>;
+    onFailure(cb: (f: { repo: string; url: string }) => void): void;
   };
   env: {
     /** Detects the dev tools installed on this machine (desktop only). */

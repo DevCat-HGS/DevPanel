@@ -1,5 +1,7 @@
 import type { Commit, GithubProfile, Repo, WorkflowRun } from '../shared/api';
 
+import { getToken, tokenOwns } from './token';
+
 const API = 'https://api.github.com';
 
 async function gh<T>(path: string): Promise<T> {
@@ -7,9 +9,7 @@ async function gh<T>(path: string): Promise<T> {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'DevPanel',
-      ...(process.env.GITHUB_TOKEN
-        ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
-        : {}),
+      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
     },
   });
   if (!res.ok) throw new Error(`GitHub ${res.status}: ${path}`);
@@ -18,9 +18,9 @@ async function gh<T>(path: string): Promise<T> {
 
 export function listRepos(user: string): Promise<Repo[]> {
   if (!user) return Promise.reject(new Error('Vincula tu usuario de GitHub en Settings'));
-  return gh<Repo[]>(
-    `/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=30`,
-  );
+  // with the owner's token the private repos are included too
+  if (tokenOwns(user)) return gh<Repo[]>('/user/repos?sort=pushed&per_page=50&affiliation=owner');
+  return gh<Repo[]>(`/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=30`);
 }
 
 export async function listCommits(user: string, repo: string): Promise<Commit[]> {

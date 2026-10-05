@@ -187,6 +187,22 @@
             </div>
           </div>
 
+          <div id="token-card" class="card">
+            <h3>Token de GitHub (opcional)</h3>
+            <p class="muted">Sube el límite de la API de 60 a 5000 consultas por hora y muestra tus repos privados. Se guarda cifrado en este equipo.</p>
+            <p id="token-status" class="muted"></p>
+            <div class="row">
+              <input id="token-input" type="password" autocomplete="off" placeholder="ghp_…  ó  github_pat_…" aria-label="Token de GitHub" />
+              <button id="token-save" class="btn">Guardar</button>
+              <button id="token-clear" class="btn danger">Quitar</button>
+            </div>
+          </div>
+
+          <div id="prefs-card" class="card">
+            <h3>Preferencias</h3>
+            <label class="toggle"><input type="checkbox" id="pref-alerts" /><i></i><span>Avisarme con una notificación cuando falle un build</span></label>
+          </div>
+
           <div id="face-card" class="card">
             <h3>Inicio de sesión facial</h3>
             <p id="face-status" class="muted"></p>
