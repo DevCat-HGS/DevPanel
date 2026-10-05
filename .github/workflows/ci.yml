@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [developer, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      # Type-checks main, preload and renderer, and produces the web bundle
+      - run: npm run build:web && npx tsc -p tsconfig.main.json --noEmit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python sidecar compiles
+        run: python -m py_compile python/face_auth.py

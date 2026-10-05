@@ -8,7 +8,9 @@
   "main": "dist/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
-    "start": "npm run build && electron .",
+    "build:web": "tsc -p tsconfig.renderer.json && node scripts/copy-static.mjs",
+    "serve:web": "npm run build:web && npx --yes serve dist/renderer",
+    "start":"npm run build && electron .",
     "dist": "npm run build && electron-builder --win --publish never",
     "release": "npm run build && electron-builder --win --publish always"
   },

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { DevPanelApi, UpdateStatus } from '../shared/api';
 
 const api: DevPanelApi = {
+  platform: 'desktop',
   version: () => ipcRenderer.invoke('app:version'),
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

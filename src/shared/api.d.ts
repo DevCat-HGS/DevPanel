@@ -49,6 +49,8 @@ export type UpdateStatus =
   | { state: 'error'; message: string };
 
 export interface DevPanelApi {
+  /** 'desktop' inside Electron, 'web' when served from Netlify/browser. */
+  platform: 'desktop' | 'web';
   version(): Promise<string>;
   settings: {
     get(): Promise<Settings>;
