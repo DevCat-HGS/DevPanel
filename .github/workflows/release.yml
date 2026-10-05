@@ -79,10 +79,22 @@ jobs:
             --distpath python --workpath build/pyi --specpath build/pyi --paths python --noconfirm --log-level WARN
           python/face_auth.exe selftest --models-dir "$RUNNER_TEMP/face-models"
 
+      - name: Code signing status
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.CSC_LINK }}" ]; then
+            echo "Code signing is ON (CSC_LINK is set)."
+          else
+            echo "::warning title=Unsigned build::No CSC_LINK secret, so the .exe files are not signed and Windows SmartScreen will warn. See docs/SIGNING.md"
+          fi
+
       - name: Build, package and publish release
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # electron-builder signs automatically when these are present (empty values = unsigned)
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
       # Release notes from the commit messages since the previous release of this channel.
       - name: Write release notes

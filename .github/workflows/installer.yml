@@ -28,6 +28,10 @@ jobs:
 
       - run: npm ci
       - run: npm run dist
+        env:
+          # signed automatically when the certificate secrets exist (see docs/SIGNING.md)
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
       # A prerelease never counts as "latest", so the app updater and the
       # installer's own "latest release" lookup keep pointing at real app builds.
