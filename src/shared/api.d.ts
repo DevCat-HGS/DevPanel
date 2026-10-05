@@ -84,7 +84,7 @@ export interface DevPanelApi {
   };
   face: {
     status(): Promise<FaceStatus>;
-    /** Sets the verification code (4-8 digits). */
+    /** Sets the verification code (exactly 4 digits). */
     setPin(pin: string): Promise<FaceResult>;
     /** Registers the face; when `pin` is given it is saved first. */
     enroll(pin?: string): Promise<FaceResult>;

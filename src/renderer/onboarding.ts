@@ -72,8 +72,8 @@ export function runOnboarding(): Promise<void> {
     const pin2 = $<HTMLInputElement>('wz-pin2');
     const errPin = $('wz-pin-err');
     $('wz-gen').onclick = () => {
-      const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
-      pin.value = pin2.value = String(n).padStart(6, '0');
+      const n = crypto.getRandomValues(new Uint32Array(1))[0] % 10_000;
+      pin.value = pin2.value = String(n).padStart(4, '0');
       pin.type = pin2.type = 'text';
       errPin.textContent = 'Este es tu código: anótalo en un lugar seguro, no se puede recuperar.';
     };
@@ -82,7 +82,7 @@ export function runOnboarding(): Promise<void> {
     };
     $('wz-2-back').onclick = () => go(1);
     $('wz-2-next').onclick = async () => {
-      if (!/^\d{4,8}$/.test(pin.value)) return void (errPin.textContent = 'El código debe tener de 4 a 8 dígitos');
+      if (!/^\d{4}$/.test(pin.value)) return void (errPin.textContent = 'El código debe tener 4 dígitos');
       if (pin.value !== pin2.value) return void (errPin.textContent = 'Los códigos no coinciden');
       const r = await api.face.setPin(pin.value);
       if (!r.ok) return void (errPin.textContent = r.error ?? 'No se pudo guardar el código');

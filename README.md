@@ -36,7 +36,7 @@ Descarga **`DevPanel-Installer.exe`** desde la release [`installer`](../../relea
 Es un instalador propio que:
 
 1. Descarga la última versión y verifica su suma SHA-256.
-2. Te pide tu **usuario o enlace de GitHub**, y el **código de verificación** que tú eliges (4 a 8 dígitos).
+2. Te pide tu **usuario o enlace de GitHub**, y el **código de verificación** que tú eliges (4 dígitos).
 3. Instala (con opción de carpeta y accesos directos; la descarga se puede cancelar).
 4. Te deja **activar el reconocimiento facial** (opcional).
 

@@ -53,8 +53,8 @@ function hashPin(pin: string, salt: Buffer): Buffer {
 }
 
 function savePin(pin: string): FaceResult {
-  if (typeof pin !== 'string' || !/^\d{4,8}$/.test(pin))
-    return { ok: false, error: 'El código debe tener de 4 a 8 dígitos' };
+  if (typeof pin !== 'string' || !/^\d{4}$/.test(pin))
+    return { ok: false, error: 'El código debe tener 4 dígitos' };
   const salt = randomBytes(16);
   writeFileSync(
     pinFile(),

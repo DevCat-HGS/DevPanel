@@ -28,7 +28,7 @@
         <button id="lock-face" class="btn primary">Reconocer mi rostro</button>
         <div class="divider"><span>o ingresa tu código</span></div>
         <div class="pin-row">
-          <input id="lock-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Código" aria-label="Código de verificación" />
+          <input id="lock-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Código" aria-label="Código de verificación" />
           <button id="lock-pin-btn" class="btn">Entrar</button>
         </div>
       </div>
@@ -56,9 +56,9 @@
 
         <div id="wz-2" class="wz-step">
           <h2>Crea tu código de verificación</h2>
-          <p class="muted">De 4 a 8 dígitos. Lo usarás cuando el rostro no funcione. No se puede recuperar, así que guárdalo.</p>
-          <input id="wz-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Tu código" aria-label="Código" />
-          <input id="wz-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Repite el código" aria-label="Repite el código" />
+          <p class="muted">Son 4 dígitos. Lo usarás cuando el rostro no funcione. No se puede recuperar, así que guárdalo.</p>
+          <input id="wz-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Tu código" aria-label="Código" />
+          <input id="wz-pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Repite el código" aria-label="Repite el código" />
           <div class="row">
             <button id="wz-gen" class="btn ghost small">Generar uno</button>
             <button id="wz-show" class="btn ghost small">Mostrar</button>
@@ -191,7 +191,7 @@
             <h3>Inicio de sesión facial</h3>
             <p id="face-status" class="muted"></p>
             <div class="row">
-              <input id="face-pin" type="password" placeholder="Código (4–8 dígitos)" aria-label="Código de verificación" inputmode="numeric" maxlength="8" />
+              <input id="face-pin" type="password" placeholder="Código (4 dígitos)" aria-label="Código de verificación" inputmode="numeric" maxlength="4" />
               <button id="face-enroll" class="btn primary">Registrar mi rostro</button>
               <button id="face-remove" class="btn danger">Eliminar</button>
             </div>

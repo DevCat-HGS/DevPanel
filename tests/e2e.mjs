@@ -10,7 +10,7 @@ const shots = process.env.E2E_SHOTS ?? join(tmpdir(), 'devpanel-shots');
 mkdirSync(shots, { recursive: true });
 const userData = mkdtempSync(join(tmpdir(), 'devpanel-e2e-'));
 const GH_USER = process.env.E2E_GH_USER ?? 'octocat';
-const PIN = '123456';
+const PIN = '1234';
 
 // VS Code-like hosts export ELECTRON_RUN_AS_NODE=1, which makes Electron start as plain Node.
 const env = { ...process.env, DEVPANEL_USER_DATA: userData };
@@ -42,9 +42,9 @@ try {
   await page.fill('#wz-pin', '12');
   await page.fill('#wz-pin2', '12');
   await page.click('#wz-2-next');
-  assert.match(await page.textContent('#wz-pin-err'), /4 a 8 dígitos/);
+  assert.match(await page.textContent('#wz-pin-err'), /4 dígitos/);
   await page.fill('#wz-pin', PIN);
-  await page.fill('#wz-pin2', '654321');
+  await page.fill('#wz-pin2', '4321');
   await page.click('#wz-2-next');
   assert.match(await page.textContent('#wz-pin-err'), /no coinciden/);
   await page.fill('#wz-pin2', PIN);
