@@ -26,6 +26,14 @@ export interface WorkflowRun {
 
 export interface Settings {
   githubUser: string;
+  /** true once the GitHub account, code and (optionally) face were set up. */
+  onboarded: boolean;
+}
+
+export interface GithubProfile {
+  login: string;
+  name: string | null;
+  avatar: string;
 }
 
 export interface FaceStatus {
@@ -57,13 +65,18 @@ export interface DevPanelApi {
     set(patch: Partial<Settings>): Promise<Settings>;
   };
   github: {
+    /** Accepts a username, @user or a github.com link; resolves the real profile. */
+    lookup(input: string): Promise<GithubProfile>;
     repos(): Promise<Repo[]>;
     commits(repo: string): Promise<Commit[]>;
     runs(repo: string): Promise<WorkflowRun[]>;
   };
   face: {
     status(): Promise<FaceStatus>;
-    enroll(pin: string): Promise<FaceResult>;
+    /** Sets the verification code (4-8 digits). */
+    setPin(pin: string): Promise<FaceResult>;
+    /** Registers the face; when `pin` is given it is saved first. */
+    enroll(pin?: string): Promise<FaceResult>;
     verify(): Promise<FaceResult>;
     unlockWithPin(pin: string): Promise<FaceResult>;
     remove(): Promise<void>;

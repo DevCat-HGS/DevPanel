@@ -9,12 +9,14 @@ const api: DevPanelApi = {
     set: (patch) => ipcRenderer.invoke('settings:set', patch),
   },
   github: {
+    lookup: (input) => ipcRenderer.invoke('github:lookup', input),
     repos: () => ipcRenderer.invoke('github:repos'),
     commits: (repo) => ipcRenderer.invoke('github:commits', repo),
     runs: (repo) => ipcRenderer.invoke('github:runs', repo),
   },
   face: {
     status: () => ipcRenderer.invoke('face:status'),
+    setPin: (pin) => ipcRenderer.invoke('pin:set', pin),
     enroll: (pin) => ipcRenderer.invoke('face:enroll', pin),
     verify: () => ipcRenderer.invoke('face:verify'),
     unlockWithPin: (pin) => ipcRenderer.invoke('face:pin', pin),

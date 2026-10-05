@@ -1,4 +1,4 @@
-import type { Commit, Repo, WorkflowRun } from '../shared/api';
+import type { Commit, GithubProfile, Repo, WorkflowRun } from '../shared/api';
 
 const API = 'https://api.github.com';
 
@@ -17,6 +17,7 @@ async function gh<T>(path: string): Promise<T> {
 }
 
 export function listRepos(user: string): Promise<Repo[]> {
+  if (!user) return Promise.reject(new Error('Vincula tu usuario de GitHub en Settings'));
   return gh<Repo[]>(
     `/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=30`,
   );
@@ -46,4 +47,25 @@ export async function listRuns(user: string, repo: string): Promise<WorkflowRun[
     html_url: r.html_url,
     updated_at: r.updated_at,
   }));
+}
+
+export function parseGithubUser(input: string): string | null {
+  const t = input.trim().replace(/^@/, '');
+  const fromUrl = t.match(/github\.com\/([A-Za-z0-9-]{1,39})/i);
+  const user = fromUrl ? fromUrl[1] : t;
+  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(user) ? user : null;
+}
+
+export async function lookupUser(input: string): Promise<GithubProfile> {
+  const user = parseGithubUser(input);
+  if (!user) throw new Error('Escribe un usuario o enlace de GitHub válido');
+  try {
+    const u = await gh<{ login: string; name: string | null; avatar_url: string }>(
+      `/users/${encodeURIComponent(user)}`,
+    );
+    return { login: u.login, name: u.name, avatar: u.avatar_url };
+  } catch (e) {
+    if ((e as Error).message.includes('404')) throw new Error(`No existe el usuario "${user}" en GitHub`);
+    throw e;
+  }
 }

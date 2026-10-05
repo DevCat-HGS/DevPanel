@@ -3,11 +3,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Settings } from '../shared/api';
 import { setupFace } from './face';
-import { listCommits, listRepos, listRuns } from './github';
+import { listCommits, listRepos, listRuns, lookupUser } from './github';
 import { setupUpdater } from './updater';
 
+// Fixed location shared with the installer, so it can pre-configure the account, code and face.
+app.setPath('userData', join(app.getPath('appData'), 'DevPanel'));
+
 const settingsFile = () => join(app.getPath('userData'), 'settings.json');
-const defaults: Settings = { githubUser: 'DevCat-HGS' };
+const defaults: Settings = { githubUser: '', onboarded: false };
 
 function loadSettings(): Settings {
   try {
@@ -53,6 +56,7 @@ app.whenReady().then(() => {
     writeFileSync(settingsFile(), JSON.stringify(next, null, 2));
     return next;
   });
+  ipcMain.handle('github:lookup', (_e, input: string) => lookupUser(input));
   ipcMain.handle('github:repos', () => listRepos(loadSettings().githubUser));
   ipcMain.handle('github:commits', (_e, repo: string) =>
     listCommits(loadSettings().githubUser, repo),

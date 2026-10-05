@@ -52,15 +52,32 @@ function hashPin(pin: string, salt: Buffer): Buffer {
   return scryptSync(pin, salt, 32);
 }
 
+function savePin(pin: string): FaceResult {
+  if (typeof pin !== 'string' || !/^\d{4,8}$/.test(pin))
+    return { ok: false, error: 'El código debe tener de 4 a 8 dígitos' };
+  const salt = randomBytes(16);
+  writeFileSync(
+    pinFile(),
+    JSON.stringify({ salt: salt.toString('hex'), hash: hashPin(pin, salt).toString('hex') }),
+  );
+  return { ok: true };
+}
+
 export function setupFace(): void {
   ipcMain.handle('face:status', (): FaceStatus => ({
     enrolled: existsSync(faceFile()),
     pinSet: existsSync(pinFile()),
   }));
 
-  ipcMain.handle('face:enroll', async (_e, pin: string): Promise<FaceResult> => {
-    if (typeof pin !== 'string' || pin.length < 4)
-      return { ok: false, error: 'El PIN de respaldo debe tener al menos 4 caracteres' };
+  ipcMain.handle('pin:set', (_e, pin: string): FaceResult => savePin(pin));
+
+  ipcMain.handle('face:enroll', async (_e, pin?: string): Promise<FaceResult> => {
+    if (pin) {
+      const saved = savePin(pin);
+      if (!saved.ok) return saved;
+    } else if (!existsSync(pinFile())) {
+      return { ok: false, error: 'Primero define tu código de verificación' };
+    }
     if (!safeStorage.isEncryptionAvailable())
       return { ok: false, error: 'El cifrado del sistema no está disponible' };
 
@@ -69,11 +86,6 @@ export function setupFace(): void {
 
     // Only embeddings (no images) are stored, encrypted with the OS keychain (DPAPI on Windows).
     writeFileSync(faceFile(), safeStorage.encryptString(JSON.stringify(r.embeddings)));
-    const salt = randomBytes(16);
-    writeFileSync(
-      pinFile(),
-      JSON.stringify({ salt: salt.toString('hex'), hash: hashPin(pin, salt).toString('hex') }),
-    );
     return { ok: true };
   });
 
