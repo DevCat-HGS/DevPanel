@@ -22,7 +22,7 @@
     "productName": "DevPanel Installer",
     "directories": { "output": "release" },
     "files": ["dist/**/*", "package.json"],
-    "win": { "target": "portable", "icon": "icon.ico" },
+    "win": { "target": "portable", "icon": "icon.ico", "sign": "../scripts/sign.cjs" },
     "portable": { "artifactName": "DevPanel-Installer.exe" }
   }
 }

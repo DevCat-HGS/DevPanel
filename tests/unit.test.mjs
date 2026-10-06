@@ -398,3 +398,17 @@ test('explorer: only project-relative paths, and git grep output is parsed', () 
   const hits = parseGrep('src/a.ts:12:  const x = 1;\nREADME.md:3:hola\nnoise\n');
   assert.deepEqual(hits, [{ file: 'src/a.ts', line: 12, text: 'const x = 1;' }, { file: 'README.md', line: 3, text: 'hola' }]);
 });
+
+import { createRequire } from 'node:module';
+const signer = createRequire(import.meta.url)('../scripts/sign.cjs');
+
+test('signing: signtool arguments use SHA-256 and a timestamp, and a missing certificate is a skip', () => {
+  const a = signer.signArgs({ pfx: 'c.pfx', password: 'pw', file: 'x.exe', description: 'DevPanel' });
+  assert.deepEqual(a.slice(0, 3), ['sign', '/fd', 'SHA256']);
+  assert.ok(a.includes('/tr') && a.includes('/td'));
+  assert.equal(a.at(-1), 'x.exe');
+  assert.equal(signer.signFiles(['x.exe'], {}), 0, 'no CSC_LINK: nothing signed, no error');
+  assert.throws(() => signer.signFiles(['x.exe'], { SIGN_REQUIRED: '1' }), /CSC_LINK/);
+  assert.ok(!signer.isBase64('C:\certs\me.pfx'));
+  assert.ok(signer.isBase64('A'.repeat(400)));
+});

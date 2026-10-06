@@ -8,6 +8,8 @@ La misma interfaz corre en la **web**, solo para previsualizar durante el desarr
 ---
 
 > **Meta:** que los desarrolladores automaticen su trabajo sin salir de DevPanel. Alcance y hoja de ruta en [`docs/VISION.md`](docs/VISION.md).
+>
+> Documentación: [uso](docs/USAGE.md) · [privacidad](docs/PRIVACY.md) · [seguridad](docs/SECURITY.md) · [términos](docs/TERMS.md) · [licencia MIT](LICENSE). El instalador las muestra antes de instalar.
 
 ## Ramas y releases (lo importante)
 
