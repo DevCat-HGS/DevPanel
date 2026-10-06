@@ -82,11 +82,11 @@
     <!-- App -->
     <div id="app" class="app hidden">
       <aside class="sidebar">
+          <button id="side-toggle" class="icon-btn mini side-toggle" title="Contraer menú" aria-label="Contraer menú" aria-expanded="true"><span data-icon="chevl"></span></button>
         <div class="brand">
           <img class="logo" src="icon.png" alt="" />
           <span>DevPanel</span>
           <span id="version" class="chip"></span>
-          <button id="side-toggle" class="icon-btn mini side-toggle" title="Contraer menú" aria-label="Contraer menú" aria-expanded="true"><span data-icon="chevl"></span></button>
         </div>
         <nav aria-label="Principal">
           <button class="nav active" data-view="home">
@@ -132,6 +132,17 @@
             </div>
             <button id="home-refresh" class="icon-btn" title="Actualizar" aria-label="Actualizar"><span data-icon="refresh"></span></button>
           </header>
+          <div class="sharon" role="status" aria-live="polite">
+            <div class="orb" aria-hidden="true">
+              <svg class="orb-ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" /></svg>
+              <span class="orb-core"></span><span class="orb-glow"></span>
+            </div>
+            <div class="sharon-text">
+              <h3>Bienvenido, soy Sharon</h3>
+              <p class="muted">IA MCP en proceso</p>
+              <div class="sharon-bar" aria-hidden="true"><span></span></div>
+            </div>
+          </div>
           <div id="home-grid" class="home-grid"></div>
         </section>
 

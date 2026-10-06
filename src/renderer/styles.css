@@ -84,7 +84,7 @@ body {
 .sidebar {
   width: 232px; flex-shrink: 0; padding: 20px 14px;
   display: flex; flex-direction: column; gap: 22px;
-  position: sticky; top: 0; height: 100vh;
+  position: sticky; top: 0; height: 100vh; z-index: 6;
   background: var(--panel); border-right: 1px solid var(--border);
   backdrop-filter: blur(14px);
 }
@@ -765,7 +765,8 @@ html.modal-open { overflow: hidden; }
 .repo:focus-visible .repo-body { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
 
 /* ---------- Home ---------- */
-.home-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); align-items: start; }
+.home-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+@media (max-width: 900px) { .home-grid { grid-template-columns: 1fr; } }
 .hw { --c: var(--muted); padding: 16px 18px 12px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); border-top: 3px solid var(--c); animation: rise 0.45s var(--ease) both; }
 .hw-bad { --c: var(--bad); } .hw-accent { --c: var(--accent); } .hw-warn { --c: var(--warn); } .hw-muted { --c: var(--muted); }
 .hw.has-items.hw-bad { background: color-mix(in srgb, var(--bad) 7%, var(--panel)); }
@@ -833,7 +834,10 @@ html.modal-open { overflow: hidden; }
 /* ---------- Collapsible sidebar (icons only) ---------- */
 .sidebar { transition: width 0.3s var(--ease), padding 0.3s var(--ease); }
 .brand { position: relative; }
-.side-toggle { margin-left: auto; flex-shrink: 0; }
+.side-toggle { position: absolute; top: 26px; right: -14px; width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--panel-solid); border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,.35); z-index: 7; opacity: .75; transition: opacity .2s, border-color .2s, color .2s; }
+.side-toggle:hover, .side-toggle:focus-visible { opacity: 1; color: var(--accent); border-color: var(--accent); }
+.side-toggle svg { width: 14px; height: 14px; }
+@media (max-width: 720px) { .side-toggle { display: none; } }
 .side-toggle svg { transition: transform 0.3s var(--ease); }
 .side-toggle:hover { transform: none; }
 .app.collapsed .sidebar { width: 72px; padding: 20px 10px; align-items: center; }
@@ -879,3 +883,20 @@ a.notif-row:hover { border-color: var(--c); }
 .notif-empty { display: grid; place-items: center; padding: 34px 0; color: var(--muted); }
 .notif-empty svg { width: 38px; height: 38px; opacity: 0.5; }
 @keyframes bell-ring { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); } 60% { transform: rotate(8deg); } 80% { transform: rotate(-5deg); } }
+
+/* ---------- Home: Sharon, the loading orb ---------- */
+.sharon { display: flex; align-items: center; gap: 26px; margin-bottom: 16px; padding: 22px 28px; border-radius: var(--radius); background: radial-gradient(600px 160px at 0% 50%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 70%), var(--panel); border: 1px solid var(--border); animation: rise 0.45s var(--ease) both; }
+.orb { position: relative; width: 96px; height: 96px; flex-shrink: 0; display: grid; place-items: center; }
+.orb-core { position: absolute; inset: 16px; border-radius: 50%; background: radial-gradient(circle at 32% 28%, #fff 0, var(--accent) 22%, var(--accent-2) 58%, #1e1b4b 100%); box-shadow: inset -6px -8px 16px rgba(0,0,0,.35); animation: orb-breathe 3.2s ease-in-out infinite; }
+.orb-glow { position: absolute; inset: 6px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 45%, transparent), transparent 68%); filter: blur(8px); animation: orb-breathe 3.2s ease-in-out infinite reverse; }
+.orb-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); animation: orb-spin 2.4s linear infinite; }
+.orb-ring circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 90 200; opacity: .9; }
+.sharon-text { min-width: 0; flex: 1; }
+.sharon-text h3 { margin: 0; font-size: 20px; }
+.sharon-text p { margin: 4px 0 12px; }
+.sharon-bar { height: 4px; max-width: 320px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.sharon-bar span { display: block; height: 100%; width: 40%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); animation: sharon-load 1.8s var(--ease) infinite; }
+@keyframes orb-breathe { 50% { transform: scale(1.08); } }
+@keyframes orb-spin { to { transform: rotate(270deg); } }
+@keyframes sharon-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+@media (prefers-reduced-motion: reduce) { .orb-core, .orb-glow, .orb-ring, .sharon-bar span { animation: none; } }
