@@ -5,7 +5,7 @@ import { getToken } from './token';
 export async function fetchNotes(version: string): Promise<string | null> {
   const token = getToken();
   try {
-    const res = await fetch(`https://api.github.com/repos/DevCat-HGS/DevPanel/releases/tags/v${encodeURIComponent(version)}`, {
+    const res = await fetch(`${process.env.DEVPANEL_GITHUB_API ?? 'https://api.github.com'}/repos/DevCat-HGS/DevPanel/releases/tags/v${encodeURIComponent(version)}`, {
       headers: {
         Accept: 'application/vnd.github+json',
         'User-Agent': 'DevPanel',

@@ -37,6 +37,9 @@ const server = http.createServer((req, res) => {
     const next = from + per < COMMITS_TOTAL ? { Link: `<http://x/commits?page=${page + 1}>; rel="next"` } : {};
     return send(200, items, next);
   }
+  if (url.pathname.startsWith('/repos/DevCat-HGS/DevPanel/releases/tags/')) {
+    return send(200, { body: "## ✨ Novedades · What's new\n- **app:** diálogo de novedades con color\n- **installer:** instalador conversacional\n\n## 🐛 Correcciones · Fixes\n- **tray:** cerrar deja la app en la bandeja\n\n## 🔧 Mejoras internas · Under the hood\n- **ci:** pruebas end-to-end\n- **docs:** README" });
+  }
   if (/^\/repos\/octocat\/[^/]+\/actions\/runs$/.test(url.pathname)) {
     return send(200, { workflow_runs: [{ name: 'CI', status: 'completed', conclusion: 'success', html_url: 'https://github.com/octocat/x/actions/runs/1', updated_at: new Date().toISOString() }] });
   }
@@ -137,6 +140,22 @@ try {
   await page.mouse.click(10, 10); // the dim area outside the folder
   await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
   log('the X, Escape and a click outside all close the dialog, and the page stays where it was');
+
+  // ---------- release notes dialog with real content ----------
+  await page.click('#whatsnew-btn');
+  await page.waitForSelector('#notes-body .ng');
+  assert.equal(await page.locator('#notes-body .ng').count(), 3, 'three coloured groups');
+  assert.equal(await page.locator('#notes-body .ng-feat li').count(), 2);
+  assert.equal(await page.textContent('#notes-body .ng-feat li .scope'), 'app');
+  assert.equal(await page.textContent('#notes-ver'), 'v0.1.0');
+  const fix = await page.locator('#notes-body .ng-fix').evaluate((n) => getComputedStyle(n).borderLeftColor);
+  const feat = await page.locator('#notes-body .ng-feat').evaluate((n) => getComputedStyle(n).borderLeftColor);
+  assert.notEqual(fix, feat, 'each group has its own colour');
+  await page.waitForTimeout(900);
+  await shot(page, 'p3-notes');
+  await page.click('#notes-close');
+  await page.waitForSelector('#notes-modal.hidden', { state: 'attached' });
+  log('the release notes dialog shows coloured groups (news, fixes, internal) with scope chips');
 
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {

@@ -3,6 +3,8 @@
 export interface NoteBlock {
   type: 'h' | 'li' | 'p';
   text: string;
+  /** "**app:** text" -> scope "app" (only for list items). */
+  scope?: string;
 }
 
 const ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
@@ -26,7 +28,11 @@ export function parseNotes(source: string): NoteBlock[] {
     const head = line.match(/^#{1,6}\s+(.*)$/);
     const item = line.match(/^[-*]\s+(.*)$/);
     if (head) blocks.push({ type: 'h', text: head[1] });
-    else if (item) blocks.push({ type: 'li', text: item[1].replace(/\*\*(.+?)\*\*/g, '$1') });
+    else if (item) {
+      const sc = item[1].match(/^\*\*([^*]+?):\*\*\s*(.*)$/);
+      if (sc) blocks.push({ type: 'li', scope: sc[1], text: sc[2].replace(/\*\*(.+?)\*\*/g, '$1') });
+      else blocks.push({ type: 'li', text: item[1].replace(/\*\*(.+?)\*\*/g, '$1') });
+    }
     else blocks.push({ type: 'p', text: line.replace(/\*\*(.+?)\*\*/g, '$1') });
   }
   return blocks;

@@ -1,32 +1,71 @@
 import { $, el } from './dom.js';
+import { tr } from './i18n.js';
+import { icon } from './icons.js';
 import { parseNotes } from './notes-md.js';
 
 const api = () => window.devpanel;
 
-/** Shows the release notes of a version in the dialog (built with DOM nodes only, never innerHTML). */
+type Kind = 'feat' | 'fix' | 'other';
+interface Item { scope?: string; text: string }
+interface Group { kind: Kind; items: Item[] }
+
+const META: Record<Kind, { icon: string; title: string }> = {
+  feat: { icon: 'sparkles', title: 'Novedades' },
+  fix: { icon: 'tools', title: 'Correcciones' },
+  other: { icon: 'cpu', title: 'Mejoras internas' },
+};
+
+const kindOf = (heading: string): Kind =>
+  /correcciones|fixes/i.test(heading) ? 'fix' : /mejoras internas|under the hood/i.test(heading) ? 'other' : 'feat';
+
+/** Groups the flat blocks (## headings + list items) into coloured cards. */
+export function groupNotes(raw: string): Group[] {
+  const groups: Group[] = [];
+  let cur: Group | null = null;
+  for (const b of parseNotes(raw)) {
+    if (b.type === 'h') groups.push((cur = { kind: kindOf(b.text), items: [] }));
+    else {
+      cur ??= (groups[groups.push({ kind: 'feat', items: [] }) - 1]);
+      cur.items.push({ scope: b.scope, text: b.text });
+    }
+  }
+  return groups.filter((g) => g.items.length);
+}
+
+/** Shows the release notes of a version (DOM nodes only, never innerHTML). */
 export async function showNotes(version: string): Promise<void> {
   const modal = $('notes-modal');
-  $('notes-title').textContent = `Novedades de la versión ${version}`;
+  $('notes-ver').textContent = `v${version}`;
   const body = $('notes-body');
-  body.replaceChildren(el('p', 'muted', 'Cargando…'));
+  body.replaceChildren(el('div', 'skeleton block'));
   modal.classList.remove('hidden');
 
   const raw = await api().notes.get(version);
-  const blocks = raw ? parseNotes(raw) : [];
-  if (!blocks.length) return body.replaceChildren(el('p', 'muted', 'Aún no hay notas para esta versión.'));
-
-  let list: HTMLElement | null = null;
-  const nodes: HTMLElement[] = [];
-  for (const b of blocks) {
-    if (b.type === 'li') {
-      if (!list) nodes.push((list = el('ul')));
-      list.append(el('li', undefined, b.text));
-    } else {
-      list = null;
-      nodes.push(el(b.type === 'h' ? 'h4' : 'p', b.type === 'p' ? 'muted' : undefined, b.text));
-    }
+  const groups = raw ? groupNotes(raw) : [];
+  if (!groups.length) {
+    const empty = el('div', 'empty-note');
+    empty.append(icon('sparkles'), el('span', undefined, tr('Aún no hay notas para esta versión.')));
+    return body.replaceChildren(empty);
   }
-  body.replaceChildren(...nodes);
+
+  body.replaceChildren(
+    ...groups.map((g, i) => {
+      const card = el('section', `ng ng-${g.kind}`);
+      card.style.setProperty('--i', String(i));
+      const head = el('div', 'ng-head');
+      head.append(icon(META[g.kind].icon), el('span', undefined, tr(META[g.kind].title)), el('span', 'chip', String(g.items.length)));
+      const ul = el('ul');
+      g.items.forEach((it, j) => {
+        const li = el('li');
+        li.style.setProperty('--j', String(j));
+        if (it.scope) li.append(el('span', 'scope', it.scope));
+        li.append(el('span', undefined, it.text));
+        ul.append(li);
+      });
+      card.append(head, ul);
+      return card;
+    }),
+  );
 }
 
 export function initNotes(): void {
@@ -34,7 +73,7 @@ export function initNotes(): void {
   $('notes-close').onclick = close;
   $('notes-modal').addEventListener('mousedown', (e) => e.target === $('notes-modal') && close());
   document.addEventListener('keydown', (e) => e.key === 'Escape' && close());
-  $('notes-btn').onclick = async () => showNotes(await api().version());
+  $('whatsnew-btn').onclick = async () => showNotes(await api().version());
 }
 
 /** After an update: show what changed once. A first install only records the version. */

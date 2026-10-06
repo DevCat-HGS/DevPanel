@@ -650,3 +650,91 @@ html.modal-open { overflow: hidden; }
 .skeleton.row { min-height: 38px; margin-bottom: 8px; border-radius: 10px; }
 @keyframes folder-in { from { opacity: 0; transform: translateY(26px) scale(0.96); } }
 @keyframes tab-in { from { opacity: 0; transform: translateX(-14px); } }
+
+/* ---------- Sidebar: update box right above Settings ---------- */
+.sidebar nav { flex: 1; }
+.side-foot { margin-top: 0; justify-content: flex-start; gap: 8px; }
+.side-foot #theme-toggle { margin-left: auto; }
+.news-btn { color: var(--accent-3); }
+.news-btn:hover { color: var(--accent-3); border-color: var(--accent-3); transform: none; }
+.update-box { margin: 0 0 2px; padding: 10px 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--accent-2) 12%, transparent)); animation: rise 0.4s var(--ease); }
+.upd-row { display: flex; align-items: center; gap: 8px; }
+.upd-ico { display: grid; place-items: center; color: var(--accent); }
+.upd-ico svg { width: 18px; height: 18px; }
+.upd-ver { font: 600 13px Consolas, monospace; font-variant-numeric: tabular-nums; }
+.upd-btns { margin-left: auto; display: flex; gap: 6px; }
+.upd-btns .icon-btn { width: 32px; height: 32px; }
+.upd-btns .icon-btn:hover { transform: none; }
+.upd-bar { height: 3px; margin-top: 8px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 20%, transparent); overflow: hidden; }
+.upd-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 0.3s var(--ease); }
+
+/* ---------- Settings: icon-first cards ---------- */
+.set-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+.set-card { margin: 0; animation: rise 0.45s var(--ease) both; }
+.set-card.wide { grid-column: 1 / -1; }
+.set-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.set-head > svg, .set-head > [data-icon] svg { width: 20px; height: 20px; color: var(--accent); }
+.set-head h3 { margin: 0; font-size: 15px; }
+.set-head .info-btn { margin-left: auto; text-decoration: none; }
+.set-head .info-btn:hover { transform: none; }
+.at-field { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 180px; padding: 0 12px; border-radius: 10px; background: var(--panel-solid); border: 1px solid var(--border); transition: border-color 0.2s, box-shadow 0.2s; }
+.at-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.at-field .at { color: var(--accent); font-weight: 700; }
+.at-field input { flex: 1; min-width: 0; border: 0; background: none; box-shadow: none; padding: 10px 0; }
+.at-field input:focus { box-shadow: none; }
+#gh-save:hover { transform: none; }
+#token-card { margin-top: 14px; }
+
+.tiles { display: flex; gap: 12px; flex-wrap: wrap; }
+.tile { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 18px; cursor: pointer; color: var(--muted); background: var(--panel-solid); border: 1px solid var(--border); transition: color 0.25s, border-color 0.25s, background 0.25s, transform 0.2s var(--ease), box-shadow 0.25s; }
+.tile input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+.tile .tile-ico svg { width: 26px; height: 26px; }
+.tile:hover { color: var(--text); border-color: var(--accent); transform: translateY(-2px); }
+.tile:has(input:checked) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft), 0 8px 24px color-mix(in srgb, var(--accent) 22%, transparent); }
+.tile:has(input:checked)::after { content: ''; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.tile:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.shortcut { display: flex; align-items: center; gap: 6px; margin-top: 16px; color: var(--muted); }
+.shortcut svg { width: 18px; height: 18px; margin-right: 4px; }
+
+.state-chips, .upd-chips { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.upd-chips { margin-bottom: 0; }
+.state-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--panel-solid); border: 1px solid var(--border); color: var(--muted); }
+.state-chip svg { width: 20px; height: 20px; }
+.state-chip .chip-state svg { width: 16px; height: 16px; }
+.state-chip[data-on='true'] { border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.state-chip[data-on='true'] .chip-state { color: var(--ok); }
+.state-chip[data-on='false'] .chip-state { color: var(--bad); }
+#upd-channel { color: var(--accent); }
+#upd-channel.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.upd-status { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--panel-solid); border: 1px solid var(--border); }
+.upd-status svg { width: 18px; height: 18px; }
+.upd-status[data-state='none'] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.upd-status[data-state='available'], .upd-status[data-state='ready'] { color: var(--accent); border-color: var(--accent); }
+.upd-status[data-state='error'] { color: var(--bad); border-color: var(--bad); }
+.upd-status[data-state='dev'] { color: var(--muted); }
+.row.icons { gap: 10px; }
+.seg button[data-lang] { font: 700 12px Inter, 'Segoe UI', sans-serif; letter-spacing: 0.05em; }
+
+/* ---------- Release notes: a colourful dialog ---------- */
+.notes-box { padding: 0; gap: 0; overflow: hidden; width: min(600px, 92vw); max-height: 80vh; }
+.notes-hero { position: relative; display: flex; align-items: center; gap: 12px; padding: 22px 24px; background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent-2) 22%, transparent) 55%, color-mix(in srgb, var(--accent-3) 26%, transparent)); border-bottom: 1px solid var(--border); }
+.notes-hero::after { content: ''; position: absolute; inset: 0; background: radial-gradient(240px 120px at 12% 0%, rgba(255, 255, 255, 0.12), transparent 70%); pointer-events: none; }
+.notes-hero .nh-ico { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; color: #04121f; background: linear-gradient(135deg, var(--accent), var(--accent-3)); box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent); animation: nh-spin 6s ease-in-out infinite; }
+.notes-hero .nh-ico svg { width: 24px; height: 24px; }
+.notes-hero h2 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+.notes-hero .icon-btn { margin-left: auto; position: relative; z-index: 1; }
+.notes-hero .icon-btn:hover { transform: none; color: var(--bad); border-color: var(--bad); }
+.notes { padding: 18px 20px 22px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+.ng { --c: var(--accent); border-radius: 14px; padding: 14px 16px; background: color-mix(in srgb, var(--c) 8%, var(--panel-solid)); border: 1px solid color-mix(in srgb, var(--c) 30%, var(--border)); border-left: 4px solid var(--c); animation: rise 0.45s var(--ease) both; animation-delay: calc(var(--i, 0) * 90ms); }
+.ng-fix { --c: var(--accent-3); }
+.ng-other { --c: #a78bfa; }
+.ng-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; font-weight: 700; font-size: 14px; color: var(--c); }
+.ng-head svg { width: 18px; height: 18px; }
+.ng-head .chip { margin-left: auto; color: var(--c); border-color: color-mix(in srgb, var(--c) 40%, transparent); }
+.ng ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ng li { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; line-height: 1.45; animation: slide-x 0.4s var(--ease) both; animation-delay: calc(var(--j, 0) * 40ms); }
+.ng li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c); flex-shrink: 0; transform: translateY(-1px); }
+.ng .scope { flex-shrink: 0; padding: 1px 8px; border-radius: 999px; font: 600 11px Inter, 'Segoe UI', sans-serif; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.notes .empty-note { display: grid; place-items: center; gap: 8px; padding: 24px; color: var(--muted); }
+.notes .empty-note svg { width: 34px; height: 34px; color: var(--accent); opacity: 0.7; }
+@keyframes nh-spin { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(14deg) scale(1.06); } }

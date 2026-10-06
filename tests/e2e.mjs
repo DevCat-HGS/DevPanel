@@ -162,32 +162,71 @@ try {
   assert.ok(await page.locator('#token-msg.err').isVisible(), 'the error stays on screen (not a vanishing toast)');
   assert.equal(await page.getAttribute('#token-state', 'data-state'), 'err');
   assert.ok(await page.locator('#pref-alerts').isChecked(), 'build alerts default to on');
-  await page.click('#pref-alerts + i');
+  await page.click('.tile:has(#pref-alerts)');
   const saved = await page.evaluate(() => window.devpanel.settings.get());
   assert.equal(saved.alertsEnabled, false);
   log('invalid tokens are rejected and the alerts preference persists');
 
   // ---------- release notes dialog ----------
-  await page.click('#notes-btn');
+  await page.click('#whatsnew-btn');
   await page.waitForSelector('#notes-modal:not(.hidden)');
   await page.waitForFunction(() => document.getElementById('notes-body').textContent.includes('notas'));
-  assert.match(await page.textContent('#notes-title'), /versión/);
+  assert.match(await page.textContent('#notes-ver'), /^v\d/);
   await page.click('#notes-close');
   await page.waitForSelector('#notes-modal.hidden', { state: 'attached' });
-  log('the release notes dialog opens and closes (no notes exist for a dev checkout)');
+  log('the release notes dialog (opened from the ! icon next to Settings) opens and closes');
+
+  // ---------- settings are icon-first ----------
+  await page.click('.nav[data-view="settings"]');
+  assert.equal(await page.locator('#update-check').count(), 0, 'no manual "check for updates" button: it is automatic');
+  assert.equal(await page.locator('#notes-btn').count(), 0, 'no news button inside Settings (it lives next to the Settings icon)');
+  assert.equal(await page.locator('.tile').count(), 4, 'preferences are icon tiles');
+  assert.equal(await page.getAttribute('#face-chip', 'data-on'), 'false', 'no face registered yet');
+  assert.equal(await page.getAttribute('#code-chip', 'data-on'), 'true', 'a code was created in the wizard');
+  for (const sel of ['#face-enroll', '#pin-change', '#face-remove', '#gh-save', '#token-save']) {
+    assert.equal((await page.textContent(sel)).trim(), '', `${sel} is an icon`);
+    assert.ok(await page.getAttribute(sel, 'title'), `${sel} has a tooltip`);
+  }
+  await shot(page, '5b-settings');
+  log('Settings use icon tiles, icon buttons and state chips instead of paragraphs');
+
+  // ---------- update box sits right above Settings and is made of icons ----------
+  const send = (s) => app.evaluate(({ BrowserWindow }, st) => BrowserWindow.getAllWindows()[0].webContents.send('update:status', st), s);
+  await send({ state: 'available', version: '9.9.9', notes: '' });
+  await page.waitForSelector('#update-box:not(.hidden)');
+  assert.match(await page.textContent('#update-box .upd-ver'), /9\.9\.9/);
+  const gap = await page.evaluate(() => {
+    const b = document.getElementById('update-box').getBoundingClientRect();
+    const f = document.querySelector('.side-foot').getBoundingClientRect();
+    return { gap: f.top - b.bottom, boxBottomAboveFoot: b.bottom <= f.top + 1 };
+  });
+  assert.ok(gap.boxBottomAboveFoot && gap.gap < 24, `the update box is directly above Settings (gap ${gap.gap}px)`);
+  for (const btn of await page.locator('#update-box .icon-btn').all()) assert.equal((await btn.textContent()).trim(), '');
+  assert.equal(await page.getAttribute('#upd-status', 'data-state'), 'available');
+  await shot(page, '5c-update-available');
+  await send({ state: 'downloading', percent: 40 });
+  await page.waitForFunction(() => document.querySelector('#update-box .upd-ver')?.textContent === '40%');
+  assert.equal(await page.locator('#update-box .upd-bar i').evaluate((n) => n.style.width), '40%');
+  await send({ state: 'ready', version: '9.9.9' });
+  await page.waitForSelector('#update-box [title="Reiniciar y actualizar"]');
+  await send({ state: 'none' });
+  await page.waitForSelector('#update-box.hidden', { state: 'attached' });
+  assert.equal(await page.getAttribute('#upd-status', 'data-state'), 'none');
+  log('the update box (icons only) appears above Settings, shows progress, then the restart icon, then hides');
 
   // ---------- language ----------
-  await page.selectOption('#pref-lang', 'en');
+  await page.click('#lang-seg [data-lang="en"]');
   await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Your projects');
-  assert.equal(await page.textContent('#token-card h3'), 'GitHub token (optional)');
+  assert.equal(await page.textContent('.set-card:has(#lang-seg) h3'), 'Language');
+  assert.ok(await page.locator('#lang-seg [data-lang="en"].active').isVisible());
   assert.equal(await page.locator('#view-settings h3', { hasText: 'Language' }).count(), 1, 'static headings are translated');
   await page.click('.nav[data-view="projects"]');
   assert.ok((await page.locator('.stat .label').allTextContents()).includes('Languages'), 'strings built from code are translated too');
   await shot(page, '5a-english');
   await page.click('.nav[data-view="settings"]');
-  await page.selectOption('#pref-lang', 'es');
+  await page.click('#lang-seg [data-lang="es"]');
   await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Tus proyectos');
-  assert.equal(await page.textContent('#token-card h3'), 'Token de GitHub (opcional)');
+  assert.equal(await page.textContent('.set-card:has(#lang-seg) h3'), 'Idioma');
   log('the language can be switched to English and back, including text built from code');
 
   // ---------- code dialog (same pad as the installer) ----------

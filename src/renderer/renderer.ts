@@ -200,8 +200,9 @@ async function showApp(): Promise<void> {
   const web = api.platform === 'web';
   $('version').textContent = web ? '' : `v${await api.version()}`;
   $('face-card').classList.toggle('hidden', web);
-  $('update-check').classList.toggle('hidden', web);
-  if (web) $('update-msg').textContent = 'La versión web siempre está en la última versión.';
+  $('upd-card').classList.toggle('hidden', web);
+  $('whatsnew-btn').classList.toggle('hidden', web);
+  if (!web) $('upd-ver').textContent = `v${await api.version()}`;
 
   const s = await api.settings.get();
   $<HTMLInputElement>('gh-user').value = s.githubUser;
@@ -253,6 +254,7 @@ function tokenMsg(kind: 'ok' | 'err', text: string): void {
 
 /** Re-reads the real state (also proves the saved token still works) and redraws the card. */
 async function refreshTokenStatus(): Promise<void> {
+  tokenMsg('ok', ''); // a stale error from an earlier attempt must not outlive the next check
   renderTokenState('busy');
   tokenInfo = await api.token.status();
   tokenEditing = false;
@@ -260,12 +262,17 @@ async function refreshTokenStatus(): Promise<void> {
 }
 
 async function initPrefs(): Promise<void> {
-  const lang = $<HTMLSelectElement>('pref-lang');
-  lang.value = (await api.settings.get()).language ?? 'auto';
-  lang.onchange = async () => {
-    await api.settings.set({ language: lang.value as LangPref });
-    setLangPref(lang.value as LangPref);
-  };
+  const seg = $('lang-seg');
+  const markLang = (v: string) => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.lang === v));
+  markLang((await api.settings.get()).language ?? 'auto');
+  seg.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+    b.onclick = async () => {
+      const v = b.dataset.lang as LangPref;
+      await api.settings.set({ language: v });
+      setLangPref(v);
+      markLang(v);
+    };
+  });
 
   const web = api.platform === 'web';
   $('token-card').classList.toggle('hidden', web);
@@ -331,12 +338,17 @@ async function initPrefs(): Promise<void> {
 async function showChannel(): Promise<void> {
   if (api.platform === 'web') return;
   const c = await api.update.channel();
-  $('channel-info').textContent =
-    c.channel === 'dev'
-      ? c.allowed
-        ? 'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).'
-        : 'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.'
-      : 'Canal: Estable.';
+  const chip = $('upd-channel');
+  const dev = c.channel === 'dev';
+  chip.replaceChildren(icon(dev ? 'flask' : 'shield'));
+  chip.classList.toggle('warn', dev && !c.allowed);
+  const tip = dev
+    ? c.allowed
+      ? 'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).'
+      : 'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.'
+    : 'Canal: Estable.';
+  chip.title = tip;
+  chip.setAttribute('aria-label', tip);
 }
 
 function goView(name: string): void {
@@ -550,11 +562,18 @@ async function saveUser(): Promise<void> {
 $('gh-save').onclick = () => void saveUser();
 $('gh-user').addEventListener('keydown', (e) => e.key === 'Enter' && void saveUser());
 
+function setStateChip(id: string, on: boolean, tipOn: string, tipOff: string): void {
+  const chip = $(id);
+  chip.dataset.on = String(on);
+  chip.title = on ? tipOn : tipOff;
+  chip.setAttribute('aria-label', chip.title);
+  chip.querySelector('.chip-state')!.replaceChildren(icon(on ? 'checkcircle' : 'xcircle'));
+}
+
 async function refreshFaceStatus(): Promise<void> {
   const st = await api.face.status();
-  $('face-status').textContent = st.enrolled
-    ? 'Rostro registrado. La app pedirá tu rostro al abrir.'
-    : 'Sin rostro registrado. La app abre sin bloqueo.';
+  setStateChip('face-chip', st.enrolled, 'Rostro registrado', 'Sin rostro registrado');
+  setStateChip('code-chip', st.pinSet, 'Código creado', 'Sin código');
 }
 
 /** Opens the "create your code" dialog; resolves with the new code, or null if cancelled. */
@@ -607,46 +626,76 @@ $('face-remove').onclick = async () => {
   await refreshFaceStatus();
 };
 
-// ---------- Updates (desktop) ----------
+// ---------- Updates (desktop): checked automatically, shown as icons ----------
+function setUpdStatus(state: 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'error' | 'dev', tip: string): void {
+  const s = $('upd-status');
+  s.dataset.state = state;
+  s.title = tip;
+  s.setAttribute('aria-label', tip);
+  const names = { none: 'checkcircle', available: 'download', ready: 'refresh', error: 'xcircle', dev: 'info' } as const;
+  s.replaceChildren(state === 'checking' || state === 'downloading' ? el('span', 'spinner') : icon(names[state]));
+}
+
+function updButton(name: string, tip: string, primary: boolean, onClick: () => void): HTMLButtonElement {
+  const b = el('button', `icon-btn${primary ? ' primary' : ''}`) as HTMLButtonElement;
+  b.title = tip;
+  b.setAttribute('aria-label', tip);
+  b.append(icon(name));
+  b.onclick = onClick;
+  return b;
+}
+
+function updRow(lead: Element, label: string, buttons: HTMLElement[]): HTMLElement {
+  const row = el('div', 'upd-row');
+  const ico = el('span', 'upd-ico');
+  ico.append(lead);
+  const btns = el('span', 'upd-btns');
+  btns.append(...buttons);
+  row.append(ico, el('b', 'upd-ver', label), btns);
+  return row;
+}
+
 function renderUpdate(s: UpdateStatus): void {
   const box = $('update-box');
-  const msg = $('update-msg');
   box.classList.add('hidden');
   box.replaceChildren();
 
   switch (s.state) {
-    case 'dev': msg.textContent = 'Modo desarrollo: el actualizador solo funciona en la app instalada.'; break;
-    case 'checking': msg.textContent = 'Buscando actualizaciones…'; break;
-    case 'none': msg.textContent = 'Estás en la última versión.'; break;
-    case 'error': msg.textContent = `Error al actualizar: ${s.message}`; break;
-    case 'available': {
-      msg.textContent = `Nueva versión ${s.version} disponible.`;
+    case 'dev': return setUpdStatus('dev', 'Modo desarrollo: el actualizador solo funciona en la app instalada.');
+    case 'checking': return setUpdStatus('checking', 'Buscando actualizaciones…');
+    case 'none': return setUpdStatus('none', 'Estás en la última versión.');
+    case 'error': return setUpdStatus('error', `Error al actualizar: ${s.message}`);
+    case 'available':
+      setUpdStatus('available', `Nueva versión ${s.version} disponible.`);
       box.classList.remove('hidden');
-      const b = el('button', 'btn primary', 'Descargar');
-      b.onclick = () => void api.update.download();
-      const more = el('button', 'link', 'Novedades');
-      more.onclick = () => void showNotes(s.version);
-      box.append(el('div', undefined, `Nueva versión v${s.version}`), b, more);
-      break;
+      box.append(
+        updRow(icon('sparkles'), `v${s.version}`, [
+          updButton('alert', 'Novedades', false, () => void showNotes(s.version)),
+          updButton('download', 'Descargar', true, () => void api.update.download()),
+        ]),
+      );
+      return;
+    case 'downloading': {
+      setUpdStatus('downloading', `Descargando… ${s.percent}%`);
+      box.classList.remove('hidden');
+      box.append(updRow(el('span', 'spinner'), `${s.percent}%`, []));
+      const bar = el('div', 'upd-bar');
+      const fill = document.createElement('i');
+      fill.style.width = `${s.percent}%`;
+      bar.append(fill);
+      box.append(bar);
+      return;
     }
-    case 'downloading':
-      msg.textContent = `Descargando… ${s.percent}%`;
+    case 'ready':
+      setUpdStatus('ready', `v${s.version} lista para instalar.`);
       box.classList.remove('hidden');
-      box.append(el('div', undefined, `Descargando… ${s.percent}%`));
-      break;
-    case 'ready': {
-      msg.textContent = `v${s.version} lista para instalar.`;
-      box.classList.remove('hidden');
-      const b = el('button', 'btn primary', 'Reiniciar y actualizar');
-      b.onclick = () => void api.update.install();
-      box.append(el('div', undefined, `v${s.version} descargada`), b);
-      break;
-    }
+      box.append(updRow(icon('checkcircle'), `v${s.version}`, [updButton('refresh', 'Reiniciar y actualizar', true, () => void api.update.install())]));
+      return;
   }
 }
 
 api.update.onStatus(renderUpdate);
-$('update-check').onclick = () => void api.update.check();
+// (no manual "check for updates": the main process checks on start, every 15 minutes and when the window is focused again)
 
 hydrateIcons();
 initRepoModal();

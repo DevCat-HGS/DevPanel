@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { expandPath, extractVersion, findExisting, parseWingetChunk, WINGET_OK_CODES } from '../dist/main/software-core.js';
 import { buildNotes, parseSubject } from '../scripts/release-notes.mjs';
 import { htmlToText, parseNotes } from '../dist/renderer/notes-md.js';
+import { groupNotes } from '../dist/renderer/ui-notes.js';
 import { parseGitStatus, isSafeScriptName, stripAnsi } from '../dist/main/local-core.js';
 
 test('json: format, minify, validate', () => {
@@ -217,4 +218,18 @@ test('pager shows the first/last page, the neighbours of the current one and gap
   assert.deepEqual(pageWindow(10, 10), [1, '…', 9, 10]);
   assert.deepEqual(pageWindow(2, 8), [1, 2, 3, '…', 8]);
   assert.deepEqual(pageWindow(3, 8), [1, 2, 3, 4, '…', 8]);
+});
+
+test('release notes keep the scope of each line and are grouped into coloured cards', () => {
+  const [item] = parseNotes('- **app:** hace algo');
+  assert.deepEqual({ type: item.type, scope: item.scope, text: item.text }, { type: 'li', scope: 'app', text: 'hace algo' });
+  assert.equal(parseNotes('- sin alcance')[0].scope, undefined);
+
+  const md = "## ✨ Novedades · What's new\n- **app:** uno\n- dos\n\n## 🐛 Correcciones · Fixes\n- **fix:** tres\n\n## 🔧 Mejoras internas · Under the hood\n- cuatro";
+  const groups = groupNotes(md);
+  assert.deepEqual(groups.map((g) => g.kind), ['feat', 'fix', 'other']);
+  assert.deepEqual(groups[0].items, [{ scope: 'app', text: 'uno' }, { scope: undefined, text: 'dos' }]);
+  assert.equal(groups[1].items[0].scope, 'fix');
+  assert.equal(groupNotes('<ul><li>a</li><li>b</li></ul>').length, 1, 'HTML notes without headings become one group');
+  assert.deepEqual(groupNotes(''), []);
 });

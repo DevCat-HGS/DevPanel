@@ -36,7 +36,7 @@ test('every pattern keeps its placeholders in the translation', () => {
 const NEUTRAL = new Set([
   'DevPanel', 'Projects', 'Local', 'Tools', 'Settings', 'Terminal', 'GitHub', 'Español', 'English', 'JSON', 'Base64',
   'URL', 'Hash', 'UUID', 'JWT', 'Regex', 'Ctrl', 'Alt', 'D', 'Fetch', 'Pull', 'VS Code', 'Actions', 'Git', 'npm',
-  '▾', '✓', '⌫', '/', '◆',
+  '▾', '✓', '⌫', '/', '◆', 'ES', 'EN',
 ]);
 
 test('index.html has an English version for every Spanish text and attribute', () => {
