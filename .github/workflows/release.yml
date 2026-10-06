@@ -35,6 +35,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release notes are built from the commit history
 
       - uses: actions/setup-node@v4
         with:
@@ -63,10 +65,47 @@ jobs:
             fs.writeFileSync('package.json', JSON.stringify(p, null, 2));
           "
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The face module ships as face_auth.exe (PyInstaller), so users do not need Python installed.
+      - name: Package the face module
+        shell: bash
+        run: |
+          pip install opencv-python numpy pyinstaller
+          (cd python && python -m unittest -q test_liveness)
+          PYTHONPATH=python python -m PyInstaller --onefile --name face_auth python/face_auth.py \
+            --distpath python --workpath build/pyi --specpath build/pyi --paths python --noconfirm --log-level WARN
+          python/face_auth.exe selftest --models-dir "$RUNNER_TEMP/face-models"
+
+      - name: Code signing status
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.CSC_LINK }}" ]; then
+            echo "Code signing is ON (CSC_LINK is set)."
+          else
+            echo "::warning title=Unsigned build::No CSC_LINK secret, so the .exe files are not signed and Windows SmartScreen will warn. See docs/SIGNING.md"
+          fi
+
       - name: Build, package and publish release
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # electron-builder signs automatically when these are present (empty values = unsigned)
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      # Release notes from the commit messages since the previous release of this channel.
+      - name: Write release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          node scripts/release-notes.mjs --tag "v$version" > notes.md
+          cat notes.md
+          gh release edit "v$version" --notes-file notes.md
 
       # The plain NSIS "Setup" is only used by the auto-updater. People should install with the
       # custom installer, so it is attached to every release page next to it.

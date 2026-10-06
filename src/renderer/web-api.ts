@@ -1,4 +1,5 @@
-import type { Commit, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared/api';
+import { CATALOG } from './catalog.js';
+import type { CommitPage, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared/api';
 
 /**
  * Browser implementation of the DevPanel API, used when the renderer runs on
@@ -6,7 +7,17 @@ import type { Commit, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared
  */
 const API = 'https://api.github.com';
 const SETTINGS_KEY = 'devpanel.settings';
-const defaults: Settings = { githubUser: '', onboarded: false };
+const defaults: Settings = {
+  githubUser: '',
+  onboarded: false,
+  alertsEnabled: false,
+  closeToTray: false,
+  openAtLogin: false,
+  localProjects: [],
+  lastSeenVersion: '',
+  language: 'auto',
+  faceLiveness: false,
+};
 
 async function gh<T>(path: string): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -57,16 +68,23 @@ export function createWebApi(): DevPanelApi {
           throw new Error(`No existe el usuario "${user}" en GitHub`);
         }
       },
-      repos: () => gh<Repo[]>(`/users/${user()}/repos?sort=pushed&per_page=30`),
-      commits: async (repo): Promise<Commit[]> => {
-        const raw = await gh<any[]>(`/repos/${user()}/${encodeURIComponent(repo)}/commits?per_page=10`);
-        return raw.map((c) => ({
-          sha: c.sha.slice(0, 7),
-          message: String(c.commit.message).split('\n')[0],
-          author: c.commit.author?.name ?? 'unknown',
-          date: c.commit.author?.date ?? '',
-          url: c.html_url,
-        }));
+      repos: () => gh<Repo[]>(`/users/${user()}/repos?sort=pushed&per_page=100`),
+      commits: async (repo, page = 1): Promise<CommitPage> => {
+        const res = await fetch(`${API}/repos/${user()}/${encodeURIComponent(repo)}/commits?per_page=8&page=${Math.max(1, page)}`, {
+          headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (!res.ok) throw new Error(`GitHub ${res.status}`);
+        const raw = (await res.json()) as any[];
+        return {
+          commits: raw.map((c) => ({
+            sha: c.sha.slice(0, 7),
+            message: String(c.commit.message).split('\n')[0],
+            author: c.commit.author?.name ?? 'unknown',
+            date: c.commit.author?.date ?? '',
+            url: c.html_url,
+          })),
+          hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
+        };
       },
       runs: async (repo): Promise<WorkflowRun[]> => {
         const raw = await gh<{ workflow_runs: any[] }>(
@@ -87,10 +105,41 @@ export function createWebApi(): DevPanelApi {
       setPin: async () => ({ ok: false, error: 'El código solo está en la app de escritorio' }),
       enroll: async () => ({ ok: false, error: 'El login facial solo está en la app de escritorio' }),
       verify: async () => ({ ok: false, error: 'No disponible en la web' }),
+      onPrompt: () => {},
       unlockWithPin: async () => ({ ok: false, error: 'No disponible en la web' }),
       remove: noop,
     },
-    env: { check: async () => [] },
+    app: { onHidden: () => {}, onCheckUpdates: () => {}, onSettingsChanged: () => {} },
+    token: {
+      status: async () => ({ has: false }),
+      set: async () => ({ ok: false, error: 'El token solo está disponible en la app de escritorio' }),
+      clear: async () => {},
+    },
+    alerts: { check: async () => {}, onFailure: () => {} },
+    local: {
+      list: async () => [],
+      add: async () => null,
+      remove: async () => {},
+      git: async () => ({ ok: false, output: 'Solo disponible en la app de escritorio' }),
+      run: async () => ({ error: 'Solo disponible en la app de escritorio' }),
+      stop: async () => {},
+      open: async () => {},
+      onOutput: () => {},
+      onExit: () => {},
+    },
+    notes: { get: async () => null },
+    // The web build cannot detect or install anything: cards are plain links.
+    software: {
+      detect: async () => [],
+      install: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
+      cancel: async () => {},
+      open: async (id) => {
+        const item = CATALOG.items.find((i) => i.id === id);
+        if (item) window.open(item.url, '_blank', 'noopener,noreferrer');
+      },
+      onStatus: () => {},
+      onProgress: () => {},
+    },
     // The web build is always the latest deploy.
     update: {
       check: noop,

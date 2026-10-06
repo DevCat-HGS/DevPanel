@@ -37,8 +37,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Python sidecar compiles
-        run: python -m py_compile python/face_auth.py
+      - name: Python sidecar compiles and its liveness logic passes
+        run: |
+          python -m py_compile python/face_auth.py
+          cd python && python -m unittest -q test_liveness
 
   e2e:
     name: End-to-end (Electron)

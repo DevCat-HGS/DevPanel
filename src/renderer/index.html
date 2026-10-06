@@ -27,10 +27,7 @@
         <p id="lock-msg" class="muted" role="status">Mira a la cámara para entrar</p>
         <button id="lock-face" class="btn primary">Reconocer mi rostro</button>
         <div class="divider"><span>o ingresa tu código</span></div>
-        <div class="pin-row">
-          <input id="lock-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Código" aria-label="Código de verificación" />
-          <button id="lock-pin-btn" class="btn">Entrar</button>
-        </div>
+        <div id="lock-pad"></div>
       </div>
     </section>
 
@@ -55,19 +52,8 @@
         </div>
 
         <div id="wz-2" class="wz-step">
-          <h2>Crea tu código de verificación</h2>
-          <p class="muted">De 4 a 8 dígitos. Lo usarás cuando el rostro no funcione. No se puede recuperar, así que guárdalo.</p>
-          <input id="wz-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Tu código" aria-label="Código" />
-          <input id="wz-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Repite el código" aria-label="Repite el código" />
-          <div class="row">
-            <button id="wz-gen" class="btn ghost small">Generar uno</button>
-            <button id="wz-show" class="btn ghost small">Mostrar</button>
-          </div>
-          <p id="wz-pin-err" class="error" role="alert"></p>
-          <div class="wz-actions">
-            <button id="wz-2-back" class="btn ghost">Atrás</button>
-            <button id="wz-2-next" class="btn primary">Continuar</button>
-          </div>
+          <div id="wz-code-host" class="code-host"></div>
+          <div class="wz-actions"><button id="wz-2-back" class="btn ghost">Atrás</button></div>
         </div>
 
         <div id="wz-3" class="wz-step">
@@ -106,18 +92,23 @@
             <span class="ico" data-icon="grid" aria-hidden="true"></span>
             <span class="nav-label">Projects</span>
           </button>
+          <button id="nav-local" class="nav" data-view="local">
+            <span class="ico" data-icon="folder" aria-hidden="true"></span>
+            <span class="nav-label">Local</span>
+          </button>
           <button class="nav" data-view="tools">
             <span class="ico" data-icon="tools" aria-hidden="true"></span>
             <span class="nav-label">Tools</span>
           </button>
-          <button class="nav" data-view="settings">
-            <span class="ico" data-icon="settings" aria-hidden="true"></span>
-            <span class="nav-label">Settings</span>
-          </button>
         </nav>
         <div id="update-box" class="update-box hidden" role="status"></div>
         <div class="side-foot">
-          <span id="platform-badge" class="muted"></span>
+          <button class="nav nav-settings" data-view="settings" title="Settings" aria-label="Settings">
+            <span class="ico" data-icon="settings" aria-hidden="true"></span>
+          </button>
+          <button id="whatsnew-btn" class="icon-btn news-btn" title="Novedades" aria-label="Novedades">
+            <span data-icon="alert"></span>
+          </button>
           <button id="theme-toggle" class="icon-btn" aria-label="Cambiar tema" title="Cambiar tema">
             <span data-icon="moon"></span>
           </button>
@@ -146,17 +137,53 @@
           <details id="recs" class="recs hidden"></details>
           <div id="stats" class="stats"></div>
           <div id="repos" class="grid" aria-live="polite"></div>
-          <div id="detail" class="detail hidden"></div>
+          <div id="repo-pager" class="pager hidden"></div>
+        </section>
+
+        <section id="view-local" class="view hidden">
+          <header class="view-head">
+            <div>
+              <h2>Proyectos locales</h2>
+              <p class="muted">Carpetas de tu equipo: estado de git y scripts de npm sin salir del panel.</p>
+            </div>
+            <button id="local-add" class="btn primary">Agregar carpeta</button>
+          </header>
+          <div id="local-list" class="local-list"></div>
+          <div class="term">
+            <div class="term-head">
+              <span id="term-title">Terminal</span>
+              <span class="spacer"></span>
+              <button id="term-stop" class="btn small danger" disabled>Detener</button>
+              <button id="term-clear" class="btn small ghost">Limpiar</button>
+            </div>
+            <pre id="term-out" aria-live="polite" data-no-i18n></pre>
+          </div>
         </section>
 
         <section id="view-tools" class="view hidden">
           <header class="view-head">
-            <div>
-              <h2>Herramientas</h2>
-              <p class="muted">Utilidades de desarrollo sin salir del panel. Atajo: Ctrl + K.</p>
+            <h2>Herramientas</h2>
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-tab="software" title="Software" aria-label="Software"><span data-icon="grid"></span></button>
+              <button class="tab" data-tab="utils" title="Utilidades" aria-label="Utilidades"><span data-icon="tools"></span></button>
             </div>
           </header>
-          <div class="tools">
+
+          <div id="tab-software">
+            <div class="sw-toolbar">
+              <div id="sw-summary" class="sw-summary"></div>
+              <div id="sw-filter" class="seg" role="group" aria-label="Filtro">
+                <button class="active" data-f="all" title="Todo" aria-label="Todo"><span data-icon="grid"></span></button>
+                <button data-f="installed" title="Instalados" aria-label="Instalados"><span data-icon="checkcircle"></span></button>
+                <button data-f="missing" title="Faltan" aria-label="Faltan"><span data-icon="download"></span></button>
+              </div>
+              <button id="sw-refresh" class="icon-btn" title="Volver a detectar" aria-label="Volver a detectar"><span data-icon="refresh"></span></button>
+            </div>
+            <div id="sw-list" class="sw-list"></div>
+          </div>
+
+          <div id="tab-utils" class="hidden">
+            <div class="tools">
             <div id="tool-list" class="tool-list"></div>
             <div class="tool-panel card">
               <h3 id="tool-title"></h3>
@@ -167,45 +194,137 @@
               <pre id="tool-output" aria-live="polite"></pre>
             </div>
           </div>
-          <div id="env-card" class="card">
-            <h3>Entorno de desarrollo</h3>
-            <p class="muted">Detecta qué herramientas tienes instaladas y qué te recomendamos añadir.</p>
-            <button id="env-check" class="btn small">Verificar entorno</button>
-            <ul id="env-list" class="env-list"></ul>
           </div>
         </section>
 
         <section id="view-settings" class="view hidden">
           <header class="view-head"><h2>Settings</h2></header>
 
-          <div class="card">
-            <h3>GitHub</h3>
-            <p class="muted">Usuario cuyos repositorios públicos se muestran.</p>
-            <div class="row">
-              <input id="gh-user" type="text" placeholder="usuario de GitHub" aria-label="Usuario de GitHub" />
-              <button id="gh-save" class="btn">Guardar</button>
-            </div>
-          </div>
+          <div class="set-grid">
+            <div class="card set-card wide">
+              <div class="set-head">
+                <span data-icon="branch" aria-hidden="true"></span><h3>GitHub</h3>
+                <a class="icon-btn info-btn" href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer"
+                   title="Crear un token en GitHub. Para ver repos privados necesita permiso de lectura (repo, o Contents: Read en un token fine-grained)."
+                   aria-label="Crear un token en GitHub. Para ver repos privados necesita permiso de lectura (repo, o Contents: Read en un token fine-grained)."><span data-icon="info"></span></a>
+              </div>
+              <div class="row">
+                <div class="at-field"><span class="at" aria-hidden="true">@</span><input id="gh-user" type="text" placeholder="usuario de GitHub" aria-label="Usuario de GitHub" /></div>
+                <button id="gh-save" class="icon-btn primary" title="Guardar" aria-label="Guardar"><span data-icon="check"></span></button>
+              </div>
 
-          <div id="face-card" class="card">
-            <h3>Inicio de sesión facial</h3>
-            <p id="face-status" class="muted"></p>
-            <div class="row">
-              <input id="face-pin" type="password" placeholder="Código (4–8 dígitos)" aria-label="Código de verificación" inputmode="numeric" maxlength="8" />
-              <button id="face-enroll" class="btn primary">Registrar mi rostro</button>
-              <button id="face-remove" class="btn danger">Eliminar</button>
+              <div id="token-card">
+                <div id="token-state" class="token-state" data-state="none">
+                  <span id="ts-icon" class="ts-icon" aria-hidden="true"></span>
+                  <span id="ts-main" class="ts-main"></span>
+                  <span id="ts-chips" class="ts-chips"></span>
+                  <span id="ts-actions" class="ts-actions hidden">
+                    <button id="token-refresh" class="icon-btn" title="Volver a comprobar" aria-label="Volver a comprobar"><span data-icon="refresh"></span></button>
+                    <button id="token-edit" class="icon-btn" title="Reemplazar token" aria-label="Reemplazar token"><span data-icon="edit"></span></button>
+                    <button id="token-clear" class="icon-btn danger" title="Quitar token" aria-label="Quitar token"><span data-icon="trash"></span></button>
+                  </span>
+                </div>
+                <div id="token-form" class="row">
+                  <input id="token-input" type="password" autocomplete="off" placeholder="ghp_…  ó  github_pat_…" aria-label="Token de GitHub" />
+                  <button id="token-save" class="icon-btn primary" title="Guardar" aria-label="Guardar"><span data-icon="check"></span></button>
+                </div>
+                <p id="token-msg" class="token-msg" role="status"></p>
+              </div>
             </div>
-            <p id="face-msg" class="muted" role="status"></p>
-          </div>
 
-          <div class="card">
-            <h3>Actualizaciones</h3>
-            <p id="channel-info" class="muted"></p>
-            <p id="update-msg" class="muted" role="status"></p>
-            <button id="update-check" class="btn">Buscar actualizaciones</button>
+            <div id="prefs-card" class="card set-card">
+              <div class="set-head"><span data-icon="settings" aria-hidden="true"></span><h3>Preferencias</h3></div>
+              <div class="tiles">
+                <label class="tile" title="Avisarme con una notificación cuando falle un build">
+                  <input type="checkbox" id="pref-alerts" aria-label="Avisarme con una notificación cuando falle un build" /><span class="tile-ico" data-icon="bell"></span>
+                </label>
+                <label class="tile" title="Al entrar con el rostro, pedir que gire la cabeza (anti-foto)">
+                  <input type="checkbox" id="pref-liveness" aria-label="Al entrar con el rostro, pedir que gire la cabeza (anti-foto)" /><span class="tile-ico" data-icon="shield"></span>
+                </label>
+                <label class="tile" title="Al cerrar la ventana, seguir en la bandeja del sistema">
+                  <input type="checkbox" id="pref-tray" aria-label="Al cerrar la ventana, seguir en la bandeja del sistema" /><span class="tile-ico" data-icon="tray"></span>
+                </label>
+                <label class="tile" title="Abrir DevPanel al iniciar Windows (oculto en la bandeja)">
+                  <input type="checkbox" id="pref-login" aria-label="Abrir DevPanel al iniciar Windows (oculto en la bandeja)" /><span class="tile-ico" data-icon="power"></span>
+                </label>
+              </div>
+              <div class="shortcut" title="Atajo global para mostrar u ocultar">
+                <span data-icon="keyboard" aria-hidden="true"></span><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>D</kbd>
+              </div>
+            </div>
+
+            <div id="face-card" class="card set-card">
+              <div class="set-head"><span data-icon="scan" aria-hidden="true"></span><h3>Rostro</h3></div>
+              <div class="state-chips">
+                <span id="face-chip" class="state-chip" data-on="false"><span data-icon="scan"></span><span class="chip-state"></span></span>
+                <span id="code-chip" class="state-chip" data-on="false"><span data-icon="keypad"></span><span class="chip-state"></span></span>
+              </div>
+              <div class="row icons">
+                <button id="face-enroll" class="icon-btn primary" title="Registrar mi rostro" aria-label="Registrar mi rostro"><span data-icon="scan"></span></button>
+                <button id="pin-change" class="icon-btn" title="Cambiar código" aria-label="Cambiar código"><span data-icon="keypad"></span></button>
+                <button id="face-remove" class="icon-btn danger" title="Eliminar" aria-label="Eliminar"><span data-icon="trash"></span></button>
+              </div>
+              <p id="face-msg" class="muted" role="status"></p>
+            </div>
+
+            <div class="card set-card">
+              <div class="set-head"><span data-icon="globe" aria-hidden="true"></span><h3>Idioma</h3></div>
+              <div id="lang-seg" class="seg" role="group" aria-label="Idioma">
+                <button data-lang="auto" title="Automático" aria-label="Automático"><span data-icon="globe"></span></button>
+                <button data-lang="es" aria-label="Español">ES</button>
+                <button data-lang="en" aria-label="English">EN</button>
+              </div>
+            </div>
+
+            <div id="upd-card" class="card set-card">
+              <div class="set-head"><span data-icon="refresh" aria-hidden="true"></span><h3>Actualizaciones</h3></div>
+              <div class="upd-chips">
+                <span id="upd-ver" class="chip"></span>
+                <span id="upd-channel" class="state-chip" data-on="true"></span>
+                <span id="upd-status" class="upd-status" data-state="checking"></span>
+              </div>
+            </div>
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="repo-modal" class="repo-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle del proyecto">
+      <div class="folder">
+        <div class="folder-tab">
+          <span class="ft-icon" data-icon="folder" aria-hidden="true"></span>
+          <span id="rm-name" class="rm-name" data-no-i18n></span>
+        </div>
+        <button id="rm-close" class="icon-btn folder-close" title="Cerrar" aria-label="Cerrar"><span data-icon="x"></span></button>
+        <div id="rm-body" class="folder-body">
+          <div class="rm-bar">
+            <span id="rm-badge" class="rm-badge"></span>
+            <span id="rm-actions" class="rm-actions"></span>
+          </div>
+          <p id="rm-desc" class="muted rm-desc" data-no-i18n></p>
+          <div id="rm-commits" class="rm-commits" aria-live="polite"></div>
+          <div id="rm-pager" class="pager hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="notes-modal" class="palette hidden" role="dialog" aria-labelledby="notes-title">
+      <div class="pal-box notes-box">
+        <div class="notes-hero">
+          <span class="nh-ico" data-icon="sparkles" aria-hidden="true"></span>
+          <h2 id="notes-title">Novedades</h2>
+          <span id="notes-ver" class="chip"></span>
+          <button id="notes-close" class="icon-btn" title="Cerrar" aria-label="Cerrar"><span data-icon="x"></span></button>
+        </div>
+        <div id="notes-body" class="notes" data-no-i18n></div>
+      </div>
+    </div>
+
+    <div id="pin-modal" class="palette hidden" role="dialog" aria-label="Cambiar código">
+      <div class="pal-box setup-box">
+        <div id="pin-modal-host" class="code-host"></div>
+        <button id="pin-modal-cancel" class="btn ghost">Cancelar</button>
+      </div>
     </div>
 
     <div id="palette" class="palette hidden" role="dialog" aria-label="Paleta de comandos">

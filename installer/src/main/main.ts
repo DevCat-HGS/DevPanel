@@ -42,16 +42,53 @@ function pickAsset(rel: any, channel: 'stable' | 'dev'): Latest | null {
   };
 }
 
+const WEB = `https://github.com/${REPO}`;
+
+/** Used when api.github.com is rate-limited (60 req/h per IP): same release, found via the public pages. */
+async function fetchReleaseViaWeb(channel: 'stable' | 'dev'): Promise<Latest> {
+  let tag: string | null = null;
+  if (channel === 'stable') {
+    // /releases/latest redirects to the newest non-prerelease tag
+    const r = await fetch(`${WEB}/releases/latest`, { headers: { 'User-Agent': 'DevPanel-Installer' } });
+    tag = r.url.match(/\/releases\/tag\/([^/?#]+)/)?.[1] ?? null;
+  } else {
+    const r = await fetch(`${WEB}/releases.atom`, { headers: { 'User-Agent': 'DevPanel-Installer' } });
+    tag = (await r.text()).match(/\/releases\/tag\/(v[^"<]+-dev)/)?.[1] ?? null;
+  }
+  if (!tag) throw new Error('No se pudo encontrar la versión. Revisa tu conexión e inténtalo de nuevo.');
+  const version = decodeURIComponent(tag).replace(/^v/, '');
+  const url = `${WEB}/releases/download/${tag}/DevPanel-Setup-${version}.exe`;
+  const head = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': 'DevPanel-Installer' } });
+  if (!head.ok) throw new Error('Esa versión aún no tiene instalador publicado');
+  const size = Number(head.headers.get('content-length')) || 0;
+  // no checksum available through the web pages: the download still comes from github.com over HTTPS
+  return { info: { version, sizeBytes: size, channel }, asset: { url, size } };
+}
+
 async function fetchRelease(channel: 'stable' | 'dev'): Promise<Latest> {
+  if (latestCache[channel]) return latestCache[channel]!;
+  try {
+    return await fetchReleaseViaApi(channel);
+  } catch (e) {
+    if (!(e instanceof RateLimited)) throw e;
+    return (latestCache[channel] = await fetchReleaseViaWeb(channel));
+  }
+}
+
+class RateLimited extends Error {}
+
+async function fetchReleaseViaApi(channel: 'stable' | 'dev'): Promise<Latest> {
   if (latestCache[channel]) return latestCache[channel]!;
   let found: Latest | null = null;
   if (channel === 'stable') {
     // GitHub's "latest" never points at a prerelease, so this is always a stable build.
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: GH_HEADERS });
+    if (res.status === 403 || res.status === 429) throw new RateLimited();
     if (!res.ok) throw new Error(`No se pudo consultar la última versión estable (GitHub ${res.status})`);
     found = pickAsset(await res.json(), 'stable');
   } else {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, { headers: GH_HEADERS });
+    if (res.status === 403 || res.status === 429) throw new RateLimited();
     if (!res.ok) throw new Error(`No se pudo consultar las versiones de desarrollo (GitHub ${res.status})`);
     const rel = ((await res.json()) as any[]).find((r) => r.prerelease && !r.draft && pickAsset(r, 'dev'));
     found = rel ? pickAsset(rel, 'dev') : null;
@@ -60,17 +97,27 @@ async function fetchRelease(channel: 'stable' | 'dev'): Promise<Latest> {
   return (latestCache[channel] = found);
 }
 
+const lookupCache = new Map<string, GithubProfile>();
+
 async function lookup(input: string): Promise<GithubProfile> {
   const t = input.trim().replace(/^@/, '');
   const m = t.match(/github\.com\/([A-Za-z0-9-]{1,39})/i);
   const user = m ? m[1] : t;
   if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(user))
     throw new Error('Escribe un usuario o enlace de GitHub válido');
+  const cached = lookupCache.get(user.toLowerCase());
+  if (cached) return cached;
   const res = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}`, { headers: GH_HEADERS });
   if (res.status === 404) throw new Error(`No existe el usuario "${user}" en GitHub`);
+  if (res.status === 403 || res.status === 429) {
+    // rate limited: don't block the install, just continue with the name that was typed
+    return { login: user, name: null, avatar: `https://github.com/${encodeURIComponent(user)}.png?size=120`, repos: 0, followers: 0, unverified: true };
+  }
   if (!res.ok) throw new Error(`GitHub respondió ${res.status}. Intenta de nuevo en unos minutos.`);
   const u = await res.json();
-  return { login: u.login, name: u.name, avatar: u.avatar_url };
+  const profile = { login: u.login, name: u.name, avatar: u.avatar_url, repos: u.public_repos ?? 0, followers: u.followers ?? 0 };
+  lookupCache.set(user.toLowerCase(), profile);
+  return profile;
 }
 
 async function download(asset: Asset, file: string, signal: AbortSignal): Promise<void> {
@@ -103,6 +150,16 @@ async function download(asset: Asset, file: string, signal: AbortSignal): Promis
     throw new Error('La descarga está corrupta (la suma de verificación no coincide)');
 }
 
+/**
+ * DevPanel keeps running in the system tray after its window is closed, and Windows cannot replace
+ * an .exe that is in use. Since the user is installing/updating DevPanel, stop it first.
+ */
+async function closeRunningApp(): Promise<void> {
+  if (process.platform !== 'win32') return;
+  const r = spawnSync('taskkill', ['/F', '/T', '/IM', 'DevPanel.exe'], { windowsHide: true });
+  if (r.status === 0) await new Promise((res) => setTimeout(res, 1200)); // let Windows release the files
+}
+
 function runSetup(file: string, dir: string): Promise<number> {
   return new Promise((resolve, reject) => {
     // NSIS requires /D= last and unquoted, so arguments are passed verbatim.
@@ -120,7 +177,7 @@ function runSetup(file: string, dir: string): Promise<number> {
 
 // ---------- account (same files the app reads on first launch) ----------
 function saveAccount(account: { github: string; pin: string }): void {
-  if (!/^\d{4,8}$/.test(account.pin)) throw new Error('El código debe tener de 4 a 8 dígitos');
+  if (!/^\d{4}$/.test(account.pin)) throw new Error('El código debe tener 4 dígitos');
   mkdirSync(userData(), { recursive: true });
   const salt = randomBytes(16);
   writeFileSync(
@@ -162,30 +219,80 @@ function runToEnd(cmd: string, args: string[], proc: (p: ChildProcess) => void):
   });
 }
 
+function runLines(
+  cmd: string,
+  args: string[],
+  onLine: (line: string) => void,
+  proc: (p: ChildProcess) => void,
+): Promise<string> {
+  return new Promise((resolve) => {
+    const p = spawn(cmd, args, { windowsHide: true });
+    proc(p);
+    let buf = '';
+    let last = '';
+    p.stdout?.on('data', (d) => {
+      buf += d;
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const l of lines.filter(Boolean)) {
+        last = l;
+        onLine(l);
+      }
+    });
+    p.on('error', () => resolve(last));
+    p.on('close', () => {
+      if (buf.trim()) last = buf.trim();
+      resolve(last);
+    });
+  });
+}
+
 async function enrollFace(): Promise<{ ok: boolean; error?: string }> {
   const dir = join(installedDir, 'resources', 'python');
   const script = join(dir, 'face_auth.py');
-  if (!existsSync(script)) return { ok: false, error: 'No se encontró el módulo facial en la instalación' };
+  const exe = join(dir, 'face_auth.exe'); // PyInstaller build: no Python or pip needed
+  const hasExe = existsSync(exe);
+  if (!hasExe && !existsSync(script)) return { ok: false, error: 'No se encontró el módulo facial en la instalación' };
   if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'El cifrado del sistema no está disponible' };
 
-  const py = findPython();
-  if (!py)
-    return { ok: false, error: 'Falta Python. Instálalo desde python.org (marca "Add to PATH") y vuelve a intentarlo, o actívalo luego en Settings.' };
+  mkdirSync(join(userData(), 'models'), { recursive: true });
+  let cmd = exe;
+  let args = ['enroll', '--models-dir', join(userData(), 'models')];
 
-  send({ phase: 'face-state', state: 'preparing' });
-  const hasCv = spawnSync(py, ['-c', 'import cv2; cv2.FaceDetectorYN'], { windowsHide: true }).status === 0;
-  if (!hasCv) {
-    const pip = await runToEnd(py, ['-m', 'pip', 'install', '-r', join(dir, 'requirements.txt')], (p) => (faceProc = p));
-    faceProc = null;
-    if (pip.code !== 0) return { ok: false, error: 'No se pudo instalar OpenCV con pip. Revisa tu conexión e inténtalo de nuevo.' };
+  if (!hasExe) {
+    // development/portable fallback: needs Python (and OpenCV, installed with pip on demand)
+    const py = findPython();
+    if (!py)
+      return { ok: false, error: 'Falta Python. Instálalo desde python.org (marca "Add to PATH") y vuelve a intentarlo, o actívalo luego en Settings.' };
+    send({ phase: 'face-state', state: 'preparing' });
+    const hasCv = spawnSync(py, ['-c', 'import cv2; cv2.FaceDetectorYN'], { windowsHide: true }).status === 0;
+    if (!hasCv) {
+      const pip = await runToEnd(py, ['-m', 'pip', 'install', '-r', join(dir, 'requirements.txt')], (p) => (faceProc = p));
+      faceProc = null;
+      if (pip.code !== 0) return { ok: false, error: 'No se pudo instalar OpenCV con pip. Revisa tu conexión e inténtalo de nuevo.' };
+    }
+    cmd = py;
+    args = [script, ...args];
   }
 
   send({ phase: 'face-state', state: 'scanning' });
-  mkdirSync(join(userData(), 'models'), { recursive: true });
-  const r = await runToEnd(py, [script, 'enroll', '--models-dir', join(userData(), 'models')], (p) => (faceProc = p));
+  const lastLine = await runLines(
+    cmd,
+    args,
+    (line) => {
+      try {
+        const m = JSON.parse(line);
+        if (typeof m.progress === 'number')
+          send({ phase: 'face-state', state: 'scanning', progress: m.progress, total: m.total });
+      } catch {
+        /* not a progress line */
+      }
+    },
+    (p) => (faceProc = p),
+  );
   faceProc = null;
   try {
-    const result = JSON.parse(r.out.trim().split('\n').filter(Boolean).pop() ?? '');
+    const result = JSON.parse(lastLine);
     if (!result.ok) return { ok: false, error: result.error ?? 'No se pudo registrar el rostro' };
     // Only embeddings are stored (never images), encrypted with the OS keychain.
     writeFileSync(join(userData(), 'face.bin'), safeStorage.encryptString(JSON.stringify(result.embeddings)));
@@ -206,8 +313,17 @@ async function install(opts: InstallOptions): Promise<void> {
     if (who.toLowerCase() !== DEV_OWNER.toLowerCase())
       return send({ phase: 'error', message: `El canal de desarrollo está reservado para ${DEV_OWNER}` });
   }
-  if (opts.account && !/^\d{4,8}$/.test(opts.account.pin)) {
-    return send({ phase: 'error', message: 'El código debe tener de 4 a 8 dígitos' });
+  if (opts.account && !/^\d{4}$/.test(opts.account.pin)) {
+    return send({ phase: 'error', message: 'El código debe tener 4 dígitos' });
+  }
+
+  if (process.env.DEVPANEL_DRY_RUN) {
+    // UI tests: never download or install anything. 'face' jumps straight to the face step.
+    if (process.env.DEVPANEL_DRY_RUN === 'face') {
+      phase = 'face';
+      return send({ phase: 'face' });
+    }
+    return send({ phase: 'download', percent: 42, got: 33_000_000, total: 78_000_000, speed: 4_200_000 });
   }
 
   const tmp = join(app.getPath('temp'), 'devpanel-installer');
@@ -223,6 +339,7 @@ async function install(opts: InstallOptions): Promise<void> {
 
     phase = 'install';
     send({ phase: 'install' });
+    await closeRunningApp();
     const code = await runSetup(file, opts.dir);
     if (code !== 0)
       throw new Error(`El instalador terminó con código ${code}. Cierra DevPanel si está abierto e inténtalo de nuevo.`);
@@ -302,6 +419,16 @@ app.whenReady().then(() => {
 
   ipcMain.handle('face:enroll', async () => {
     if (phase !== 'face') return { ok: false, error: 'La instalación aún no terminó' };
+    if (process.env.DEVPANEL_DRY_RUN === 'face') {
+      // simulated enrollment (no camera, no Python) so the animation can be tested
+      for (let i = 0; i <= 5; i++) {
+        send({ phase: 'face-state', state: 'scanning', progress: i, total: 5 });
+        await new Promise((r) => setTimeout(r, 450));
+      }
+      phase = 'idle';
+      send({ phase: 'done', dir: installedDir });
+      return { ok: true };
+    }
     const r = await enrollFace();
     if (r.ok) {
       phase = 'idle';

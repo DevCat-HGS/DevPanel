@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import type { UpdateStatus } from '../shared/api';
 
-const CHECK_EVERY_MS = 30 * 60 * 1000;
+const CHECK_EVERY_MS = 15 * 60 * 1000;
+const MIN_GAP_ON_FOCUS_MS = 5 * 60 * 1000;
 
 /** Only this GitHub account may run and update on the development ("-dev") channel. */
 export const DEV_CHANNEL_OWNER = 'DevCat-HGS';
@@ -39,7 +40,9 @@ export function setupUpdater(win: BrowserWindow, getGithubUser: () => string): v
     send({ state: 'error', message: err?.message ?? String(err) }),
   );
 
+  let lastCheck = 0;
   const check = async () => {
+    lastCheck = Date.now();
     if (!app.isPackaged) return send({ state: 'dev' });
     // A "-dev" build follows prereleases only for the owner; anyone else is kept on stable releases.
     autoUpdater.allowPrerelease = isDevBuild() && canUseDevChannel(getGithubUser());
@@ -61,5 +64,9 @@ export function setupUpdater(win: BrowserWindow, getGithubUser: () => string): v
   win.webContents.once('did-finish-load', () => {
     void check();
     setInterval(() => void check(), CHECK_EVERY_MS);
+  });
+  // coming back to the app also looks for updates (at most every few minutes)
+  win.on('focus', () => {
+    if (Date.now() - lastCheck > MIN_GAP_ON_FOCUS_MS) void check();
   });
 }

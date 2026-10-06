@@ -1,10 +1,17 @@
 import type { Repo, UpdateStatus, WorkflowRun } from '../shared/api';
-import { $, copyText, el, toast } from './dom.js';
+import { $, ago, el, friendlyError, toast } from './dom.js';
 import { hydrateIcons, icon } from './icons.js';
 import { runOnboarding } from './onboarding.js';
 import { initPalette } from './palette.js';
 import { analyzeRepos } from './recs.js';
-import { initEnvCheck, initTools, TOOLS } from './ui-tools.js';
+import { setLangPref, type LangPref } from './i18n.js';
+import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
+import { renderPager } from './pager.js';
+import { initLocal } from './ui-local.js';
+import { initRepoModal, openRepo } from './ui-repo.js';
+import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
+import { initSoftware } from './ui-software.js';
+import { initTools, TOOLS } from './ui-tools.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
 if (!window.devpanel) {
@@ -13,20 +20,16 @@ if (!window.devpanel) {
 }
 const api = window.devpanel;
 
+// Language first (auto-detected from the system unless the user chose one), so nothing flashes in Spanish.
+const startSettings = await api.settings.get();
+setLangPref(startSettings.language ?? 'auto');
+
 function link(href: string, text: string): HTMLAnchorElement {
   const a = el('a', undefined, text) as HTMLAnchorElement;
   a.href = href;
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
   return a;
-}
-
-function ago(iso: string): string {
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'justo ahora';
-  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
-  return `hace ${Math.floor(s / 86400)} d`;
 }
 
 // ---------- Theme ----------
@@ -91,19 +94,15 @@ function renderStats(repos: Repo[]): void {
     : '';
 }
 
-function friendlyError(e: unknown): string {
-  const m = (e as Error).message ?? String(e);
-  if (m.includes('403')) return 'Límite de la API de GitHub alcanzado (60/hora sin token). Intenta más tarde.';
-  if (m.includes('404')) return 'Usuario o repositorio no encontrado.';
-  return `No se pudo cargar GitHub: ${m}`;
-}
-
 const LANG_COLORS: Record<string, string> = {
   TypeScript: '#3178c6', JavaScript: '#f1e05a', Dart: '#00b4ab', Python: '#3572a5',
   HTML: '#e34c26', CSS: '#563d7c', Java: '#b07219', Kotlin: '#a97bff', Swift: '#f05138',
 };
 
 // ---------- Lock screen (desktop): face + code ----------
+let lockPad: PadHandle | null = null;
+let onLockPin: (pin: string) => void | Promise<void> = () => {};
+
 async function initLock(): Promise<void> {
   const st = await api.face.status();
   if (!st.pinSet && !st.enrolled) return showApp();
@@ -122,10 +121,14 @@ async function initLock(): Promise<void> {
   const ring = $('face-ring');
   const msg = $('lock-msg');
   const faceBtn = $<HTMLButtonElement>('lock-face');
-  const pinInput = $<HTMLInputElement>('lock-pin');
 
-  lock.classList.remove('hidden');
+  lock.classList.remove('hidden', 'leaving');
+  ring.classList.remove('success', 'fail', 'scanning');
+  lockPad ??= mountPad($('lock-pad'), (pin) => void onLockPin(pin));
+  lockPad.reset();
+  $('app').classList.add('hidden');
   faceBtn.classList.toggle('hidden', !st.enrolled);
+  msg.textContent = st.enrolled ? 'Mira a la cámara para entrar' : 'Ingresa tu código para entrar';
   lock.querySelector('.divider')?.classList.toggle('hidden', !st.enrolled);
   if (!st.enrolled) msg.textContent = 'Ingresa tu código para entrar';
 
@@ -159,57 +162,193 @@ async function initLock(): Promise<void> {
     fail(r.error ?? 'No te reconocí, intenta de nuevo o usa tu código');
   };
 
-  const tryPin = async () => {
-    const r = await api.face.unlockWithPin(pinInput.value);
-    if (r.ok) return unlock();
+  onLockPin = async (pin: string) => {
+    const r = await api.face.unlockWithPin(pin);
+    if (r.ok) {
+      lockPad!.good();
+      return unlock();
+    }
     card.classList.remove('shake');
     void card.offsetWidth; // restart the animation
     card.classList.add('shake');
-    pinInput.value = '';
+    lockPad!.shake();
     msg.textContent = r.error ?? 'Código incorrecto';
+    setTimeout(() => lockPad!.reset(), 600);
   };
 
   faceBtn.onclick = tryFace;
-  $('lock-pin-btn').onclick = tryPin;
-  pinInput.addEventListener('keydown', (e) => e.key === 'Enter' && void tryPin());
-  if (st.enrolled) void tryFace();
-  else pinInput.focus();
+  if (!st.enrolled) {
+    /* code only: the pad is already waiting for digits */
+  } else if (document.visibilityState === 'visible') void tryFace();
+  else {
+    // locked while hidden in the tray: never turn the camera on until the window is actually shown
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && !lock.classList.contains('hidden') && void tryFace(), { once: true });
+  }
 }
 
 // ---------- App ----------
 let appShown = false;
 let allRepos: Repo[] = [];
+let repoPage = 1;
+const REPOS_PER_PAGE = 9;
 
 async function showApp(): Promise<void> {
+  $('app').classList.remove('hidden');
   if (appShown) return;
   appShown = true;
-  $('app').classList.remove('hidden');
 
   const web = api.platform === 'web';
-  $('platform-badge').textContent = web ? 'Versión web' : 'App de escritorio';
   $('version').textContent = web ? '' : `v${await api.version()}`;
   $('face-card').classList.toggle('hidden', web);
-  $('update-check').classList.toggle('hidden', web);
-  if (web) $('update-msg').textContent = 'La versión web siempre está en la última versión.';
+  $('upd-card').classList.toggle('hidden', web);
+  $('whatsnew-btn').classList.toggle('hidden', web);
+  if (!web) $('upd-ver').textContent = `v${await api.version()}`;
 
   const s = await api.settings.get();
   $<HTMLInputElement>('gh-user').value = s.githubUser;
   initTools();
-  initEnvCheck();
+  initSoftware();
+  initLocal();
+  initNotes();
+  void checkWhatsNew();
+  $('nav-local').classList.toggle('hidden', web);
   initPalette(paletteItems);
   void showChannel();
+  void initPrefs();
   await Promise.all([loadRepos(), refreshFaceStatus()]);
+}
+
+// ---------- Preferences, token and alerts (desktop) ----------
+type TokenView = 'none' | 'busy' | 'ok' | 'err';
+interface TokenInfo { has: boolean; login?: string; limit?: number; remaining?: number }
+let tokenEditing = false;
+let tokenInfo: TokenInfo = { has: false };
+
+/** The token card is icon-first: key (none), spinner (checking), green check (connected), red cross (error). */
+function renderTokenState(view: TokenView): void {
+  $('token-state').dataset.state = view;
+  $('ts-icon').replaceChildren(view === 'busy' ? el('span', 'spinner') : icon(view === 'ok' ? 'checkcircle' : view === 'err' ? 'xcircle' : 'key'));
+  $('ts-main').textContent = view === 'ok' && tokenInfo.login ? `@${tokenInfo.login}` : '';
+
+  const chips: HTMLElement[] = [];
+  if (view === 'ok') {
+    const chip = (name: string, text: string, tip: string) => {
+      const c = el('span', 'chip');
+      c.title = tip;
+      c.append(icon(name), document.createTextNode(text));
+      return c;
+    };
+    if (tokenInfo.limit !== undefined) chips.push(chip('gauge', `${tokenInfo.remaining}/${tokenInfo.limit}`, 'Consultas restantes de la API por hora'));
+    chips.push(chip('lock', '', 'Incluye tus repos privados'));
+  }
+  $('ts-chips').replaceChildren(...chips);
+  $('ts-actions').classList.toggle('hidden', !tokenInfo.has);
+  $('token-form').classList.toggle('hidden', tokenInfo.has && !tokenEditing && view !== 'busy');
+}
+
+function tokenMsg(kind: 'ok' | 'err', text: string): void {
+  const m = $('token-msg');
+  m.className = `token-msg ${kind}`;
+  m.textContent = text;
+}
+
+/** Re-reads the real state (also proves the saved token still works) and redraws the card. */
+async function refreshTokenStatus(): Promise<void> {
+  tokenMsg('ok', ''); // a stale error from an earlier attempt must not outlive the next check
+  renderTokenState('busy');
+  tokenInfo = await api.token.status();
+  tokenEditing = false;
+  renderTokenState(tokenInfo.has ? 'ok' : 'none');
+}
+
+async function initPrefs(): Promise<void> {
+  const seg = $('lang-seg');
+  const markLang = (v: string) => seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.lang === v));
+  markLang((await api.settings.get()).language ?? 'auto');
+  seg.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+    b.onclick = async () => {
+      const v = b.dataset.lang as LangPref;
+      await api.settings.set({ language: v });
+      setLangPref(v);
+      markLang(v);
+    };
+  });
+
+  const web = api.platform === 'web';
+  $('token-card').classList.toggle('hidden', web);
+  $('prefs-card').classList.toggle('hidden', web);
+  if (web) return;
+
+  const s = await api.settings.get();
+  $<HTMLInputElement>('pref-alerts').checked = s.alertsEnabled;
+  $('pref-alerts').onchange = async (e) => {
+    await api.settings.set({ alertsEnabled: (e.target as HTMLInputElement).checked });
+    toast((e.target as HTMLInputElement).checked ? 'Alertas de build activadas' : 'Alertas de build desactivadas', 'info');
+  };
+
+  $<HTMLInputElement>('pref-liveness').checked = s.faceLiveness;
+  $('pref-liveness').onchange = (e) => void api.settings.set({ faceLiveness: (e.target as HTMLInputElement).checked });
+  $<HTMLInputElement>('pref-tray').checked = s.closeToTray;
+  $<HTMLInputElement>('pref-login').checked = s.openAtLogin;
+  $('pref-tray').onchange = (e) => void api.settings.set({ closeToTray: (e.target as HTMLInputElement).checked });
+  $('pref-login').onchange = async (e) => {
+    await api.settings.set({ openAtLogin: (e.target as HTMLInputElement).checked });
+    toast((e.target as HTMLInputElement).checked ? 'DevPanel se abrirá con Windows' : 'Ya no se abrirá con Windows', 'info');
+  };
+  api.app.onSettingsChanged(async () => {
+    $<HTMLInputElement>('pref-alerts').checked = (await api.settings.get()).alertsEnabled;
+  });
+  api.app.onCheckUpdates(() => void api.update.check());
+
+  await refreshTokenStatus();
+  $('token-save').onclick = async () => {
+    const input = $<HTMLInputElement>('token-input');
+    const btn = $<HTMLButtonElement>('token-save');
+    if (!input.value.trim()) return tokenMsg('err', 'Pega tu token primero.');
+    btn.disabled = true;
+    tokenMsg('ok', '');
+    renderTokenState('busy');
+    const res = await api.token.set(input.value);
+    btn.disabled = false;
+    if (!res.ok) {
+      renderTokenState(tokenInfo.has ? 'ok' : 'err');
+      return tokenMsg('err', res.error ?? 'No se pudo guardar');
+    }
+    input.value = '';
+    toast(`Token guardado para @${res.login}`, 'ok');
+    await refreshTokenStatus();
+    void loadRepos();
+  };
+  $('token-refresh').onclick = () => void refreshTokenStatus();
+  $('token-edit').onclick = () => {
+    tokenEditing = !tokenEditing;
+    renderTokenState(tokenInfo.has ? 'ok' : 'none');
+    if (tokenEditing) $('token-input').focus();
+  };
+  $('token-clear').onclick = async () => {
+    await api.token.clear();
+    tokenMsg('ok', '');
+    await refreshTokenStatus();
+    void loadRepos();
+  };
+
+  api.alerts.onFailure((f) => toast(`Build fallido en ${f.repo}`, 'bad'));
 }
 
 async function showChannel(): Promise<void> {
   if (api.platform === 'web') return;
   const c = await api.update.channel();
-  $('channel-info').textContent =
-    c.channel === 'dev'
-      ? c.allowed
-        ? 'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).'
-        : 'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.'
-      : 'Canal: Estable.';
+  const chip = $('upd-channel');
+  const dev = c.channel === 'dev';
+  chip.replaceChildren(icon(dev ? 'flask' : 'shield'));
+  chip.classList.toggle('warn', dev && !c.allowed);
+  const tip = dev
+    ? c.allowed
+      ? 'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).'
+      : 'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.'
+    : 'Canal: Estable.';
+  chip.title = tip;
+  chip.setAttribute('aria-label', tip);
 }
 
 function goView(name: string): void {
@@ -220,6 +359,7 @@ function paletteItems() {
   return [
     { label: 'Ir a Projects', hint: 'vista', run: () => goView('projects') },
     { label: 'Ir a Herramientas', hint: 'vista', run: () => goView('tools') },
+    ...(api.platform === 'web' ? [] : [{ label: 'Ir a Proyectos locales', hint: 'vista', run: () => goView('local') }]),
     { label: 'Ir a Settings', hint: 'vista', run: () => goView('settings') },
     { label: 'Cambiar tema claro / oscuro', hint: 'acción', run: () => $('theme-toggle').click() },
     { label: 'Recargar proyectos', hint: 'acción', run: () => void loadRepos() },
@@ -228,6 +368,7 @@ function paletteItems() {
       hint: t.hint,
       run: () => {
         goView('tools');
+        document.querySelector<HTMLButtonElement>('.tab[data-tab="utils"]')?.click();
         document.querySelector<HTMLButtonElement>(`.tool-btn[data-id="${t.id}"]`)?.click();
       },
     })),
@@ -236,7 +377,7 @@ function paletteItems() {
       hint: 'proyecto',
       run: () => {
         goView('projects');
-        void showDetail(r);
+        openRepo(r);
       },
     })),
   ];
@@ -255,7 +396,7 @@ function renderRecs(): void {
       li.append(el('span', `lvl ${x.level}`), el('b', undefined, x.repo), el('span', 'muted', x.text));
       li.onclick = () => {
         const repo = allRepos.find((r) => r.name === x.repo);
-        if (repo) void showDetail(repo);
+        if (repo) openRepo(repo);
       };
       return li;
     }),
@@ -269,6 +410,7 @@ document.querySelectorAll<HTMLButtonElement>('.nav').forEach((b) => {
     b.classList.add('active');
     document.querySelectorAll('.view').forEach((v) => v.classList.add('hidden'));
     $(`view-${b.dataset.view}`).classList.remove('hidden');
+    if (b.dataset.view === 'settings' && api.platform !== 'web') void refreshTokenStatus();
   };
 });
 
@@ -302,10 +444,19 @@ function renderRepos(): void {
   const box = $('repos');
   if (list.length === 0) {
     box.replaceChildren(el('p', 'empty', q ? 'Ningún proyecto coincide con tu búsqueda.' : 'No hay repositorios públicos para mostrar.'));
+    renderPager($('repo-pager'), 1, 1, () => {});
     return;
   }
+  const pages = Math.ceil(list.length / REPOS_PER_PAGE);
+  repoPage = Math.min(Math.max(repoPage, 1), pages);
+  const visible = list.slice((repoPage - 1) * REPOS_PER_PAGE, repoPage * REPOS_PER_PAGE);
+  renderPager($('repo-pager'), repoPage, pages, (p) => {
+    repoPage = p;
+    renderRepos();
+    $('repos').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   box.replaceChildren(
-    ...list.map((r, i) => {
+    ...visible.map((r, i) => {
       const card = el('div', 'repo');
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
@@ -313,7 +464,7 @@ function renderRepos(): void {
       card.style.setProperty('--i', String(Math.min(i, 14)));
 
       const top = el('div', 'top');
-      top.append(el('div', 'name', r.name));
+      if (r.private) top.append(el('span', 'chip priv', 'privado'));
       if (Date.now() - new Date(r.pushed_at).getTime() < 86_400_000) {
         const live = el('span', 'live');
         live.title = 'Actividad en las últimas 24 h';
@@ -338,17 +489,18 @@ function renderRepos(): void {
       };
       top.append(star);
 
-      card.append(top, el('div', 'desc', r.description ?? 'Sin descripción'), meta);
+      // folder: the tab carries the name, the body carries everything else
+      const tab = el('div', 'repo-tab');
+      tab.append(icon('folder'), el('span', 'name', r.name));
+      const body = el('div', 'repo-body');
+      body.append(top, el('div', 'desc', r.description ?? 'Sin descripción'), meta);
+      card.append(tab, body);
       card.addEventListener('pointermove', (e) => {
         const b = card.getBoundingClientRect();
         card.style.setProperty('--mx', `${e.clientX - b.left}px`);
         card.style.setProperty('--my', `${e.clientY - b.top}px`);
       });
-      card.onclick = () => {
-        document.querySelectorAll('.repo.selected').forEach((n) => n.classList.remove('selected'));
-        card.classList.add('selected');
-        void showDetail(r);
-      };
+      card.onclick = () => openRepo(r);
       return card;
     }),
   );
@@ -366,8 +518,15 @@ async function loadRepos(): Promise<void> {
   }
 }
 
-$('repo-search').addEventListener('input', renderRepos);
-$('repo-sort').addEventListener('change', renderRepos);
+// a new search or order always starts again from the first page
+$('repo-search').addEventListener('input', () => {
+  repoPage = 1;
+  renderRepos();
+});
+$('repo-sort').addEventListener('change', () => {
+  repoPage = 1;
+  renderRepos();
+});
 
 // ---------- Favorites (stored per device) ----------
 const favs = new Set<string>(
@@ -391,73 +550,12 @@ function toggleFav(name: string): void {
 }
 
 
-function runBadge(run?: WorkflowRun): HTMLElement {
-  if (!run) return el('span', 'badge warn', 'Sin Actions');
-  if (run.status !== 'completed') {
-    const b = el('span', 'badge warn');
-    b.append(el('span', 'live'), 'En curso');
-    return b;
-  }
-  return run.conclusion === 'success'
-    ? el('span', 'badge ok', 'Build passing')
-    : el('span', 'badge bad', `Build ${run.conclusion}`);
-}
-
-async function showDetail(repo: Repo): Promise<void> {
-  const d = $('detail');
-  d.classList.remove('hidden');
-  d.replaceChildren(el('div', 'skeleton block'));
-  d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  try {
-    const [commits, runs] = await Promise.all([
-      api.github.commits(repo.name),
-      api.github.runs(repo.name),
-    ]);
-    const head = el('div', 'detail-head');
-    const ext = (href: string, text: string) => {
-      const a = link(href, text);
-      a.append(icon('external'));
-      a.querySelector('svg')!.setAttribute('width', '13');
-      return a;
-    };
-    head.append(el('h3', undefined, repo.name), runBadge(runs[0]), ext(repo.html_url, 'GitHub'));
-    if (runs[0]) head.append(ext(runs[0].html_url, 'Actions'));
-
-    const cloneUrl = `${repo.html_url}.git`;
-    const actions = el('div', 'actions');
-    const copyClone = el('button', 'btn small', 'Copiar git clone');
-    copyClone.onclick = () => void copyText(`git clone ${cloneUrl}`);
-    const vscode = link(`vscode://vscode.git/clone?url=${encodeURIComponent(cloneUrl)}`, 'Abrir en VS Code');
-    vscode.className = 'btn small';
-    const copyLink = el('button', 'btn small', 'Copiar enlace');
-    copyLink.onclick = () => void copyText(repo.html_url);
-    actions.append(copyClone, vscode, copyLink);
-    head.append(actions);
-    d.replaceChildren(
-      head,
-      ...(commits.length
-        ? commits.map((c, i) => {
-            const row = el('div', 'commit');
-            row.style.setProperty('--i', String(i));
-            const sha = link(c.url, c.sha);
-            sha.className = 'sha';
-            row.append(sha, el('span', 'msg', c.message), el('span', 'muted', `${c.author} · ${ago(c.date)}`));
-            return row;
-          })
-        : [el('p', 'empty', 'Sin commits.')]),
-    );
-  } catch (e) {
-    d.replaceChildren(el('p', 'empty', friendlyError(e)));
-  }
-}
-
 // ---------- Settings ----------
 async function saveUser(): Promise<void> {
   try {
     const p = await api.github.lookup($<HTMLInputElement>('gh-user').value);
     await api.settings.set({ githubUser: p.login });
     $<HTMLInputElement>('gh-user').value = p.login;
-    $('detail').classList.add('hidden');
     toast(`Vinculado a @${p.login}`, 'ok');
     await loadRepos();
     void showChannel();
@@ -468,19 +566,58 @@ async function saveUser(): Promise<void> {
 $('gh-save').onclick = () => void saveUser();
 $('gh-user').addEventListener('keydown', (e) => e.key === 'Enter' && void saveUser());
 
+function setStateChip(id: string, on: boolean, tipOn: string, tipOff: string): void {
+  const chip = $(id);
+  chip.dataset.on = String(on);
+  chip.title = on ? tipOn : tipOff;
+  chip.setAttribute('aria-label', chip.title);
+  chip.querySelector('.chip-state')!.replaceChildren(icon(on ? 'checkcircle' : 'xcircle'));
+}
+
 async function refreshFaceStatus(): Promise<void> {
   const st = await api.face.status();
-  $('face-status').textContent = st.enrolled
-    ? 'Rostro registrado. La app pedirá tu rostro al abrir.'
-    : 'Sin rostro registrado. La app abre sin bloqueo.';
+  setStateChip('face-chip', st.enrolled, 'Rostro registrado', 'Sin rostro registrado');
+  setStateChip('code-chip', st.pinSet, 'Código creado', 'Sin código');
 }
+
+/** Opens the "create your code" dialog; resolves with the new code, or null if cancelled. */
+function openCodeDialog(): Promise<string | null> {
+  const modal = $('pin-modal');
+  return new Promise((resolve) => {
+    const close = (pin: string | null) => {
+      modal.classList.add('hidden');
+      document.removeEventListener('keydown', onEsc);
+      resolve(pin);
+    };
+    const onEsc = (e: KeyboardEvent) => e.key === 'Escape' && close(null);
+    document.addEventListener('keydown', onEsc);
+    $('pin-modal-cancel').onclick = () => close(null);
+    modal.classList.remove('hidden');
+    mountCodeSetup($('pin-modal-host'), (pin) => close(pin));
+  });
+}
+
+$('pin-change').onclick = async () => {
+  const pin = await openCodeDialog();
+  if (!pin) return;
+  const r = await api.face.setPin(pin);
+  toast(r.ok ? 'Código actualizado' : (r.error ?? 'Error'), r.ok ? 'ok' : 'bad');
+  await refreshFaceStatus();
+};
 
 $('face-enroll').onclick = async () => {
   const msg = $('face-msg');
   const btn = $<HTMLButtonElement>('face-enroll');
+  // face enrollment needs a code as the fallback: ask for one first if there is none yet
+  if (!(await api.face.status()).pinSet) {
+    const pin = await openCodeDialog();
+    if (!pin) return;
+    const saved = await api.face.setPin(pin);
+    if (!saved.ok) return toast(saved.error ?? 'Error', 'bad');
+  }
   btn.disabled = true;
   msg.textContent = 'Mira a la cámara y mueve un poco la cabeza…';
-  const r = await api.face.enroll($<HTMLInputElement>('face-pin').value || undefined);
+  const r = await api.face.enroll();
   btn.disabled = false;
   msg.textContent = '';
   toast(r.ok ? 'Rostro registrado' : (r.error ?? 'Error'), r.ok ? 'ok' : 'bad');
@@ -493,46 +630,79 @@ $('face-remove').onclick = async () => {
   await refreshFaceStatus();
 };
 
-// ---------- Updates (desktop) ----------
+// ---------- Updates (desktop): checked automatically, shown as icons ----------
+function setUpdStatus(state: 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'error' | 'dev', tip: string): void {
+  const s = $('upd-status');
+  s.dataset.state = state;
+  s.title = tip;
+  s.setAttribute('aria-label', tip);
+  const names = { none: 'checkcircle', available: 'download', ready: 'refresh', error: 'xcircle', dev: 'info' } as const;
+  s.replaceChildren(state === 'checking' || state === 'downloading' ? el('span', 'spinner') : icon(names[state]));
+}
+
+function updButton(name: string, tip: string, primary: boolean, onClick: () => void): HTMLButtonElement {
+  const b = el('button', `icon-btn${primary ? ' primary' : ''}`) as HTMLButtonElement;
+  b.title = tip;
+  b.setAttribute('aria-label', tip);
+  b.append(icon(name));
+  b.onclick = onClick;
+  return b;
+}
+
+function updRow(lead: Element, label: string, buttons: HTMLElement[]): HTMLElement {
+  const row = el('div', 'upd-row');
+  const ico = el('span', 'upd-ico');
+  ico.append(lead);
+  const btns = el('span', 'upd-btns');
+  btns.append(...buttons);
+  row.append(ico, el('b', 'upd-ver', label), btns);
+  return row;
+}
+
 function renderUpdate(s: UpdateStatus): void {
   const box = $('update-box');
-  const msg = $('update-msg');
   box.classList.add('hidden');
   box.replaceChildren();
 
   switch (s.state) {
-    case 'dev': msg.textContent = 'Modo desarrollo: el actualizador solo funciona en la app instalada.'; break;
-    case 'checking': msg.textContent = 'Buscando actualizaciones…'; break;
-    case 'none': msg.textContent = 'Estás en la última versión.'; break;
-    case 'error': msg.textContent = `Error al actualizar: ${s.message}`; break;
-    case 'available': {
-      msg.textContent = `Nueva versión ${s.version} disponible.`;
+    case 'dev': return setUpdStatus('dev', 'Modo desarrollo: el actualizador solo funciona en la app instalada.');
+    case 'checking': return setUpdStatus('checking', 'Buscando actualizaciones…');
+    case 'none': return setUpdStatus('none', 'Estás en la última versión.');
+    case 'error': return setUpdStatus('error', `Error al actualizar: ${s.message}`);
+    case 'available':
+      setUpdStatus('available', `Nueva versión ${s.version} disponible.`);
       box.classList.remove('hidden');
-      const b = el('button', 'btn primary', 'Descargar');
-      b.onclick = () => void api.update.download();
-      box.append(el('div', undefined, `Nueva versión v${s.version}`), b);
-      break;
+      box.append(
+        updRow(icon('sparkles'), `v${s.version}`, [
+          updButton('alert', 'Novedades', false, () => void showNotes(s.version)),
+          updButton('download', 'Descargar', true, () => void api.update.download()),
+        ]),
+      );
+      return;
+    case 'downloading': {
+      setUpdStatus('downloading', `Descargando… ${s.percent}%`);
+      box.classList.remove('hidden');
+      box.append(updRow(el('span', 'spinner'), `${s.percent}%`, []));
+      const bar = el('div', 'upd-bar');
+      const fill = document.createElement('i');
+      fill.style.width = `${s.percent}%`;
+      bar.append(fill);
+      box.append(bar);
+      return;
     }
-    case 'downloading':
-      msg.textContent = `Descargando… ${s.percent}%`;
+    case 'ready':
+      setUpdStatus('ready', `v${s.version} lista para instalar.`);
       box.classList.remove('hidden');
-      box.append(el('div', undefined, `Descargando… ${s.percent}%`));
-      break;
-    case 'ready': {
-      msg.textContent = `v${s.version} lista para instalar.`;
-      box.classList.remove('hidden');
-      const b = el('button', 'btn primary', 'Reiniciar y actualizar');
-      b.onclick = () => void api.update.install();
-      box.append(el('div', undefined, `v${s.version} descargada`), b);
-      break;
-    }
+      box.append(updRow(icon('checkcircle'), `v${s.version}`, [updButton('refresh', 'Reiniciar y actualizar', true, () => void api.update.install())]));
+      return;
   }
 }
 
 api.update.onStatus(renderUpdate);
-$('update-check').onclick = () => void api.update.check();
+// (no manual "check for updates": the main process checks on start, every 15 minutes and when the window is focused again)
 
 hydrateIcons();
+initRepoModal();
 initTheme();
 async function boot(): Promise<void> {
   const s = await api.settings.get();
@@ -542,5 +712,24 @@ async function boot(): Promise<void> {
   }
   await initLock();
 }
+
+// Anti-photo challenge: tell the user which way to turn, and nudge the ring in that direction.
+api.face.onPrompt((p) => {
+  const ring = $('face-ring');
+  if (p.challenge) {
+    $('lock-msg').textContent = p.challenge === 'left' ? 'Gira la cabeza hacia tu izquierda' : 'Gira la cabeza hacia tu derecha';
+    ring.dataset.turn = p.challenge;
+  } else if (p.prompt === 'return') {
+    $('lock-msg').textContent = 'Muy bien, ahora vuelve a mirar al frente';
+    delete ring.dataset.turn;
+  }
+});
+
+// Hidden to the tray / by the global shortcut: lock again so the panel is never left open.
+api.app.onHidden(async () => {
+  if (!appShown) return;
+  const st = await api.face.status();
+  if (st.pinSet || st.enrolled) void initLock();
+});
 
 void boot();

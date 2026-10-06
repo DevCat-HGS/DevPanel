@@ -1,39 +1,51 @@
-import type { Commit, GithubProfile, Repo, WorkflowRun } from '../shared/api';
+import type { CommitPage, GithubProfile, Repo, WorkflowRun } from '../shared/api';
 
-const API = 'https://api.github.com';
+import { getToken, tokenOwns } from './token';
 
-async function gh<T>(path: string): Promise<T> {
+const API = process.env.DEVPANEL_GITHUB_API ?? 'https://api.github.com';
+
+async function ghFetch(path: string): Promise<Response> {
   const res = await fetch(`${API}${path}`, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'DevPanel',
-      ...(process.env.GITHUB_TOKEN
-        ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
-        : {}),
+      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
     },
   });
   if (!res.ok) throw new Error(`GitHub ${res.status}: ${path}`);
-  return (await res.json()) as T;
+  return res;
+}
+
+async function gh<T>(path: string): Promise<T> {
+  return (await (await ghFetch(path)).json()) as T;
 }
 
 export function listRepos(user: string): Promise<Repo[]> {
   if (!user) return Promise.reject(new Error('Vincula tu usuario de GitHub en Settings'));
-  return gh<Repo[]>(
-    `/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=30`,
-  );
+  // with the owner's token the private repos are included too
+  if (tokenOwns(user)) return gh<Repo[]>('/user/repos?sort=pushed&per_page=100&affiliation=owner');
+  return gh<Repo[]>(`/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=100`);
 }
 
-export async function listCommits(user: string, repo: string): Promise<Commit[]> {
-  const raw = await gh<any[]>(
-    `/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/commits?per_page=10`,
+export const COMMITS_PER_PAGE = 8;
+
+export async function listCommits(user: string, repo: string, page = 1): Promise<CommitPage> {
+  const p = Math.max(1, Math.floor(Number(page)) || 1);
+  const res = await ghFetch(
+    `/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/commits?per_page=${COMMITS_PER_PAGE}&page=${p}`,
   );
-  return raw.map((c) => ({
-    sha: c.sha.slice(0, 7),
-    message: String(c.commit.message).split('\n')[0],
-    author: c.commit.author?.name ?? 'unknown',
-    date: c.commit.author?.date ?? '',
-    url: c.html_url,
-  }));
+  const raw = (await res.json()) as any[];
+  return {
+    commits: raw.map((c) => ({
+      sha: c.sha.slice(0, 7),
+      message: String(c.commit.message).split('\n')[0],
+      author: c.commit.author?.name ?? 'unknown',
+      date: c.commit.author?.date ?? '',
+      url: c.html_url,
+    })),
+    // GitHub announces the next page in the Link header
+    hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
+  };
 }
 
 export async function listRuns(user: string, repo: string): Promise<WorkflowRun[]> {

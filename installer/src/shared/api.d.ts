@@ -8,6 +8,10 @@ export interface GithubProfile {
   login: string;
   name: string | null;
   avatar: string;
+  repos: number;
+  followers: number;
+  /** GitHub refused the lookup (rate limit): the typed name is used as-is. */
+  unverified?: boolean;
 }
 
 export interface InstallOptions {
@@ -25,7 +29,7 @@ export type Progress =
   | { phase: 'download'; percent: number; got: number; total: number; speed: number }
   | { phase: 'install' }
   | { phase: 'face' }
-  | { phase: 'face-state'; state: FaceState }
+  | { phase: 'face-state'; state: FaceState; progress?: number; total?: number }
   | { phase: 'done'; dir: string }
   | { phase: 'cancelled' }
   | { phase: 'error'; message: string };
