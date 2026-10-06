@@ -241,6 +241,8 @@ select {
   background: var(--panel); border: 1px solid var(--border); color: var(--text);
 }
 select:focus-visible { border-color: var(--accent); }
+select option, select optgroup { background-color: var(--panel-solid); color: var(--text); }
+select:disabled { opacity: .6; cursor: default; }
 .view-head { gap: 10px; }
 .view-head > div:first-child { margin-right: auto; }
 
@@ -900,3 +902,14 @@ a.notif-row:hover { border-color: var(--c); }
 @keyframes orb-spin { to { transform: rotate(270deg); } }
 @keyframes sharon-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
 @media (prefers-reduced-motion: reduce) { .orb-core, .orb-glow, .orb-ring, .sharon-bar span { animation: none; } }
+
+/* Sharon with presence: bigger orb, roomier card */
+.sharon { gap: 40px; min-height: 220px; padding: 34px 48px; margin-bottom: 20px; background: radial-gradient(760px 260px at 12% 50%, color-mix(in srgb, var(--accent-2) 24%, transparent), transparent 72%), radial-gradient(420px 200px at 100% 0%, color-mix(in srgb, var(--accent-3) 10%, transparent), transparent 70%), var(--panel); }
+.orb { width: 168px; height: 168px; }
+.orb-core { inset: 28px; box-shadow: inset -10px -14px 28px rgba(0,0,0,.4), 0 0 40px color-mix(in srgb, var(--accent) 35%, transparent); }
+.orb-glow { inset: 6px; filter: blur(16px); }
+.orb-ring circle { stroke-width: 2.4; }
+.sharon-text h3 { font-size: 32px; letter-spacing: -.5px; }
+.sharon-text p { margin: 8px 0 18px; font-size: 16px; }
+.sharon-bar { height: 6px; max-width: 460px; }
+@media (max-width: 720px) { .sharon { flex-direction: column; text-align: center; padding: 26px 20px; gap: 20px; } .orb { width: 132px; height: 132px; } .sharon-text h3 { font-size: 24px; } }
