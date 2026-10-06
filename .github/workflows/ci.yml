@@ -6,6 +6,14 @@ on:
   push:
     branches: [developer]
 
+permissions:
+  contents: read
+
+# A newer push to the same branch or PR makes the older run pointless
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
     name: Typecheck + unit tests

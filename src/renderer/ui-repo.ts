@@ -1,14 +1,23 @@
-import type { Repo, WorkflowRun } from '../shared/api';
-import { $, ago, copyText, el, friendlyError } from './dom.js';
+import type { Repo, RepoItem, WorkflowRun } from '../shared/api';
+import { $, ago, copyText, el, friendlyError, toast } from './dom.js';
 import { icon } from './icons.js';
 import { renderPrevNext } from './pager.js';
 
 const api = () => window.devpanel;
-const PER_PAGE = 8;
 
-let ticket = 0; // a newer page change invalidates commit answers still in flight
+type Tab = 'commits' | 'pulls' | 'issues' | 'runs';
+const EMPTY: Record<Tab, string> = {
+  commits: 'Sin commits.',
+  pulls: 'Sin pull requests abiertos.',
+  issues: 'Sin issues abiertos.',
+  runs: 'Sin ejecuciones.',
+};
+
+let ticket = 0; // a newer page/tab change invalidates answers still in flight
 let openId = 0; // identifies which repo is open (build status answers arrive separately)
 let returnFocus: HTMLElement | null = null;
+let current: Repo | null = null;
+let tab: Tab = 'commits';
 
 function iconLink(name: string, href: string, tip: string): HTMLAnchorElement {
   const a = el('a', 'icon-btn') as HTMLAnchorElement;
@@ -46,26 +55,83 @@ function statusBadge(run?: WorkflowRun): HTMLElement {
   return run.conclusion === 'success' ? make('ok', 'checkcircle', 'Build correcto') : make('bad', 'xcircle', 'Build con errores');
 }
 
+function link(cls: string, href: string, text: string): HTMLAnchorElement {
+  const a = el('a', cls, text) as HTMLAnchorElement;
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  return a;
+}
+
 function commitRow(c: { sha: string; message: string; author: string; date: string; url: string }, i: number): HTMLElement {
   const row = el('div', 'commit');
   row.style.setProperty('--i', String(i));
-  const sha = el('a', 'sha', c.sha) as HTMLAnchorElement;
-  sha.href = c.url;
-  sha.target = '_blank';
-  sha.rel = 'noopener noreferrer';
-  row.append(icon('commit'), sha, el('span', 'msg', c.message), el('span', 'muted', `${c.author} · ${ago(c.date)}`));
+  row.append(icon('commit'), link('sha', c.url, c.sha), el('span', 'msg', c.message), el('span', 'muted', `${c.author} · ${ago(c.date)}`));
   return row;
 }
 
-async function loadCommits(repo: Repo, page: number): Promise<void> {
+type RunState = 'ok' | 'bad' | 'busy' | 'muted';
+const runState = (it: RepoItem): RunState =>
+  it.status !== 'completed' ? 'busy' : it.conclusion === 'success' ? 'ok' : it.conclusion === 'cancelled' || it.conclusion === 'skipped' ? 'muted' : 'bad';
+
+const RUN_TIP: Record<RunState, string> = { ok: 'Build correcto', bad: 'Build con errores', busy: 'Build en curso', muted: 'Cancelado' };
+
+async function rerun(repo: Repo, it: RepoItem, btn: HTMLButtonElement): Promise<void> {
+  btn.disabled = true;
+  const r = await api().github.rerun(repo.name, it.id);
+  btn.disabled = false;
+  if (!r.ok) return toast(r.error ?? 'No se pudo reintentar', 'bad');
+  toast('Reintentando jobs fallidos…', 'ok');
+  setTimeout(() => current === repo && tab === 'runs' && void loadTab(repo, 'runs', 1), 2500);
+}
+
+function itemRow(kind: Exclude<Tab, 'commits'>, it: RepoItem, i: number, repo: Repo): HTMLElement {
+  const row = el('div', 'commit item');
+  row.style.setProperty('--i', String(i));
+
+  if (kind === 'runs') {
+    const st = runState(it);
+    const lead = el('span', `run-i st-${st}`);
+    lead.title = RUN_TIP[st];
+    lead.setAttribute('role', 'img');
+    lead.setAttribute('aria-label', RUN_TIP[st]);
+    lead.append(st === 'busy' ? el('span', 'spinner') : icon(st === 'ok' ? 'checkcircle' : st === 'bad' ? 'xcircle' : 'stop'));
+    row.append(lead, link('msg', it.url, it.title));
+    if (it.branch) row.append(el('span', 'chip', it.branch));
+    row.append(el('span', 'muted', ago(it.date)));
+    if (st === 'bad') row.append(iconButton('refresh', 'Reintentar jobs fallidos', () => void rerun(repo, it, row.querySelector('.rerun')!)));
+    row.querySelector('.icon-btn')?.classList.add('rerun', 'mini');
+    return row;
+  }
+
+  row.append(
+    icon(kind === 'issues' ? 'alert' : it.draft ? 'edit' : 'branch'),
+    link('sha', it.url, `#${it.number}`),
+    link('msg', it.url, it.title),
+    el('span', 'muted', `${it.author ?? ''} · ${ago(it.date)}`),
+  );
+  return row;
+}
+
+async function loadTab(repo: Repo, which: Tab, page: number): Promise<void> {
   const mine = ++ticket;
   const list = $('rm-commits');
   list.replaceChildren(...Array.from({ length: 4 }, () => el('div', 'skeleton row')));
   try {
-    const { commits, hasMore } = await api().github.commits(repo.name, page);
+    let rows: HTMLElement[];
+    let hasMore: boolean;
+    if (which === 'commits') {
+      const r = await api().github.commits(repo.name, page);
+      rows = r.commits.map(commitRow);
+      hasMore = r.hasMore;
+    } else {
+      const r = await api().github.items(repo.name, which, page);
+      rows = r.items.map((it, i) => itemRow(which, it, i, repo));
+      hasMore = r.hasMore;
+    }
     if (mine !== ticket) return;
-    list.replaceChildren(...(commits.length ? commits.map(commitRow) : [el('p', 'empty', 'Sin commits.')]));
-    renderPrevNext($('rm-pager'), page, hasMore, (p) => void loadCommits(repo, p));
+    list.replaceChildren(...(rows.length ? rows : [el('p', 'empty', EMPTY[which])]));
+    renderPrevNext($('rm-pager'), page, hasMore, (p) => void loadTab(repo, which, p));
   } catch (e) {
     if (mine !== ticket) return;
     list.replaceChildren(el('p', 'empty', friendlyError(e)));
@@ -73,11 +139,20 @@ async function loadCommits(repo: Repo, page: number): Promise<void> {
   }
 }
 
+function selectTab(which: Tab): void {
+  tab = which;
+  document.querySelectorAll<HTMLButtonElement>('.rm-tab').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === which);
+    b.setAttribute('aria-selected', String(b.dataset.tab === which));
+  });
+}
+
 export function closeRepo(): void {
   const modal = $('repo-modal');
   if (modal.classList.contains('hidden')) return;
   ticket++; // drop anything still loading
   openId++;
+  current = null;
   modal.classList.add('hidden');
   document.documentElement.classList.remove('modal-open');
   returnFocus?.focus?.();
@@ -87,6 +162,7 @@ export function closeRepo(): void {
 export function openRepo(repo: Repo): void {
   const modal = $('repo-modal');
   returnFocus = document.activeElement as HTMLElement | null;
+  current = repo;
 
   $('rm-name').textContent = repo.name;
   $('rm-desc').textContent = repo.description ?? '';
@@ -101,7 +177,7 @@ export function openRepo(repo: Repo): void {
     iconButton('link', 'Copiar enlace', () => void copyText(repo.html_url)),
   );
 
-  // build status arrives separately so the commits are never held back by it
+  // build status arrives separately so the list is never held back by it
   const badge = $('rm-badge');
   badge.replaceChildren(el('span', 'spinner'));
   const myId = ++openId;
@@ -118,7 +194,8 @@ export function openRepo(repo: Repo): void {
   document.documentElement.classList.add('modal-open');
   $('rm-close').focus();
   $('rm-body').scrollTop = 0;
-  void loadCommits(repo, 1);
+  selectTab('commits');
+  void loadTab(repo, 'commits', 1);
 }
 
 export function initRepoModal(): void {
@@ -126,5 +203,12 @@ export function initRepoModal(): void {
   $('repo-modal').addEventListener('mousedown', (e) => e.target === $('repo-modal') && closeRepo());
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('repo-modal').classList.contains('hidden')) closeRepo();
+  });
+  document.querySelectorAll<HTMLButtonElement>('.rm-tab').forEach((b) => {
+    b.onclick = () => {
+      if (!current) return;
+      selectTab(b.dataset.tab as Tab);
+      void loadTab(current, tab, 1);
+    };
   });
 }

@@ -1,5 +1,5 @@
 import { CATALOG } from './catalog.js';
-import type { CommitPage, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared/api';
+import type { CommitPage, DevPanelApi, FailingRun, PullSummary, Repo, Settings, WorkflowRun } from '../shared/api';
 
 /**
  * Browser implementation of the DevPanel API, used when the renderer runs on
@@ -86,6 +86,46 @@ export function createWebApi(): DevPanelApi {
           hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
         };
       },
+      items: async (repo, kind, page = 1) => {
+        const base = `${API}/repos/${user()}/${encodeURIComponent(repo)}`;
+        const paging = `per_page=8&page=${Math.max(1, page)}`;
+        const res = await fetch(kind === 'runs' ? `${base}/actions/runs?${paging}` : `${base}/${kind === 'pulls' ? 'pulls' : 'issues'}?state=open&${paging}`, {
+          headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (!res.ok) throw new Error(`GitHub ${res.status}`);
+        const json = await res.json();
+        const hasMore = /rel="next"/.test(res.headers.get('link') ?? '');
+        if (kind === 'runs')
+          return { hasMore, items: (json.workflow_runs as any[]).map((r) => ({ id: r.id, title: r.name, url: r.html_url, date: r.updated_at, status: r.status, conclusion: r.conclusion, branch: r.head_branch })) };
+        return {
+          hasMore,
+          items: (json as any[]).filter((i) => kind === 'pulls' || !i.pull_request).map((i) => ({ id: i.id, number: i.number, title: i.title, url: i.html_url, author: i.user?.login, date: i.updated_at, draft: !!i.draft })),
+        };
+      },
+      rerun: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
+      failing: async () => {
+        const repos = (await gh<Repo[]>(`/users/${user()}/repos?sort=pushed&per_page=8`)).filter((r) => !r.archived);
+        const out: FailingRun[] = [];
+        for (const r of repos) {
+          try {
+            const runs = await gh<{ workflow_runs: any[] }>(`/repos/${user()}/${encodeURIComponent(r.name)}/actions/runs?per_page=1`);
+            const run = runs.workflow_runs[0];
+            if (run && run.status === 'completed' && ['failure', 'timed_out', 'startup_failure'].includes(run.conclusion))
+              out.push({ repo: r.name, url: run.html_url, branch: run.head_branch, updated: run.updated_at });
+          } catch {
+            /* repo without Actions */
+          }
+        }
+        return out;
+      },
+      pulls: async (): Promise<PullSummary[]> => {
+        const q = encodeURIComponent(`involves:${loadSettings().githubUser} type:pr state:open`);
+        const res = await gh<{ items: any[] }>(`/search/issues?q=${q}&sort=updated&per_page=8`);
+        return res.items.map((i) => ({
+          repo: String(i.repository_url).split('/').slice(-1)[0], title: i.title, url: i.html_url,
+          updated: i.updated_at, draft: !!i.draft, author: i.user?.login ?? '',
+        }));
+      },
       runs: async (repo): Promise<WorkflowRun[]> => {
         const raw = await gh<{ workflow_runs: any[] }>(
           `/repos/${user()}/${encodeURIComponent(repo)}/actions/runs?per_page=5`,
@@ -116,12 +156,26 @@ export function createWebApi(): DevPanelApi {
       clear: async () => {},
     },
     alerts: { check: async () => {}, onFailure: () => {} },
+    claude: {
+      run: async () => ({ error: 'Solo disponible en la app de escritorio' }),
+      stop: async () => {},
+      onEvent: () => {},
+      onOutput: () => {},
+      onExit: () => {},
+    },
     local: {
       list: async () => [],
       add: async () => null,
       remove: async () => {},
       git: async () => ({ ok: false, output: 'Solo disponible en la app de escritorio' }),
       run: async () => ({ error: 'Solo disponible en la app de escritorio' }),
+      recipe: async () => ({ error: 'Solo disponible en la app de escritorio' }),
+      branches: async () => ({ current: '', all: [] }),
+      checkout: async () => ({ ok: false, output: 'Solo disponible en la app de escritorio' }),
+      commit: async () => ({ ok: false, output: 'Solo disponible en la app de escritorio' }),
+      push: async () => ({ ok: false, output: 'Solo disponible en la app de escritorio' }),
+      l10n: async () => null,
+      secrets: async () => [],
       stop: async () => {},
       open: async () => {},
       onOutput: () => {},
@@ -132,6 +186,7 @@ export function createWebApi(): DevPanelApi {
     software: {
       detect: async () => [],
       install: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
+      upgrade: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
       cancel: async () => {},
       open: async (id) => {
         const item = CATALOG.items.find((i) => i.id === id);
@@ -139,6 +194,7 @@ export function createWebApi(): DevPanelApi {
       },
       onStatus: () => {},
       onProgress: () => {},
+      onUpdate: () => {},
     },
     // The web build is always the latest deploy.
     update: {

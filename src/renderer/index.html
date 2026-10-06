@@ -82,13 +82,18 @@
     <!-- App -->
     <div id="app" class="app hidden">
       <aside class="sidebar">
+          <button id="side-toggle" class="icon-btn mini side-toggle" title="Contraer menú" aria-label="Contraer menú" aria-expanded="true"><span data-icon="chevl"></span></button>
         <div class="brand">
           <img class="logo" src="icon.png" alt="" />
           <span>DevPanel</span>
           <span id="version" class="chip"></span>
         </div>
         <nav aria-label="Principal">
-          <button class="nav active" data-view="projects">
+          <button class="nav active" data-view="home">
+            <span class="ico" data-icon="home" aria-hidden="true"></span>
+            <span class="nav-label">Inicio</span>
+          </button>
+          <button class="nav" data-view="projects">
             <span class="ico" data-icon="grid" aria-hidden="true"></span>
             <span class="nav-label">Projects</span>
           </button>
@@ -100,11 +105,18 @@
             <span class="ico" data-icon="tools" aria-hidden="true"></span>
             <span class="nav-label">Tools</span>
           </button>
+          <button id="nav-claude" class="nav" data-view="claude">
+            <span class="ico cc-mark" aria-hidden="true"></span>
+            <span class="nav-label">Claude Code</span>
+          </button>
         </nav>
         <div id="update-box" class="update-box hidden" role="status"></div>
         <div class="side-foot">
           <button class="nav nav-settings" data-view="settings" title="Settings" aria-label="Settings">
             <span class="ico" data-icon="settings" aria-hidden="true"></span>
+          </button>
+          <button id="bell-btn" class="icon-btn bell-btn" title="Notificaciones" aria-label="Notificaciones">
+            <span data-icon="bell"></span><span id="bell-badge" class="bell-badge hidden"></span>
           </button>
           <button id="whatsnew-btn" class="icon-btn news-btn" title="Novedades" aria-label="Novedades">
             <span data-icon="alert"></span>
@@ -116,7 +128,30 @@
       </aside>
 
       <main id="main" class="content">
-        <section id="view-projects" class="view">
+        <section id="view-home" class="view">
+          <header class="view-head">
+            <div>
+              <h2>Inicio</h2>
+              <p id="home-sub" class="muted"></p>
+            </div>
+            <button id="home-refresh" class="icon-btn" title="Actualizar" aria-label="Actualizar"><span data-icon="refresh"></span></button>
+          </header>
+          <div class="sharon" role="status" aria-live="polite">
+            <div class="orb" aria-hidden="true">
+              <span class="orb-wave"></span><span class="orb-wave w2"></span><span class="orb-wave w3"></span>
+              <span class="orb-glow"></span><span class="orb-core"></span>
+              <canvas class="orb-particles" width="360" height="360"></canvas>
+            </div>
+            <div class="sharon-text">
+              <h3>Bienvenido, soy Sharon</h3>
+              <p class="muted">IA MCP en proceso</p>
+              <div class="sharon-bar" aria-hidden="true"><span></span></div>
+            </div>
+          </div>
+          <div id="home-grid" class="home-grid"></div>
+        </section>
+
+        <section id="view-projects" class="view hidden">
           <header class="view-head">
             <div>
               <h2 id="greeting">Tus proyectos</h2>
@@ -136,6 +171,12 @@
 
           <details id="recs" class="recs hidden"></details>
           <div id="stats" class="stats"></div>
+          <div id="repo-pinned" class="pinned hidden">
+            <div class="pinned-head" title="Fijados">
+              <span data-icon="star" aria-hidden="true"></span><span id="pinned-count" class="chip"></span>
+            </div>
+            <div id="repo-pinned-grid" class="grid"></div>
+          </div>
           <div id="repos" class="grid" aria-live="polite"></div>
           <div id="repo-pager" class="pager hidden"></div>
         </section>
@@ -160,6 +201,29 @@
           </div>
         </section>
 
+        <section id="view-claude" class="view hidden">
+          <div class="cc-chat">
+            <header class="cc-head">
+              <span class="cc-logo"><span class="cc-mark" aria-hidden="true"></span></span>
+              <h2>Claude Code</h2>
+              <select id="cc-project" aria-label="Proyecto"></select>
+              <span class="spacer"></span>
+              <button id="cc-new" class="icon-btn" title="Nueva conversación" aria-label="Nueva conversación"><span data-icon="plus"></span></button>
+            </header>
+            <div id="cc-thread" class="cc-thread" aria-live="polite"></div>
+            <div class="cc-composer">
+              <textarea id="cc-prompt" rows="1" maxlength="8000" placeholder="Escribe tu mensaje para Claude…" aria-label="Mensaje para Claude"></textarea>
+              <div class="cc-tools">
+                <button id="cc-mode" class="cc-mode" type="button" data-m="read" title="Cambiar entre preguntar y editar"><span data-icon="eye" aria-hidden="true"></span><span class="cc-mode-label">Preguntar</span></button>
+                <span id="cc-hint" class="muted"></span>
+                <span class="spacer"></span>
+                <button id="cc-send" class="cc-send" title="Enviar (Enter)" aria-label="Enviar"><span data-icon="send"></span></button>
+                <button id="cc-stop" class="cc-send stop hidden" title="Detener" aria-label="Detener"><span data-icon="stop"></span></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="view-tools" class="view hidden">
           <header class="view-head">
             <h2>Herramientas</h2>
@@ -177,6 +241,7 @@
                 <button data-f="installed" title="Instalados" aria-label="Instalados"><span data-icon="checkcircle"></span></button>
                 <button data-f="missing" title="Faltan" aria-label="Faltan"><span data-icon="download"></span></button>
               </div>
+              <div id="sw-presets" class="seg" role="group" aria-label="Perfiles"></div>
               <button id="sw-refresh" class="icon-btn" title="Volver a detectar" aria-label="Volver a detectar"><span data-icon="refresh"></span></button>
             </div>
             <div id="sw-list" class="sw-list"></div>
@@ -302,9 +367,29 @@
             <span id="rm-actions" class="rm-actions"></span>
           </div>
           <p id="rm-desc" class="muted rm-desc" data-no-i18n></p>
+          <div id="rm-tabs" class="rm-tabs" role="tablist">
+            <button class="rm-tab active" data-tab="commits" role="tab" title="Commits" aria-label="Commits"><span data-icon="commit"></span></button>
+            <button class="rm-tab" data-tab="pulls" role="tab" title="Pull requests" aria-label="Pull requests"><span data-icon="branch"></span></button>
+            <button class="rm-tab" data-tab="issues" role="tab" title="Issues" aria-label="Issues"><span data-icon="alert"></span></button>
+            <button class="rm-tab" data-tab="runs" role="tab" title="Actions" aria-label="Actions"><span data-icon="play"></span></button>
+          </div>
           <div id="rm-commits" class="rm-commits" aria-live="polite"></div>
           <div id="rm-pager" class="pager hidden"></div>
         </div>
+      </div>
+    </div>
+
+    <div id="notif-modal" class="palette hidden" role="dialog" aria-label="Notificaciones">
+      <div class="pal-box notif-box">
+        <div class="notes-hero notif-hero">
+          <span class="nh-ico" data-icon="bell" aria-hidden="true"></span>
+          <h2>Notificaciones</h2>
+          <span class="nh-actions">
+            <button id="notif-clear" class="icon-btn" title="Borrar todo" aria-label="Borrar todo"><span data-icon="trash"></span></button>
+            <button id="notif-close" class="icon-btn" title="Cerrar" aria-label="Cerrar"><span data-icon="x"></span></button>
+          </span>
+        </div>
+        <div id="notif-list" class="notif-list"></div>
       </div>
     </div>
 

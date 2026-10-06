@@ -3,9 +3,10 @@ import { join } from 'node:path';
 import type { Settings } from '../shared/api';
 import { setupAlerts } from './alerts';
 import { mt } from './i18n-main';
+import { setupClaude, stopAllClaude } from './claude';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
-import { listCommits, listRepos, listRuns, lookupUser } from './github';
+import { listCommits, listFailing, listItems, listOpenPulls, listRepos, listRuns, lookupUser, rerunFailed } from './github';
 import { setupNotes } from './notes';
 import { setupSoftware, stopAllInstalls } from './software';
 import { loadSettings, saveSettings } from './settings';
@@ -135,6 +136,13 @@ app.whenReady().then(() => {
   ipcMain.handle('github:lookup', (_e, input: string) => lookupUser(input));
   ipcMain.handle('github:repos', () => listRepos(loadSettings().githubUser));
   ipcMain.handle('github:commits', (_e, repo: string, page?: number) => listCommits(loadSettings().githubUser, repo, page));
+  ipcMain.handle('github:items', (_e, repo: string, kind: 'pulls' | 'issues' | 'runs', page?: number) => {
+    if (!['pulls', 'issues', 'runs'].includes(kind)) throw new Error('Lista no válida');
+    return listItems(loadSettings().githubUser, repo, kind, page);
+  });
+  ipcMain.handle('github:rerun', (_e, repo: string, runId: number) => rerunFailed(loadSettings().githubUser, repo, Number(runId)));
+  ipcMain.handle('github:failing', () => listFailing(loadSettings().githubUser));
+  ipcMain.handle('github:pulls', () => listOpenPulls(loadSettings().githubUser));
   ipcMain.handle('github:runs', (_e, repo: string) => listRuns(loadSettings().githubUser, repo));
 
   setupFace();
@@ -143,6 +151,7 @@ app.whenReady().then(() => {
   win = createWindow();
   const getWin = () => (win && !win.isDestroyed() ? win : null);
   setupLocal(getWin);
+  setupClaude(getWin);
   setupSoftware(getWin);
   setupAlerts(getWin);
   setupUpdater(win, () => loadSettings().githubUser);
@@ -157,6 +166,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   quitting = true;
   stopAllLocal();
+  stopAllClaude();
   stopAllInstalls();
 });
 app.on('will-quit', () => globalShortcut.unregisterAll());

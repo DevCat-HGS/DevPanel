@@ -20,6 +20,43 @@ export interface Commit {
   url: string;
 }
 
+export interface FailingRun {
+  repo: string;
+  url: string;
+  branch?: string;
+  updated: string;
+}
+
+export interface PullSummary {
+  repo: string;
+  title: string;
+  url: string;
+  updated: string;
+  draft: boolean;
+  author: string;
+}
+
+export type RepoListKind = 'pulls' | 'issues' | 'runs';
+
+/** One row of the pull requests / issues / Actions runs tabs. */
+export interface RepoItem {
+  id: number;
+  number?: number;
+  title: string;
+  url: string;
+  author?: string;
+  date: string;
+  draft?: boolean;
+  status?: string;
+  conclusion?: string | null;
+  branch?: string;
+}
+
+export interface ItemPage {
+  items: RepoItem[];
+  hasMore: boolean;
+}
+
 export interface CommitPage {
   commits: Commit[];
   /** true when there is a next page. */
@@ -34,7 +71,35 @@ export interface WorkflowRun {
   updated_at: string;
 }
 
+export interface LocalRecipe {
+  id: string;
+  icon: string;
+  /** the exact command, shown as the tooltip */
+  tip: string;
+}
+
+export interface L10nResult {
+  /** folder (relative to the project) where the translation files were found */
+  dir: string;
+  languages: string[];
+  total: number;
+  missing: Record<string, string[]>;
+  missingCount: number;
+}
+
+/** A possible secret: never carries the secret itself. */
+export interface SecretFinding {
+  file: string;
+  line?: number;
+  rule: string;
+}
+
 export interface LocalProject {
+  /** flutter / firebase / node, from pubspec.yaml / firebase.json / package.json */
+  kinds: string[];
+  recipes: LocalRecipe[];
+  /** has two or more translation files that can be compared */
+  hasL10n: boolean;
   path: string;
   name: string;
   exists: boolean;
@@ -65,9 +130,18 @@ export interface CatalogItem {
   detect?: { cmd?: string; versionArgs?: string[]; paths?: string[] };
 }
 
+export interface CatalogPreset {
+  id: string;
+  name: string;
+  icon: string;
+  /** catalog ids installed (one after another) by the one-click profile */
+  items: string[];
+}
+
 export interface Catalog {
   categories: CatalogCategory[];
   items: CatalogItem[];
+  presets: CatalogPreset[];
 }
 
 export interface SoftwareStatus {
@@ -141,6 +215,14 @@ export interface DevPanelApi {
     lookup(input: string): Promise<GithubProfile>;
     repos(): Promise<Repo[]>;
     commits(repo: string, page?: number): Promise<CommitPage>;
+    /** Open pull requests, open issues or Actions runs of one repository (paged). */
+    items(repo: string, kind: RepoListKind, page?: number): Promise<ItemPage>;
+    /** Re-runs the failed jobs of a workflow run (needs a token with Actions: write). */
+    rerun(repo: string, runId: number): Promise<{ ok: boolean; error?: string }>;
+    /** Recent repos whose latest Actions run failed. */
+    failing(): Promise<FailingRun[]>;
+    /** Open pull requests involving the linked user. */
+    pulls(): Promise<PullSummary[]>;
     runs(repo: string): Promise<WorkflowRun[]>;
   };
   face: {
@@ -178,8 +260,27 @@ export interface DevPanelApi {
     remove(path: string): Promise<void>;
     git(path: string, action: 'fetch' | 'pull'): Promise<{ ok: boolean; output: string }>;
     run(path: string, script: string): Promise<{ id: number } | { error: string }>;
+    /** Runs one of the fixed recipes (flutter pub get, firebase emulators...) that applies to the project. */
+    recipe(path: string, id: string): Promise<{ id: number } | { error: string }>;
+    branches(path: string): Promise<{ current: string; all: string[] }>;
+    checkout(path: string, branch: string): Promise<{ ok: boolean; output: string }>;
+    /** Stages everything and commits; refuses when the changes look like they contain secrets. */
+    commit(path: string, message: string): Promise<{ ok: boolean; output: string; findings?: SecretFinding[] }>;
+    push(path: string): Promise<{ ok: boolean; output: string }>;
+    l10n(path: string): Promise<L10nResult | null>;
+    secrets(path: string): Promise<SecretFinding[]>;
     stop(id: number): Promise<void>;
     open(path: string, how: 'folder' | 'code'): Promise<void>;
+    onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
+    onExit(cb: (m: { id: number; code: number }) => void): void;
+  };
+  claude: {
+    /** Runs `claude -p` with the prompt in a registered project. 'read' only inspects (plan mode), 'edit' auto-approves file edits. Pass the previous session id to continue the conversation. */
+    run(path: string, prompt: string, mode: 'read' | 'edit', session?: string): Promise<{ id: number } | { error: string }>;
+    stop(id: number): Promise<void>;
+    /** Parsed messages of the running session (text, tool calls, final result). */
+    onEvent(cb: (m: { id: number; event: ChatEvent }) => void): void;
+    /** Raw stderr / unparsed output. */
     onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
     onExit(cb: (m: { id: number; code: number }) => void): void;
   };
@@ -193,10 +294,14 @@ export interface DevPanelApi {
     /** Installs a catalog entry through winget (the renderer only ever sends the catalog id). */
     install(id: string): Promise<{ ok: boolean; error?: string }>;
     cancel(id: string): Promise<void>;
+    /** Upgrades an installed catalog entry through winget. */
+    upgrade(id: string): Promise<{ ok: boolean; error?: string }>;
     /** Opens the entry's website / download page in the browser. */
     open(id: string): Promise<void>;
     onStatus(cb: (s: SoftwareStatus) => void): void;
     onProgress(cb: (p: SoftwareProgress) => void): void;
+    /** Fired (a few seconds after detect) for each installed entry that has a newer version. */
+    onUpdate(cb: (u: { id: string; available: boolean }) => void): void;
   };
   update: {
     check(): Promise<void>;
@@ -207,3 +312,9 @@ export interface DevPanelApi {
     onStatus(cb: (s: UpdateStatus) => void): void;
   };
 }
+
+export type ChatEvent =
+  | { kind: 'init'; session: string; model?: string }
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; name: string; detail: string }
+  | { kind: 'result'; ok: boolean; text: string; session?: string; ms?: number; cost?: number };

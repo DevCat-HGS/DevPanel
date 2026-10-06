@@ -46,6 +46,7 @@ const userData = mkdtempSync(join(tmpdir(), 'devpanel-token-'));
 writeFileSync(join(userData, 'settings.json'), JSON.stringify({ language: 'es', onboarded: true, githubUser: 'octocat' }));
 const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_GITHUB_API: base };
 delete env.ELECTRON_RUN_AS_NODE;
+delete env.GITHUB_TOKEN; // CI exports one: these tests control the token themselves
 
 let step = 0;
 const log = (m) => console.log(`✔ ${++step}. ${m}`);
@@ -54,6 +55,7 @@ try {
   app = await electron.launch({ args: ['.'], env });
   const page = await app.firstWindow();
   await page.setViewportSize({ width: 1100, height: 720 });
+  await page.click('.nav[data-view="projects"]');
   await page.waitForSelector('.repo:not(.skeleton)', { timeout: 20000 });
   assert.deepEqual(await page.locator('.repo .name').allTextContents(), ['publico']);
   log('without a token only the public repos are listed');
@@ -101,6 +103,7 @@ try {
   app = await electron.launch({ args: ['.'], env });
   const again = await app.firstWindow();
   await again.setViewportSize({ width: 1100, height: 720 });
+  await again.click('.nav[data-view="projects"]');
   await again.waitForSelector('.repo:not(.skeleton)', { timeout: 20000 });
   await again.click('.nav[data-view="settings"]');
   await again.waitForSelector('#token-state[data-state="ok"]');

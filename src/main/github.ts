@@ -1,18 +1,31 @@
-import type { CommitPage, GithubProfile, Repo, WorkflowRun } from '../shared/api';
+import type { CommitPage, FailingRun, GithubProfile, ItemPage, PullSummary, Repo, RepoListKind, WorkflowRun } from '../shared/api';
 
+import type { RunInfo } from './alerts-core';
 import { getToken, tokenOwns } from './token';
 
 const API = process.env.DEVPANEL_GITHUB_API ?? 'https://api.github.com';
 
+// Conditional requests: GitHub answers 304 (which does not count against the rate limit) when nothing changed.
+const etags = new Map<string, { etag: string; body: string; link: string | null }>();
+
 async function ghFetch(path: string): Promise<Response> {
+  const token = getToken();
+  const key = `${token ? 't' : 'p'}:${path}`; // a token can change what the same URL returns
+  const cached = etags.get(key);
   const res = await fetch(`${API}${path}`, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'DevPanel',
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(cached ? { 'If-None-Match': cached.etag } : {}),
     },
   });
+  if (res.status === 304 && cached) {
+    return new Response(cached.body, { status: 200, headers: cached.link ? { link: cached.link } : {} });
+  }
   if (!res.ok) throw new Error(`GitHub ${res.status}: ${path}`);
+  const etag = res.headers.get('etag');
+  if (etag) etags.set(key, { etag, body: await res.clone().text(), link: res.headers.get('link') });
   return res;
 }
 
@@ -79,5 +92,107 @@ export async function lookupUser(input: string): Promise<GithubProfile> {
   } catch (e) {
     if ((e as Error).message.includes('404')) throw new Error(`No existe el usuario "${user}" en GitHub`);
     throw e;
+  }
+}
+
+// ---------- shared by the build alerts and the Home screen ----------
+const RUN_TTL_MS = 5 * 60 * 1000;
+const runCache = new Map<string, { at: number; value: RunInfo | null }>();
+
+/** Latest Actions run of a repo, cached for a few minutes so alerts + Home don't double the API usage. */
+export async function latestRun(user: string, repo: string): Promise<RunInfo | null> {
+  const key = `${user}/${repo}`;
+  const hit = runCache.get(key);
+  if (hit && Date.now() - hit.at < RUN_TTL_MS) return hit.value;
+  let value: RunInfo | null = null;
+  try {
+    const raw = await gh<{ workflow_runs: any[] }>(
+      `/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/actions/runs?per_page=1`,
+    );
+    const r = raw.workflow_runs?.[0];
+    if (r) value = { repo, id: r.id, status: r.status, conclusion: r.conclusion, url: r.html_url, branch: r.head_branch };
+  } catch {
+    /* repo without Actions or rate-limited: treated as "no run" */
+  }
+  runCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+const RECENT_DAYS = 30;
+const FAILED = new Set(['failure', 'timed_out', 'startup_failure']);
+
+/** Recently pushed repos whose latest run failed. */
+export async function listFailing(user: string): Promise<FailingRun[]> {
+  const since = Date.now() - RECENT_DAYS * 86_400_000;
+  const repos = (await listRepos(user))
+    .filter((r) => !r.archived && new Date(r.pushed_at).getTime() > since)
+    .slice(0, 8);
+  const runs = await Promise.all(repos.map((r) => latestRun(user, r.name)));
+  return runs
+    .filter((r): r is RunInfo => !!r && r.status === 'completed' && FAILED.has(r.conclusion ?? ''))
+    .map((r) => ({ repo: r.repo, url: r.url, branch: r.branch, updated: new Date().toISOString() }));
+}
+
+/** Open pull requests involving the user (author, assignee or mentioned) across their repos. */
+export async function listOpenPulls(user: string): Promise<PullSummary[]> {
+  const q = encodeURIComponent(`involves:${user} type:pr state:open`);
+  const res = await gh<{ items: any[] }>(`/search/issues?q=${q}&sort=updated&per_page=8`);
+  return (res.items ?? []).map((i) => ({
+    repo: String(i.repository_url ?? '').split('/').slice(-1)[0],
+    title: i.title,
+    url: i.html_url,
+    updated: i.updated_at,
+    draft: !!i.draft,
+    author: i.user?.login ?? '',
+  }));
+}
+
+// ---------- per-repository lists (pull requests, issues, Actions runs) ----------
+export const ITEMS_PER_PAGE = 8;
+
+export async function listItems(user: string, repo: string, kind: RepoListKind, page = 1): Promise<ItemPage> {
+  const p = Math.max(1, Math.floor(Number(page)) || 1);
+  const base = `/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}`;
+  const paging = `per_page=${ITEMS_PER_PAGE}&page=${p}`;
+
+  if (kind === 'runs') {
+    const res = await ghFetch(`${base}/actions/runs?${paging}`);
+    const raw = ((await res.json()) as { workflow_runs: any[] }).workflow_runs ?? [];
+    return {
+      items: raw.map((r) => ({
+        id: r.id, title: r.name ?? r.display_title ?? 'workflow', url: r.html_url, date: r.updated_at ?? r.created_at,
+        status: r.status, conclusion: r.conclusion, branch: r.head_branch,
+      })),
+      hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
+    };
+  }
+
+  const res = await ghFetch(`${base}/${kind === 'pulls' ? 'pulls' : 'issues'}?state=open&${paging}`);
+  const raw = (await res.json()) as any[];
+  return {
+    // the issues endpoint also returns pull requests: they have their own tab
+    items: raw
+      .filter((i) => kind === 'pulls' || !i.pull_request)
+      .map((i) => ({ id: i.id, number: i.number, title: i.title, url: i.html_url, author: i.user?.login, date: i.updated_at, draft: !!i.draft })),
+    hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
+  };
+}
+
+/** Re-runs the failed jobs of a workflow run. Needs a token that can write Actions. */
+export async function rerunFailed(user: string, repo: string, runId: number): Promise<{ ok: boolean; error?: string }> {
+  const token = getToken();
+  if (!token) return { ok: false, error: 'Necesitas un token de GitHub con permiso de Actions: guárdalo en Settings.' };
+  if (!Number.isInteger(runId) || runId <= 0) return { ok: false, error: 'Ejecución no válida' };
+  try {
+    const res = await fetch(`${API}/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/actions/runs/${runId}/rerun-failed-jobs`, {
+      method: 'POST',
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel', Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) return { ok: true };
+    if (res.status === 403 || res.status === 401) return { ok: false, error: 'Tu token no tiene permiso para reintentar workflows (Actions: write).' };
+    if (res.status === 404) return { ok: false, error: 'No se encontró esa ejecución.' };
+    return { ok: false, error: `GitHub respondió ${res.status}` };
+  } catch {
+    return { ok: false, error: 'No se pudo contactar a GitHub' };
   }
 }

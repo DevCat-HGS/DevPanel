@@ -27,7 +27,8 @@ writeFileSync(join(proj, 'nuevo.txt'), 'sin commitear');
 // VS Code-like hosts export ELECTRON_RUN_AS_NODE=1, which makes Electron start as plain Node.
 // the catalog test pretends these are installed and fakes installs, so the real machine is never touched
 const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj,
-  DEVPANEL_FAKE_SOFTWARE: JSON.stringify({ git: '2.47.0', node: '22.1.0', python: '3.13.1' }) };
+  DEVPANEL_FAKE_SOFTWARE: JSON.stringify({ git: '2.47.0', node: '22.1.0', python: '3.13.1' }),
+  DEVPANEL_FAKE_SOFTWARE_UPDATES: JSON.stringify(['node']) };
 delete env.ELECTRON_RUN_AS_NODE;
 const launch = () => electron.launch({ args: ['.'], env });
 
@@ -72,6 +73,7 @@ try {
   await page.waitForSelector('#wz-4.active');
   await page.click('#wz-enter');
   await page.waitForSelector('#app:not(.hidden)');
+  await page.click('.nav[data-view="projects"]');
   await page.waitForSelector('.repo:not(.skeleton)', { timeout: 20000 });
   assert.ok((await page.locator('.repo:not(.skeleton)').count()) > 0, 'repos rendered');
   await shot(page, '3-dashboard');
@@ -117,6 +119,25 @@ try {
   await page.waitForSelector('.sw-card[data-id="docker"][data-state="installed"]');
   log('filters and re-detect work, and an app installed in this session stays installed');
 
+  // ---------- updates and one-click profiles ----------
+  await page.waitForSelector('.sw-card[data-id="node"][data-state="outdated"]');
+  assert.ok(await page.locator('#sw-summary .chip[title="Actualizaciones disponibles"]').isVisible(), 'the summary counts the updates');
+  assert.equal((await page.textContent('.sw-card[data-id="node"] .sw-action')).trim(), '', 'the update action is an icon');
+  assert.equal(await page.getAttribute('.sw-card[data-id="node"] .sw-action', 'title'), 'Actualizar');
+  await page.click('.sw-card[data-id="node"] .sw-action');
+  await page.waitForSelector('.sw-card[data-id="node"][data-state="installing"]');
+  await page.waitForSelector('.sw-card[data-id="node"][data-state="installed"]', { timeout: 15000 });
+  assert.equal(await page.locator('#sw-summary .chip[title="Actualizaciones disponibles"]').count(), 0, 'no updates left');
+  log('an installed app with a newer version shows an update icon, upgrades with progress and clears the counter');
+
+  assert.equal(await page.locator('#sw-presets .preset-btn').count(), 3);
+  assert.match(await page.getAttribute('#sw-presets [data-preset="ai"]', 'title'), /Claude Code/);
+  await page.click('#sw-presets [data-preset="ai"]');
+  await page.waitForSelector('.sw-card[data-id="claudecode"][data-state="installed"]', { timeout: 20000 });
+  await page.waitForSelector('.sw-card[data-id="cursor"][data-state="installed"]', { timeout: 20000 });
+  await page.waitForSelector('.toast.ok:has-text("listo")');
+  log('a one-click profile installs what is missing, one after another');
+
   const refused = await page.evaluate(async () => window.devpanel.software.install('github'));
   assert.equal(refused.ok, false, 'web services cannot be "installed"');
   const unknown = await page.evaluate(async () => window.devpanel.software.install('calc && del *'));
@@ -139,8 +160,8 @@ try {
   await page.click('.nav[data-view="local"]');
   await page.click('#local-add');
   await page.waitForSelector('.local-card');
-  assert.match(await page.textContent('.local-card .chips'), /trabajo/);
-  assert.match(await page.textContent('.local-card .chips'), /1 cambios/);
+  assert.equal(await page.locator('.local-card .branch-select').inputValue(), 'trabajo');
+  assert.equal((await page.textContent('.local-card .chip.dirty')).trim(), '1');
   assert.match(await page.textContent('.local-card .chips'), /primer commit/);
   await page.click('.script-btn:has-text("hello")');
   await page.waitForFunction(() => document.getElementById('term-out').textContent.includes('hola-desde-script'), null, { timeout: 30000 });
@@ -214,6 +235,29 @@ try {
   assert.equal(await page.getAttribute('#upd-status', 'data-state'), 'none');
   log('the update box (icons only) appears above Settings, shows progress, then the restart icon, then hides');
 
+  // ---------- notification centre ----------
+  const unread = async () => ((await page.locator('#bell-badge').isVisible()) ? Number(await page.textContent('#bell-badge')) : 0);
+  const sendAlert = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('alert:failure', { repo: 'api-service', url: 'https://github.com/o/r/actions/runs/7' }));
+  const before = await unread(); // the update notices from the previous step are still unread
+  assert.ok(before >= 1, 'update notices were recorded');
+  await sendAlert();
+  await page.waitForFunction((n) => Number(document.getElementById('bell-badge').textContent) === n + 1, before);
+  await sendAlert(); // the same failed run again must not pile up
+  await page.waitForTimeout(300);
+  assert.equal(await unread(), before + 1, 'repeats are deduplicated');
+  await page.click('#bell-btn');
+  await page.waitForSelector('#notif-modal:not(.hidden) .notif-row');
+  assert.ok(await page.locator('#bell-badge').isHidden(), 'opening the panel marks everything as read');
+  assert.equal(await page.locator('.notif-row', { hasText: 'api-service' }).getAttribute('href'), 'https://github.com/o/r/actions/runs/7');
+  assert.ok((await page.locator('.notif-row', { hasText: '9.9.9' }).count()) >= 1, 'update notices are kept too');
+  assert.equal((await page.textContent('#notif-clear')).trim(), '', 'icon button');
+  await shot(page, '5e-notifications');
+  await page.click('#notif-clear');
+  await page.waitForSelector('#notif-list .notif-empty');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#notif-modal.hidden', { state: 'attached' });
+  log('the bell collects failed builds and updates (deduplicated), clears its badge when opened and can be emptied');
+
   // ---------- language ----------
   await page.click('#lang-seg [data-lang="en"]');
   await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Your projects');
@@ -243,6 +287,19 @@ try {
   PIN = '5678';
   log('the code can be changed with the pad dialog (and cancelled with Escape)');
 
+  // ---------- collapsible sidebar ----------
+  await page.click('#side-toggle');
+  await page.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().width < 90);
+  assert.ok(await page.locator('.nav-label').first().isHidden(), 'labels are hidden');
+  assert.equal(await page.getAttribute('.nav[data-view="tools"]', 'title'), 'Tools', 'labels become tooltips');
+  await page.click('.nav[data-view="home"]');
+  assert.ok(await page.locator('#view-home').isVisible(), 'navigation still works while collapsed');
+  assert.equal(await page.evaluate(() => localStorage.getItem('devpanel.sidebar')), 'collapsed');
+  await shot(page, '5d-collapsed');
+  await page.click('#side-toggle');
+  await page.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().width > 200);
+  log('the sidebar collapses to an icon rail (remembered) and expands again');
+
   // ---------- palette ----------
   await page.keyboard.press('Control+k');
   await page.waitForSelector('#palette:not(.hidden)');
@@ -250,6 +307,24 @@ try {
   await page.keyboard.press('Enter');
   await page.waitForSelector('#tool-title:has-text("UUID")');
   log('command palette navigates to a tool');
+
+  // the palette can install a missing program and run a project's npm script
+  await page.keyboard.press('Control+k');
+  await page.waitForSelector('#palette:not(.hidden)');
+  await page.fill('#pal-input', 'instalar postman');
+  await page.waitForFunction(() => document.querySelector('#pal-list li.sel')?.textContent.includes('Instalar Postman'));
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#view-tools:not(.hidden)');
+  await page.waitForSelector('.sw-card[data-id="postman"][data-state="installed"]', { timeout: 20000 });
+  const hellos = () => page.evaluate(() => document.getElementById('term-out').textContent.split('hola-desde-script').length - 1);
+  const n0 = await hellos();
+  await page.keyboard.press('Control+k');
+  await page.fill('#pal-input', 'npm run hello');
+  await page.waitForFunction(() => document.querySelector('#pal-list li.sel')?.textContent.includes('npm run hello'));
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#view-local:not(.hidden)');
+  await page.waitForFunction((n) => document.getElementById('term-out').textContent.split('hola-desde-script').length - 1 > n, n0, { timeout: 30000 });
+  log('the palette installs a missing program and runs a local project script');
 
   // ---------- theme ----------
   await page.click('#theme-toggle');

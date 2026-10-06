@@ -87,3 +87,18 @@ export const WINGET_OK_CODES = new Set<number>([
   0x8a15002b, -0x75eaffd5, // no applicable upgrade (already up to date)
   0x8a150061, -0x75eaff9f, // package already installed
 ]);
+
+/**
+ * `winget upgrade` prints a table (headers are translated, ids are not). An id that appears as a whole
+ * word on a row after the dashed separator has a newer version available.
+ */
+export function parseUpgradeList(output: string, ids: string[]): string[] {
+  const lines = output.split(/\r?\n/);
+  const start = lines.findIndex((l) => /^-{10,}\s*$/.test(l.trim()));
+  const rows = start === -1 ? [] : lines.slice(start + 1);
+  return ids.filter((id) => {
+    const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('(^|\\s)' + esc + '(\\s|$)', 'i');
+    return rows.some((r) => re.test(r));
+  });
+}
