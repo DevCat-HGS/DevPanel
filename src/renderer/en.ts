@@ -2,6 +2,13 @@
 // parts are translated recursively, so "Última actividad hace 3 d" works from two entries.
 export const EN: Record<string, string> = {
   // ---- generic
+  'Buscar': 'Search',
+  'Explorador de archivos': 'File explorer',
+  'Buscar texto en el proyecto…': 'Search text in the project…',
+  'Buscar texto en el proyecto': 'Search text in the project',
+  'Árbol de archivos': 'File tree',
+  'Copiar ruta': 'Copy path',
+  'Abrir el proyecto en VS Code': 'Open the project in VS Code',
   'Saltar al contenido': 'Skip to content',
   'Principal': 'Main',
   'Cambiar tema': 'Toggle theme',

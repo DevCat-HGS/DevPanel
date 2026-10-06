@@ -1,9 +1,11 @@
-import type { LocalProject, SecretFinding } from '../shared/api';
+import type { InspectResult, LocalProject, SecretFinding } from '../shared/api';
 import { $, el, toast } from './dom.js';
 import { tr } from './i18n.js';
 import { icon } from './icons.js';
 import { pushNotice } from './notifications.js';
 import { setClaudeProjects } from './ui-claude.js';
+import { problemCounts, renderDiag } from './ui-diag.js';
+import { openFiles } from './ui-files.js';
 import { checkLabel, healthChip, runHealth } from './ui-health.js';
 
 const api = () => window.devpanel;
@@ -12,6 +14,8 @@ let activeRun: number | null = null;
 /** Results of the on-demand scans, kept per project so the chips survive a refresh. */
 const l10nMissing = new Map<string, number>();
 const secretCount = new Map<string, number>();
+const diagOf = new Map<string, Extract<InspectResult, { ok: true }>>();
+const diagOpen = new Set<string>();
 const healthOf = new Map<string, Parameters<typeof healthChip>[0]>();
 let lastProjects: LocalProject[] = [];
 
@@ -106,6 +110,25 @@ $ ${tr('Salud del proyecto')}
   void refresh();
 }
 
+async function diagnose(p: LocalProject, btn: HTMLButtonElement | null, deep = false): Promise<void> {
+  if (btn) btn.disabled = true;
+  term(`\n$ ${tr('Diagnóstico')}${deep ? ' (Flutter)' : ''}\n`, 'cmd');
+  const r = await api().local.inspect(p.path, deep);
+  if (btn) btn.disabled = false;
+  if (!r.ok) return void toast(r.error, 'bad');
+  diagOf.set(p.path, r);
+  diagOpen.add(p.path);
+  const [errors, warns] = problemCounts(r);
+  term(`${r.brief}\n`, errors ? 'err' : 'ok');
+  toast(errors || warns ? `${errors} errores, ${warns} avisos` : 'Todo en orden', errors ? 'bad' : 'ok');
+  void refresh();
+}
+
+/** Runs a fix/task from the diagnosis; the project is re-inspected when it finishes. */
+function runAction(p: LocalProject, label: string, id: string): void {
+  void runWith(label, () => api().local.action(p.path, id));
+}
+
 async function scanSecrets(p: LocalProject): Promise<void> {
   term(`\n$ ${tr('Buscar secretos')}\n`, 'cmd');
   const found = await api().local.secrets(p.path);
@@ -183,10 +206,16 @@ function card(p: LocalProject): HTMLElement {
     if (p.git.behind) chips.append(chip('arrowdown', String(p.git.behind), 'Commits por bajar', 'warn behind'));
     const miss = l10nMissing.get(p.path);
     if (miss !== undefined) chips.append(chip('globe', miss ? String(miss) : '', miss ? 'Claves de idioma que faltan' : 'Idiomas al día', miss ? 'warn l10n' : 'ok l10n'));
+    const d = diagOf.get(p.path);
+    if (d) {
+      const [e, w] = problemCounts(d);
+      chips.append(chip(e ? 'xcircle' : w ? 'alert' : 'checkcircle', e || w ? String(e + w) : '', e || w ? `${e} errores y ${w} avisos en el diagnóstico` : 'Diagnóstico sin problemas', e ? 'bad dgn' : w ? 'warn dgn' : 'ok dgn'));
+    }
     const h = healthOf.get(p.path);
     if (h) chips.append(healthChip(h));
     const sec = secretCount.get(p.path);
     if (sec !== undefined) chips.append(chip(sec ? 'shield' : 'checkcircle', sec ? String(sec) : '', sec ? 'Posibles secretos' : 'Sin secretos a la vista', sec ? 'bad secrets' : 'ok secrets'));
+    if (p.manager) chips.append(el('span', 'chip branch', p.manager));
     if (p.lastCommit) chips.append(el('span', 'muted', `${p.lastCommit.subject} · ${p.lastCommit.when}`));
   }
   c.append(chips);
@@ -206,6 +235,8 @@ function card(p: LocalProject): HTMLElement {
   }
   for (const r of p.recipes) row.append(ib(r.icon, r.tip, () => void runWith(r.tip, () => api().local.recipe(p.path, r.id)), 'recipe-btn'));
   if (p.hasL10n) row.append(ib('globe', 'Comparar idiomas', () => void compareLanguages(p)));
+  if (p.exists) row.append(ib('search', 'Diagnóstico: gestor, versiones, problemas y soluciones', (b) => void diagnose(p, b)));
+  if (p.exists) row.append(ib('file', 'Explorar archivos', () => openFiles(p.path, p.name)));
   if (p.exists) row.append(ib('gauge', 'Salud del proyecto', (b) => void checkHealth(p, b)));
   if (p.isGit) row.append(ib('shield', 'Buscar secretos', () => void scanSecrets(p)));
   row.append(
@@ -217,6 +248,17 @@ function card(p: LocalProject): HTMLElement {
     }, 'danger'),
   );
   c.append(row, commit);
+
+  const diag = diagOf.get(p.path);
+  if (diag && diagOpen.has(p.path)) {
+    const panel = renderDiag(p, diag, { run: (label, id) => runAction(p, label, id), deep: () => void diagnose(p, null, true) });
+    const close = ib('x', 'Cerrar diagnóstico', () => {
+      diagOpen.delete(p.path);
+      panel.remove();
+    }, 'diag-close');
+    panel.prepend(close);
+    c.append(panel);
+  }
 
   if (p.scripts.length) {
     const scripts = el('div', 'scripts');
@@ -275,6 +317,8 @@ export function initLocal(): void {
     if (m.id !== activeRun) return;
     term(`\n[proceso terminó con código ${m.code}]\n`, m.code === 0 ? 'ok' : 'err');
     setRunning(null);
+    // the diagnosis on screen reflects the project as it is now (a fix may have just changed it)
+    for (const path of diagOpen) void api().local.inspect(path).then((r) => r.ok && diagOf.set(path, r)).then(() => refresh());
     void refresh();
   });
 

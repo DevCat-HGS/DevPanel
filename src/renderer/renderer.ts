@@ -10,6 +10,7 @@ import { renderPager } from './pager.js';
 import { initHome, refreshHome } from './ui-home.js';
 import { initNotices, pushNotice } from './notifications.js';
 import { getLocalProjects, initLocal, runScriptFrom } from './ui-local.js';
+import { initFiles } from './ui-files.js';
 import { initRepoModal, openRepo } from './ui-repo.js';
 import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
 import { initSoftware, installable, requestInstall } from './ui-software.js';
@@ -789,6 +790,7 @@ api.update.onStatus(renderUpdate);
 
 hydrateIcons();
 initRepoModal();
+initFiles();
 initNotices();
 initSidebar();
 initTheme();

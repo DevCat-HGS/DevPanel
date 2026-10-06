@@ -109,6 +109,56 @@ export type HealthResult =
       brief: string;
     };
 
+export interface InspectProblem {
+  id: string;
+  severity: 'error' | 'warn' | 'info';
+  message: string;
+  /** Action id the app can run to fix it (see local.action). */
+  fix: string | null;
+  label: string | null;
+}
+
+export interface FlutterInfo {
+  constraint: string | null;
+  installed: string | null;
+  channel: string | null;
+  devices: { id: string; name: string; platform: string }[];
+  emulators: { id: string; name: string; platform: string }[];
+}
+
+/** Output of `project_health.py inspect`. */
+export type InspectResult =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      kinds: string[];
+      manager: string | null;
+      lockfiles: string[];
+      tools: Record<string, string | null>;
+      scripts: string[];
+      tasks: string[];
+      problems: InspectProblem[];
+      actions: { id: string; label: string }[];
+      node: { required: string; installed: string; ok: boolean | null } | null;
+      flutter: FlutterInfo | null;
+      brief: string;
+    };
+
+export interface FileEntry {
+  name: string;
+  dir: boolean;
+}
+
+export type FileRead =
+  | { ok: false; error: string }
+  | { ok: true; text: string; size: number; truncated: boolean };
+
+export interface SearchHit {
+  file: string;
+  line: number;
+  text: string;
+}
+
 export interface LocalProject {
   /** flutter / firebase / node, from pubspec.yaml / firebase.json / package.json */
   kinds: string[];
@@ -121,6 +171,8 @@ export interface LocalProject {
   isGit: boolean;
   /** npm scripts found in package.json. */
   scripts: string[];
+  /** npm / pnpm / yarn / bun / deno, from lockfiles and package.json. */
+  manager: string | null;
   git?: { branch: string; upstream: string | null; ahead: number; behind: number; dirty: number };
   lastCommit?: { subject: string; when: string };
 }
@@ -288,6 +340,14 @@ export interface DevPanelApi {
     push(path: string): Promise<{ ok: boolean; output: string }>;
     l10n(path: string): Promise<L10nResult | null>;
     secrets(path: string): Promise<SecretFinding[]>;
+    /** Python reads the project and reports manager, tool versions, problems and fixes (deep also asks Flutter for devices). */
+    inspect(path: string, deep?: boolean): Promise<InspectResult>;
+    /** Read-only explorer: one folder level, a file's text, and a text search (git grep). */
+    tree(path: string, rel: string): Promise<FileEntry[]>;
+    read(path: string, rel: string): Promise<FileRead>;
+    search(path: string, query: string): Promise<SearchHit[]>;
+    /** Runs a fix or task the inspection offered (install, script:<name>, flutter-run:<device>...). */
+    action(path: string, id: string): Promise<{ id: number } | { error: string }>;
     stop(id: number): Promise<void>;
     open(path: string, how: 'folder' | 'code'): Promise<void>;
     onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;

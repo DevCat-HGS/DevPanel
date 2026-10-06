@@ -1,37 +1,16 @@
-import { app, ipcMain } from 'electron';
-import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { ipcMain } from 'electron';
 import { resolve } from 'node:path';
 import type { HealthResult } from '../shared/api';
 import { latestRun, listRepos } from './github';
 import { loadSettings } from './settings';
+import { runSidecar } from './sidecar';
 
-const scriptPath = () =>
-  app.isPackaged ? join(process.resourcesPath, 'python', 'project_health.py') : join(app.getAppPath(), 'python', 'project_health.py');
+const runPython = (args: string[], stdin?: string): Promise<HealthResult> => runSidecar<Extract<HealthResult, { ok: true }>>(args, stdin);
 
-/** The packaged app ships project_health.exe (PyInstaller): no Python needed. Dev falls back to python + the script. */
-const packagedExe = () => (app.isPackaged ? join(process.resourcesPath, 'python', 'project_health.exe') : '');
-
-/** Runs the Python scorer; its single JSON line on stdout is the result. */
-function runPython(args: string[], stdin?: string): Promise<HealthResult> {
-  const exe = packagedExe();
-  const useExe = !!exe && existsSync(exe);
-  const cmd = useExe ? exe : (process.env.DEVPANEL_PYTHON ?? 'python');
-  return new Promise((done) => {
-    const py = spawn(cmd, [...(useExe ? [] : [scriptPath()]), ...args], { windowsHide: true });
-    let out = '';
-    py.stdout.on('data', (d) => (out += d));
-    py.on('error', () => done({ ok: false, error: 'No se pudo ejecutar Python. Instálalo o usa la versión empaquetada.' }));
-    py.on('close', () => {
-      try {
-        done(JSON.parse(out.trim().split('\n').filter(Boolean).pop() ?? ''));
-      } catch {
-        done({ ok: false, error: 'Respuesta inválida del módulo de salud' });
-      }
-    });
-    py.stdin.end(stdin ?? '');
-  });
+/** Short plain-text summary of a project's health and problems, for the AI assistant. Empty when Python is unavailable. */
+export async function projectBrief(dir: string): Promise<string> {
+  const [h, i] = await Promise.all([runPython(['local', dir]), runSidecar<{ ok: true; brief: string }>(['inspect', dir])]);
+  return [h.ok ? h.brief : '', i.ok ? i.brief : ''].filter(Boolean).join('\n');
 }
 
 export function setupHealth(): void {

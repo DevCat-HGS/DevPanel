@@ -342,6 +342,33 @@
       </main>
     </div>
 
+    <div id="files-modal" class="files-modal hidden" role="dialog" aria-modal="true" aria-label="Explorador de archivos">
+      <div class="files">
+        <header class="files-head">
+          <span data-icon="folder" aria-hidden="true"></span>
+          <b id="files-title" data-no-i18n></b>
+          <label class="search files-search">
+            <span data-icon="search" aria-hidden="true"></span>
+            <input id="files-search" type="search" placeholder="Buscar texto en el proyecto…" aria-label="Buscar texto en el proyecto" />
+          </label>
+          <button id="files-search-go" class="btn small">Buscar</button>
+          <button id="files-close" class="icon-btn" title="Cerrar" aria-label="Cerrar"><span data-icon="x"></span></button>
+        </header>
+        <div id="files-results" class="files-results hidden" aria-live="polite"></div>
+        <div class="files-main">
+          <nav id="files-tree" class="files-tree" aria-label="Árbol de archivos"></nav>
+          <section class="files-pane">
+            <div class="files-bar">
+              <span id="files-path" class="muted files-path" data-no-i18n></span>
+              <button id="files-copy" class="icon-btn mini" title="Copiar ruta" aria-label="Copiar ruta"><span data-icon="copy"></span></button>
+              <button id="files-code" class="icon-btn mini" title="Abrir el proyecto en VS Code" aria-label="Abrir en VS Code"><span data-icon="code"></span></button>
+            </div>
+            <div id="files-view" class="files-view"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <div id="repo-modal" class="repo-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle del proyecto">
       <div class="folder">
         <div class="folder-tab">

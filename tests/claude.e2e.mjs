@@ -21,7 +21,7 @@ process.stdin.on('end', () => {
   const out = (o) => process.stdout.write(JSON.stringify(o) + '\\n');
   out({ type: 'system', subtype: 'init', session_id: '${SESSION}', model: 'fake' });
   out({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'lib/wallet.dart' } }] } });
-  const text = 'ARGS ' + process.argv.slice(2).join(' ') + '\\n\\nRecibí: **' + input.trim() + '**\\n\\n- uno\\n- dos con \`codigo\`\\n\\n\`\`\`js\\nconsole.log(1)\\n\`\`\`';
+  const text = 'ARGS ' + process.argv.slice(2).join(' ') + '\\n\\nCTX ' + input.includes('[Contexto de DevPanel') + '\\n\\nRecibí: **' + input.trim().split('\\n').pop() + '**\\n\\n- uno\\n- dos con \`codigo\`\\n\\n\`\`\`js\\nconsole.log(1)\\n\`\`\`';
   out({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
   out({ type: 'result', subtype: 'success', is_error: false, result: 'listo', session_id: '${SESSION}', duration_ms: 1200, total_cost_usd: 0.0123 });
 });
@@ -74,6 +74,7 @@ try {
   assert.match(answer, /ARGS -p --output-format stream-json --verbose --permission-mode plan/);
   assert.ok(!/--resume/.test(answer), 'first message starts a fresh session');
   assert.match(answer, /Recibí: explica el módulo wallet; echo "x" & dir/, 'shell characters arrived as plain text through stdin');
+  assert.match(answer, /CTX true/, 'a new conversation starts with the health and diagnosis brief');
   assert.equal(await page.locator('.cc-assistant .cc-text strong').count(), 1);
   assert.equal(await page.locator('.cc-assistant .cc-list li').count(), 2);
   assert.equal(await page.locator('.cc-assistant .cc-text li code').textContent(), 'codigo');

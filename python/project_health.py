@@ -139,6 +139,9 @@ def main(argv: list) -> int:
     try:
         if len(argv) >= 3 and argv[1] == "local":
             out = check_local(argv[2])
+        elif len(argv) >= 3 and argv[1] == "inspect":
+            from project_inspect import inspect_project
+            out = inspect_project(argv[2], deep="--deep" in argv[3:])
         elif len(argv) >= 2 and argv[1] == "repo":
             out = check_repo(json.loads(sys.stdin.read() or "{}"))
         else:

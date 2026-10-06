@@ -366,3 +366,35 @@ test('chat markdown: blocks and inline spans', () => {
   ]);
   assert.deepEqual(parseInline('<img src=x onerror=1>'), [{ t: 'txt', text: '<img src=x onerror=1>' }]);
 });
+
+import { buildAction, isSafeRel, parseGrep } from '../dist/main/local-core.js';
+
+test('actions: the manager comes from the project and names are validated', () => {
+  const f = { manager: 'pnpm', kinds: ['node'], scripts: ['dev', 'build'], tasks: [], devices: [], emulators: [] };
+  assert.equal(buildAction('install', f), 'pnpm install');
+  assert.equal(buildAction('audit', f), 'pnpm audit');
+  assert.equal(buildAction('script:dev', f), 'pnpm run dev');
+  assert.equal(buildAction('script:nope', f), null, 'a script that is not in package.json');
+  assert.equal(buildAction('script:dev;calc', f), null);
+  assert.equal(buildAction('flutter-doctor', f), null, 'flutter actions need a flutter project');
+  assert.equal(buildAction('rm -rf /', f), null);
+  assert.equal(buildAction('install', { ...f, manager: 'deno' }), null);
+  assert.equal(buildAction('task:start', { ...f, manager: 'deno', tasks: ['start'] }), 'deno task start');
+  assert.equal(buildAction('audit', { ...f, manager: 'bun' }), null);
+});
+
+test('actions: flutter devices and emulators must have been reported by the inspection', () => {
+  const f = { manager: null, kinds: ['flutter'], scripts: [], tasks: [], devices: ['emulator-5554'], emulators: ['Pixel_7'] };
+  assert.equal(buildAction('flutter-pub-get', f), 'flutter pub get');
+  assert.equal(buildAction('flutter-run:emulator-5554', f), 'flutter run -d emulator-5554');
+  assert.equal(buildAction('flutter-run:other & calc', f), null);
+  assert.equal(buildAction('flutter-emulator:Pixel_7', f), 'flutter emulators --launch Pixel_7');
+  assert.equal(buildAction('flutter-emulator:Pixel_8', f), null);
+});
+
+test('explorer: only project-relative paths, and git grep output is parsed', () => {
+  for (const ok of ['', 'src', 'src/main.ts', 'a\b.txt']) assert.ok(isSafeRel(ok), ok);
+  for (const bad of ['../x', 'a/../../b', '/etc/passwd', 'C:\Windows', '\\server\share', 'a\u0000b', 5]) assert.ok(!isSafeRel(bad), String(bad));
+  const hits = parseGrep('src/a.ts:12:  const x = 1;\nREADME.md:3:hola\nnoise\n');
+  assert.deepEqual(hits, [{ file: 'src/a.ts', line: 12, text: 'const x = 1;' }, { file: 'README.md', line: 3, text: 'hola' }]);
+});
