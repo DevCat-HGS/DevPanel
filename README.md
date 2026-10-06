@@ -7,6 +7,8 @@ La misma interfaz corre en la **web**, solo para previsualizar durante el desarr
 
 ---
 
+> **Meta:** que los desarrolladores automaticen su trabajo sin salir de DevPanel. Alcance y hoja de ruta en [`docs/VISION.md`](docs/VISION.md).
+
 ## Ramas y releases (lo importante)
 
 | Rama | Qué publica | Versión | Quién la recibe |

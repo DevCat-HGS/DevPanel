@@ -1,6 +1,7 @@
 import type { FailingRun, LocalProject, PullSummary, Repo } from '../shared/api';
 import { $, ago, el } from './dom.js';
 import { icon } from './icons.js';
+import { checkLabel } from './ui-health.js';
 
 const api = () => window.devpanel;
 
@@ -16,18 +17,44 @@ const WIDGETS: { id: string; icon: string; title: string; tone: Tone }[] = [
   { id: 'failing', icon: 'xcircle', title: 'Builds fallando', tone: 'bad' },
   { id: 'pulls', icon: 'branch', title: 'Pull requests', tone: 'accent' },
   { id: 'local', icon: 'folder', title: 'Cambios locales', tone: 'warn' },
+  { id: 'health', icon: 'gauge', title: 'Salud de proyectos', tone: 'accent' },
   { id: 'recent', icon: 'clock', title: 'Actividad reciente', tone: 'muted' },
 ];
+
+const OPEN_KEY = 'devpanel.home.open';
+const openSet = (): Set<string> => {
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem(OPEN_KEY) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+};
+const saveOpen = (id: string, open: boolean): void => {
+  try {
+    const s = openSet();
+    open ? s.add(id) : s.delete(id);
+    localStorage.setItem(OPEN_KEY, JSON.stringify([...s]));
+  } catch {
+    /* storage unavailable: the panel just starts closed next time */
+  }
+};
 
 let ctx: HomeContext;
 let ticket = 0;
 
+/** A native <details>: collapsed by default, header shows the count, the choice is remembered. */
 function widget(w: (typeof WIDGETS)[number]): HTMLElement {
-  const box = el('section', `hw hw-${w.tone}`);
+  const box = el('details', `hw hw-${w.tone}`) as HTMLDetailsElement;
   box.dataset.id = w.id;
-  const head = el('div', 'hw-head');
-  head.append(icon(w.icon), el('h3', undefined, w.title), el('span', 'chip hw-count'));
+  box.open = openSet().has(w.id);
+  const head = el('summary', 'hw-head');
+  head.append(icon(w.icon), el('h3', undefined, w.title), el('span', 'chip hw-count hidden'), icon('chevr'));
+  head.lastElementChild!.classList.add('hw-chev');
   box.append(head, el('div', 'hw-body'));
+  box.addEventListener('toggle', () => {
+    saveOpen(w.id, box.open);
+    if (box.open && w.id === 'health') void loadHealth(ticket);
+  });
   return box;
 }
 
@@ -145,7 +172,10 @@ function renderRecent(): void {
 export async function refreshHome(): Promise<void> {
   const mine = ++ticket;
   const web = api().platform === 'web';
-  for (const w of WIDGETS) if (w.id !== 'recent') loading(w.id);
+  for (const w of WIDGETS) if (w.id !== 'recent' && w.id !== 'health') loading(w.id);
+  if (web) document.querySelector('.hw[data-id="health"]')?.classList.add('hidden');
+  else if (isOpen('health')) void loadHealth(mine);
+  else idleHealth();
   renderRecent();
 
   const settle = async <T,>(id: string, run: () => Promise<T>, render: (v: T) => void) => {
@@ -163,63 +193,40 @@ export async function refreshHome(): Promise<void> {
   ]);
 }
 
+const isOpen = (id: string): boolean => !!document.querySelector<HTMLDetailsElement>(`.hw[data-id="${id}"]`)?.open;
+
+function idleHealth(): void {
+  setCount('health', null);
+  body('health').replaceChildren(el('p', 'muted hw-ok', 'Ábrelo para calcular la salud de tus proyectos locales.'));
+}
+
+/** Health of every registered local project, scored by python/project_health.py. */
+async function loadHealth(mine: number): Promise<void> {
+  const box = body('health');
+  box.replaceChildren(el('div', 'skeleton row'));
+  const projects = (await api().local.list()).filter((p) => p.exists);
+  if (!projects.length) return allGood('health', 'Aún no agregaste carpetas.');
+  const results = await Promise.all(projects.map((p) => api().health.local(p.path)));
+  if (mine !== ticket) return;
+  const rows: HTMLElement[] = [];
+  let weak = 0;
+  results.forEach((r, i) => {
+    if (!r.ok) return void rows.push(row('xcircle', projects[i].name, r.error, { click: ctx.goLocal }));
+    if (r.score < 75) weak++;
+    const worst = r.checks.filter((c) => !c.ok).sort((a, b) => b.weight - a.weight)[0];
+    rows.push(row('gauge', projects[i].name, `${r.grade} ${r.score}${worst ? ` · ${checkLabel(worst.id)}` : ''}`, { click: ctx.goLocal }));
+  });
+  setCount('health', weak || null);
+  document.querySelector('.hw[data-id="health"]')!.classList.toggle('has-items', weak > 0);
+  box.replaceChildren(...rows);
+}
+
 function failedLocal(): void {
   document.querySelector('.hw[data-id="local"]')?.classList.add('hidden');
 }
 
-/** 0 = idle, 1 = speaking. The cloud swells and speeds up with it; the future voice/AI stream can drive it. */
-let sharonLevel = 0;
-export function setSharonLevel(v: number): void {
-  sharonLevel = Math.max(0, Math.min(1, v));
-}
-
-/** Sharon's orb: a loose cloud of particles that drift and breathe (not a sphere), drawn on a canvas. */
-function initOrb(): void {
-  const cv = document.querySelector<HTMLCanvasElement>('.orb-particles');
-  const g = cv?.getContext('2d');
-  if (!cv || !g) return;
-  const gauss = (): number => (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 2; // roughly -1..1, bell-shaped
-  const ps = Array.from({ length: 150 }, () => {
-    const ang = Math.random() * 6.283;
-    const rad = Math.abs(gauss()) * 0.9 + 0.05;
-    return { ang, rad, sp: (0.15 + Math.random() * 0.5) * (Math.random() < 0.5 ? -1 : 1), ph: Math.random() * 6.283, sz: 0.8 + Math.random() * 2.2, hue: Math.random() };
-  });
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const css = getComputedStyle(document.documentElement);
-  const c1 = css.getPropertyValue('--accent').trim() || '#22d3ee';
-  const c2 = css.getPropertyValue('--accent-2').trim() || '#3b82f6';
-  const c3 = css.getPropertyValue('--accent-3').trim() || '#fb923c';
-  const W = cv.width;
-  const R = W * 0.36;
-  let t = 0;
-  const frame = (): void => {
-    if (!cv.isConnected) return;
-    if (!document.hidden && cv.offsetParent) {
-      const lv = sharonLevel;
-      t += reduce ? 0 : 0.012 + lv * 0.03;
-      g.clearRect(0, 0, W, W);
-      for (const p of ps) {
-        const a = p.ang + t * p.sp;
-        const pulse = 1 + 0.12 * Math.sin(t * 1.6 + p.ph) + lv * 0.3 * Math.sin(t * 7 + p.ph * 3); // breathing, plus a jitter while speaking
-        const r = R * p.rad * pulse;
-        const x = W / 2 + Math.cos(a) * r + Math.sin(t * 0.9 + p.ph) * 6;
-        const y = W / 2 + Math.sin(a) * r + Math.cos(t * 0.8 + p.ph) * 6;
-        g.globalAlpha = (0.3 + 0.6 * Math.abs(Math.sin(t * 1.2 + p.ph))) * (1 - p.rad * 0.35);
-        g.fillStyle = p.hue < 0.55 ? c1 : p.hue < 0.85 ? c2 : c3;
-        g.beginPath();
-        g.arc(x, y, p.sz * (1 + lv * 0.6), 0, 6.283);
-        g.fill();
-      }
-      g.globalAlpha = 1;
-    }
-    requestAnimationFrame(frame);
-  };
-  frame();
-}
-
 export function initHome(context: HomeContext): void {
   ctx = context;
-  initOrb();
   $('home-grid').replaceChildren(...WIDGETS.map(widget));
   $('home-refresh').onclick = () => void refreshHome();
 }

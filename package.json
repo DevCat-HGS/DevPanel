@@ -46,6 +46,7 @@
           "*.py",
           "requirements.txt",
           "face_auth.exe",
+          "project_health.exe",
           "!test_*.py"
         ]
       }

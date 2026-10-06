@@ -79,6 +79,12 @@ jobs:
             --distpath python --workpath build/pyi --specpath build/pyi --paths python --noconfirm --log-level WARN
           python/face_auth.exe selftest --models-dir "$RUNNER_TEMP/face-models"
 
+      - name: Package the project health module
+        shell: bash
+        run: |
+          python -m PyInstaller --onefile --name project_health python/project_health.py             --distpath python --workpath build/pyi --specpath build/pyi --noconfirm --log-level WARN
+          python/project_health.exe local . > /dev/null
+
       - name: Code signing status
         shell: bash
         run: |

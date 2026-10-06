@@ -47,8 +47,8 @@ jobs:
 
       - name: Python sidecar compiles and its liveness logic passes
         run: |
-          python -m py_compile python/face_auth.py
-          cd python && python -m unittest -q test_liveness
+          python -m py_compile python/face_auth.py python/project_health.py
+          cd python && python -m unittest -q test_liveness test_project_health
 
   e2e:
     name: End-to-end (Electron)

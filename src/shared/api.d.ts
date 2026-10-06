@@ -94,6 +94,21 @@ export interface SecretFinding {
   rule: string;
 }
 
+/** Output of python/project_health.py. */
+export type HealthResult =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      kind: 'local' | 'repo';
+      name: string;
+      /** 0-100 */
+      score: number;
+      grade: 'A' | 'B' | 'C' | 'D' | 'F';
+      checks: { id: string; weight: number; ok: boolean; detail: string }[];
+      /** Plain-text summary meant for the AI assistant and automations. */
+      brief: string;
+    };
+
 export interface LocalProject {
   /** flutter / firebase / node, from pubspec.yaml / firebase.json / package.json */
   kinds: string[];
@@ -252,6 +267,10 @@ export interface DevPanelApi {
   alerts: {
     check(): Promise<void>;
     onFailure(cb: (f: { repo: string; url: string }) => void): void;
+  };
+  health: {
+    local(path: string): Promise<HealthResult>;
+    repo(name: string): Promise<HealthResult>;
   };
   local: {
     list(): Promise<LocalProject[]>;

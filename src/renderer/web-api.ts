@@ -163,6 +163,10 @@ export function createWebApi(): DevPanelApi {
       onOutput: () => {},
       onExit: () => {},
     },
+    health: {
+      local: async () => ({ ok: false as const, error: 'Solo disponible en la app de escritorio' }),
+      repo: async () => ({ ok: false as const, error: 'Solo disponible en la app de escritorio' }),
+    },
     local: {
       list: async () => [],
       add: async () => null,

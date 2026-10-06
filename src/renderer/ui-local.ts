@@ -4,6 +4,7 @@ import { tr } from './i18n.js';
 import { icon } from './icons.js';
 import { pushNotice } from './notifications.js';
 import { setClaudeProjects } from './ui-claude.js';
+import { checkLabel, healthChip, runHealth } from './ui-health.js';
 
 const api = () => window.devpanel;
 let activeRun: number | null = null;
@@ -11,6 +12,7 @@ let activeRun: number | null = null;
 /** Results of the on-demand scans, kept per project so the chips survive a refresh. */
 const l10nMissing = new Map<string, number>();
 const secretCount = new Map<string, number>();
+const healthOf = new Map<string, Parameters<typeof healthChip>[0]>();
 let lastProjects: LocalProject[] = [];
 
 export const getLocalProjects = (): readonly LocalProject[] => lastProjects;
@@ -87,6 +89,20 @@ async function compareLanguages(p: LocalProject): Promise<void> {
   if (!r.missingCount) term(`${tr('Idiomas al día')}\n`, 'ok');
   for (const [lang, keys] of Object.entries(r.missing)) term(`  ${lang}: ${tr('faltan')} ${keys.length} → ${keys.slice(0, 12).join(', ')}${keys.length > 12 ? '…' : ''}\n`, 'err');
   toast(r.missingCount ? `Idiomas: faltan ${r.missingCount} claves` : 'Idiomas al día', r.missingCount ? 'bad' : 'ok');
+  void refresh();
+}
+
+async function checkHealth(p: LocalProject, btn: HTMLButtonElement): Promise<void> {
+  term(`
+$ ${tr('Salud del proyecto')}
+`, 'cmd');
+  const r = await runHealth(() => api().health.local(p.path), btn);
+  if (!r) return;
+  healthOf.set(p.path, r);
+  term(`${r.name}: ${r.grade} · ${r.score}/100
+`, r.score >= 75 ? 'ok' : 'err');
+  for (const c of r.checks.filter((x) => !x.ok)) term(`  ✗ ${checkLabel(c.id)}: ${c.detail}
+`, 'err');
   void refresh();
 }
 
@@ -167,6 +183,8 @@ function card(p: LocalProject): HTMLElement {
     if (p.git.behind) chips.append(chip('arrowdown', String(p.git.behind), 'Commits por bajar', 'warn behind'));
     const miss = l10nMissing.get(p.path);
     if (miss !== undefined) chips.append(chip('globe', miss ? String(miss) : '', miss ? 'Claves de idioma que faltan' : 'Idiomas al día', miss ? 'warn l10n' : 'ok l10n'));
+    const h = healthOf.get(p.path);
+    if (h) chips.append(healthChip(h));
     const sec = secretCount.get(p.path);
     if (sec !== undefined) chips.append(chip(sec ? 'shield' : 'checkcircle', sec ? String(sec) : '', sec ? 'Posibles secretos' : 'Sin secretos a la vista', sec ? 'bad secrets' : 'ok secrets'));
     if (p.lastCommit) chips.append(el('span', 'muted', `${p.lastCommit.subject} · ${p.lastCommit.when}`));
@@ -188,6 +206,7 @@ function card(p: LocalProject): HTMLElement {
   }
   for (const r of p.recipes) row.append(ib(r.icon, r.tip, () => void runWith(r.tip, () => api().local.recipe(p.path, r.id)), 'recipe-btn'));
   if (p.hasL10n) row.append(ib('globe', 'Comparar idiomas', () => void compareLanguages(p)));
+  if (p.exists) row.append(ib('gauge', 'Salud del proyecto', (b) => void checkHealth(p, b)));
   if (p.isGit) row.append(ib('shield', 'Buscar secretos', () => void scanSecrets(p)));
   row.append(
     ib('code', 'Abrir en VS Code', () => void api().local.open(p.path, 'code')),

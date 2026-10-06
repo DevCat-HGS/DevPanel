@@ -6,6 +6,7 @@ import { mt } from './i18n-main';
 import { setupClaude, stopAllClaude } from './claude';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
+import { setupHealth } from './health';
 import { listCommits, listFailing, listItems, listOpenPulls, listRepos, listRuns, lookupUser, rerunFailed } from './github';
 import { setupNotes } from './notes';
 import { setupSoftware, stopAllInstalls } from './software';
@@ -151,6 +152,7 @@ app.whenReady().then(() => {
   win = createWindow();
   const getWin = () => (win && !win.isDestroyed() ? win : null);
   setupLocal(getWin);
+  setupHealth();
   setupClaude(getWin);
   setupSoftware(getWin);
   setupAlerts(getWin);

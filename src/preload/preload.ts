@@ -48,6 +48,10 @@ const api: DevPanelApi = {
     onOutput: (cb) => ipcRenderer.on('claude:output', (_e, m) => cb(m)),
     onExit: (cb) => ipcRenderer.on('claude:exit', (_e, m) => cb(m)),
   },
+  health: {
+    local: (p) => ipcRenderer.invoke('health:local', p),
+    repo: (n) => ipcRenderer.invoke('health:repo', n),
+  },
   local: {
     list: () => ipcRenderer.invoke('local:list'),
     add: () => ipcRenderer.invoke('local:add'),

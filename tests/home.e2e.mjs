@@ -75,9 +75,12 @@ try {
   let page = await app.firstWindow();
   await page.setViewportSize({ width: 1100, height: 760 });
   await page.waitForSelector('#view-home:not(.hidden)');
-  assert.equal(await page.locator('.hw').count(), 4);
+  assert.equal(await page.locator('.hw').count(), 5);
+  assert.equal(await page.locator('.hw[open]').count(), 0, 'panels start collapsed to save space');
+  const openPanels = () => page.evaluate(() => document.querySelectorAll('.hw:not([data-id="health"])').forEach((d) => (d.open = true)));
+  await openPanels();
   await page.waitForFunction(() => document.querySelector('.hw[data-id="failing"] .hw-count')?.textContent === '1', null, { timeout: 20000 });
-  log('Home is the landing view with four widgets');
+  log('Home is the landing view with five collapsible panels');
 
   assert.equal(await widget(page, 'failing').locator('.hw-row .hw-main').textContent(), 'api-service');
   assert.equal(await widget(page, 'failing').locator('.hw-row .hw-sub').textContent(), 'main');
@@ -116,6 +119,7 @@ try {
   page = await app.firstWindow();
   await page.setViewportSize({ width: 1100, height: 760 });
   await page.waitForSelector('#view-home:not(.hidden)');
+  await openPanels();
   await page.waitForSelector('.hw[data-id="failing"] .hw-ok:not(.hw-err)', { timeout: 20000 });
   assert.ok(await widget(page, 'failing').locator('.hw-count').isHidden(), 'no count when there is nothing to fix');
   await page.waitForSelector('.hw[data-id="pulls"] .hw-ok.hw-err');

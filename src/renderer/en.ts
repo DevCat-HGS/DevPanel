@@ -6,8 +6,6 @@ export const EN: Record<string, string> = {
   'Principal': 'Main',
   'Cambiar tema': 'Toggle theme',
   'Guardar': 'Save',
-  'Bienvenido, soy Sharon': "Welcome, I'm Sharon",
-  'IA MCP en proceso': 'MCP AI in progress',
   'Notificaciones': 'Notifications',
   'Borrar todo': 'Clear all',
   'Sin notificaciones': 'No notifications',
