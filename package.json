@@ -26,7 +26,7 @@
     "electron-builder": "^25.1.8",
     "playwright-core": "^1.63.0",
     "simple-icons": "^16.34.0",
-    "typescript": "^5.7.2"
+    "typescript": "^7.0.2"
   },
   "build": {
     "appId": "com.devcat.devpanel",
