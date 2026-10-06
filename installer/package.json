@@ -15,7 +15,7 @@
     "@types/node": "^22.10.0",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
-    "typescript": "^5.7.2"
+    "typescript": "^7.0.2"
   },
   "build": {
     "appId": "com.devcat.devpanel.installer",
