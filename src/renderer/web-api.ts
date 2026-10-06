@@ -156,6 +156,12 @@ export function createWebApi(): DevPanelApi {
       clear: async () => {},
     },
     alerts: { check: async () => {}, onFailure: () => {} },
+    claude: {
+      run: async () => ({ error: 'Solo disponible en la app de escritorio' }),
+      stop: async () => {},
+      onOutput: () => {},
+      onExit: () => {},
+    },
     local: {
       list: async () => [],
       add: async () => null,

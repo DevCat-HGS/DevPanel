@@ -274,6 +274,13 @@ export interface DevPanelApi {
     onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
     onExit(cb: (m: { id: number; code: number }) => void): void;
   };
+  claude: {
+    /** Runs `claude -p` with the prompt in a registered project. 'read' only inspects (plan mode), 'edit' auto-approves file edits. */
+    run(path: string, prompt: string, mode: 'read' | 'edit'): Promise<{ id: number } | { error: string }>;
+    stop(id: number): Promise<void>;
+    onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
+    onExit(cb: (m: { id: number; code: number }) => void): void;
+  };
   notes: {
     /** Release notes (markdown) of a version, or of the running one; null if none. */
     get(version?: string): Promise<string | null>;

@@ -13,6 +13,7 @@ import { getLocalProjects, initLocal, runScriptFrom } from './ui-local.js';
 import { initRepoModal, openRepo } from './ui-repo.js';
 import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
 import { initSoftware, installable, requestInstall } from './ui-software.js';
+import { initClaude } from './ui-claude.js';
 import { initTools, TOOLS } from './ui-tools.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
@@ -244,9 +245,11 @@ async function showApp(): Promise<void> {
   initHome({ repos: () => allRepos, openRepo, goLocal: () => goView('local') });
   $('home-sub').textContent = s.githubUser ? `Hola, ${s.githubUser}` : '';
   initLocal();
+  initClaude();
   initNotes();
   void checkWhatsNew();
   $('nav-local').classList.toggle('hidden', web);
+  $('nav-claude').classList.toggle('hidden', web);
   initPalette(paletteItems);
   void showChannel();
   void initPrefs();

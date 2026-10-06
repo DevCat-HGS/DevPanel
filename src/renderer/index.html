@@ -105,6 +105,10 @@
             <span class="ico" data-icon="tools" aria-hidden="true"></span>
             <span class="nav-label">Tools</span>
           </button>
+          <button id="nav-claude" class="nav" data-view="claude">
+            <span class="ico" data-icon="sparkles" aria-hidden="true"></span>
+            <span class="nav-label">Claude Code</span>
+          </button>
         </nav>
         <div id="update-box" class="update-box hidden" role="status"></div>
         <div class="side-foot">
@@ -194,6 +198,36 @@
               <button id="term-clear" class="btn small ghost">Limpiar</button>
             </div>
             <pre id="term-out" aria-live="polite" data-no-i18n></pre>
+          </div>
+        </section>
+
+        <section id="view-claude" class="view hidden">
+          <header class="view-head">
+            <div>
+              <h2>Claude Code</h2>
+              <p class="muted">Dale una instrucción a Claude dentro de uno de tus proyectos locales.</p>
+            </div>
+          </header>
+          <div class="cc-panel">
+            <div class="cc-bar">
+              <select id="cc-project" aria-label="Proyecto"></select>
+              <div id="cc-mode" class="seg" role="group" aria-label="Modo">
+                <button class="active" data-m="read" title="Solo lectura: Claude analiza y propone, no modifica archivos" aria-label="Solo lectura"><span data-icon="search"></span></button>
+                <button data-m="edit" title="Edición: Claude puede modificar archivos del proyecto" aria-label="Edición"><span data-icon="edit"></span></button>
+              </div>
+            </div>
+            <textarea id="cc-prompt" rows="4" maxlength="8000" placeholder="Ej.: explícame cómo funciona el módulo de wallet, o corrige el error del login" aria-label="Instrucción para Claude"></textarea>
+            <div class="cc-actions">
+              <span id="cc-hint" class="muted"></span>
+              <span class="spacer"></span>
+              <button id="cc-stop" class="btn small danger" disabled>Detener</button>
+              <button id="cc-clear" class="btn small ghost">Limpiar</button>
+              <button id="cc-send" class="btn primary">Enviar</button>
+            </div>
+          </div>
+          <div class="term cc-term">
+            <div class="term-head"><span id="cc-title">Respuesta</span></div>
+            <pre id="cc-out" aria-live="polite" data-no-i18n></pre>
           </div>
         </section>
 

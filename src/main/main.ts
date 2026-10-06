@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Settings } from '../shared/api';
 import { setupAlerts } from './alerts';
 import { mt } from './i18n-main';
+import { setupClaude, stopAllClaude } from './claude';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
 import { listCommits, listFailing, listItems, listOpenPulls, listRepos, listRuns, lookupUser, rerunFailed } from './github';
@@ -150,6 +151,7 @@ app.whenReady().then(() => {
   win = createWindow();
   const getWin = () => (win && !win.isDestroyed() ? win : null);
   setupLocal(getWin);
+  setupClaude(getWin);
   setupSoftware(getWin);
   setupAlerts(getWin);
   setupUpdater(win, () => loadSettings().githubUser);
@@ -164,6 +166,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   quitting = true;
   stopAllLocal();
+  stopAllClaude();
   stopAllInstalls();
 });
 app.on('will-quit', () => globalShortcut.unregisterAll());

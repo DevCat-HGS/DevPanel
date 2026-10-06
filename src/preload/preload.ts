@@ -41,6 +41,12 @@ const api: DevPanelApi = {
     check: () => ipcRenderer.invoke('alerts:check'),
     onFailure: (cb) => ipcRenderer.on('alert:failure', (_e, f) => cb(f)),
   },
+  claude: {
+    run: (p, prompt, mode) => ipcRenderer.invoke('claude:run', p, prompt, mode),
+    stop: (id) => ipcRenderer.invoke('claude:stop', id),
+    onOutput: (cb) => ipcRenderer.on('claude:output', (_e, m) => cb(m)),
+    onExit: (cb) => ipcRenderer.on('claude:exit', (_e, m) => cb(m)),
+  },
   local: {
     list: () => ipcRenderer.invoke('local:list'),
     add: () => ipcRenderer.invoke('local:add'),

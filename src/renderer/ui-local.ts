@@ -3,6 +3,7 @@ import { $, el, toast } from './dom.js';
 import { tr } from './i18n.js';
 import { icon } from './icons.js';
 import { pushNotice } from './notifications.js';
+import { setClaudeProjects } from './ui-claude.js';
 
 const api = () => window.devpanel;
 let activeRun: number | null = null;
@@ -218,6 +219,7 @@ export async function refresh(): Promise<void> {
   const box = $('local-list');
   const projects = await api().local.list();
   lastProjects = projects;
+  setClaudeProjects(projects);
   // keep a half-typed commit message when the list redraws
   const typed = new Map<string, string>();
   box.querySelectorAll<HTMLElement>('.local-card').forEach((c) => {
