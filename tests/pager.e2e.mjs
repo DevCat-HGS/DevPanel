@@ -18,6 +18,7 @@ const repos = Array.from({ length: N }, (_, i) => ({
 }));
 const COMMITS_TOTAL = 19; // pages of 8, 8 and 3
 
+const rerunAuth = [];
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const send = (code, body, headers = {}) => {
@@ -40,8 +41,30 @@ const server = http.createServer((req, res) => {
   if (url.pathname.startsWith('/repos/DevCat-HGS/DevPanel/releases/tags/')) {
     return send(200, { body: "## ✨ Novedades · What's new\n- **app:** diálogo de novedades con color\n- **installer:** instalador conversacional\n\n## 🐛 Correcciones · Fixes\n- **tray:** cerrar deja la app en la bandeja\n\n## 🔧 Mejoras internas · Under the hood\n- **ci:** pruebas end-to-end\n- **docs:** README" });
   }
+  if (req.method === 'POST' && /^\/repos\/octocat\/[^/]+\/actions\/runs\/11\/rerun-failed-jobs$/.test(url.pathname)) {
+    rerunAuth.push(req.headers.authorization ?? '');
+    return send(201, {});
+  }
+  if (/^\/repos\/octocat\/[^/]+\/pulls$/.test(url.pathname)) {
+    const pg = Number(url.searchParams.get('page') ?? 1);
+    const from = (pg - 1) * 8;
+    const items = Array.from({ length: Math.max(0, Math.min(8, 10 - from)) }, (_, i) => ({
+      id: 1000 + from + i, number: from + i + 1, title: `PR ${from + i + 1}`, html_url: `https://github.com/octocat/x/pull/${from + i + 1}`,
+      updated_at: new Date().toISOString(), draft: from + i === 1, user: { login: 'mona' },
+    }));
+    return send(200, items, from + 8 < 10 ? { Link: '<http://x/pulls?page=2>; rel="next"' } : {});
+  }
+  if (/^\/repos\/octocat\/[^/]+\/issues$/.test(url.pathname)) {
+    const mk = (n, extra = {}) => ({ id: 2000 + n, number: n, title: `Issue ${n}`, html_url: `https://github.com/octocat/x/issues/${n}`, updated_at: new Date().toISOString(), user: { login: 'mona' }, ...extra });
+    return send(200, [mk(1), mk(2), mk(3), mk(4, { title: 'esto es un PR', pull_request: {} })]);
+  }
   if (/^\/repos\/octocat\/[^/]+\/actions\/runs$/.test(url.pathname)) {
-    return send(200, { workflow_runs: [{ name: 'CI', status: 'completed', conclusion: 'success', html_url: 'https://github.com/octocat/x/actions/runs/1', updated_at: new Date().toISOString() }] });
+    const now = new Date().toISOString();
+    return send(200, { workflow_runs: [
+      { id: 10, name: 'CI', status: 'completed', conclusion: 'success', head_branch: 'main', html_url: 'https://github.com/octocat/x/actions/runs/10', updated_at: now },
+      { id: 11, name: 'Deploy', status: 'completed', conclusion: 'failure', head_branch: 'release', html_url: 'https://github.com/octocat/x/actions/runs/11', updated_at: now },
+      { id: 12, name: 'Nightly', status: 'in_progress', conclusion: null, head_branch: 'main', html_url: 'https://github.com/octocat/x/actions/runs/12', updated_at: now },
+    ] });
   }
   return send(404, {});
 });
@@ -164,6 +187,52 @@ try {
   await page.click('#notes-close');
   await page.waitForSelector('#notes-modal.hidden', { state: 'attached' });
   log('the release notes dialog shows coloured groups (news, fixes, internal) with scope chips');
+
+  // ---------- pull requests / issues / Actions tabs ----------
+  await page.click('.repo:has(.name:text("repo-06"))');
+  await page.waitForSelector('#repo-modal:not(.hidden)');
+  for (const b of await page.locator('.rm-tab').all()) {
+    assert.equal((await b.textContent()).trim(), '', 'tabs are icons');
+    assert.ok(await b.getAttribute('title'));
+  }
+  await page.click('.rm-tab[data-tab="pulls"]');
+  await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 8);
+  assert.equal(await page.textContent('#rm-commits .commit.item .sha'), '#1');
+  await page.click('#rm-pager .pg-btn[aria-label="Siguiente"]');
+  await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 2);
+  assert.ok(await page.locator('#rm-pager .pg-btn[aria-label="Siguiente"]').isDisabled());
+  await page.click('.rm-tab[data-tab="issues"]');
+  await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 3);
+  assert.ok(!(await page.textContent('#rm-commits')).includes('esto es un PR'), 'pull requests are filtered out of the issues tab');
+  await page.click('.rm-tab[data-tab="runs"]');
+  await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 3);
+  assert.equal(await page.locator('#rm-commits .run-i.st-ok').count(), 1);
+  assert.equal(await page.locator('#rm-commits .run-i.st-bad').count(), 1);
+  assert.equal(await page.locator('#rm-commits .run-i.st-busy .spinner').count(), 1);
+  assert.equal(await page.locator('#rm-commits .rerun').count(), 1, 'only the failed run offers a re-run');
+  assert.equal(await page.textContent('#rm-commits .commit.item:nth-child(2) .chip'), 'release');
+  await shot(page, 'p4-runs-tab');
+  log('the folder has icon tabs: pull requests (paged), issues (without PRs) and Actions runs with their status');
+
+  await page.click('#rm-commits .rerun');
+  await page.waitForSelector('.toast.bad');
+  assert.match(await page.textContent('.toast.bad'), /token/);
+  assert.equal(rerunAuth.length, 0, 'nothing is sent to GitHub without a token');
+  log('re-running a failed workflow without a token explains what is missing and sends nothing');
+  await app.close();
+
+  app = await electron.launch({ args: ['.'], env: { ...env, GITHUB_TOKEN: 'ghp_' + 'z'.repeat(36) } });
+  const page2 = await app.firstWindow();
+  await page2.setViewportSize({ width: 1100, height: 760 });
+  await page2.click('.nav[data-view="projects"]');
+  await page2.waitForSelector('.repo:not(.skeleton)', { timeout: 20000 });
+  await page2.click('.repo:has(.name:text("repo-06"))');
+  await page2.click('.rm-tab[data-tab="runs"]');
+  await page2.waitForSelector('#rm-commits .rerun');
+  await page2.click('#rm-commits .rerun');
+  await page2.waitForSelector('.toast.ok');
+  assert.deepEqual(rerunAuth, ['Bearer ghp_' + 'z'.repeat(36)], 'the re-run is sent with the token');
+  log('with a token the failed jobs are re-run through the GitHub API');
 
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {

@@ -86,6 +86,23 @@ export function createWebApi(): DevPanelApi {
           hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
         };
       },
+      items: async (repo, kind, page = 1) => {
+        const base = `${API}/repos/${user()}/${encodeURIComponent(repo)}`;
+        const paging = `per_page=8&page=${Math.max(1, page)}`;
+        const res = await fetch(kind === 'runs' ? `${base}/actions/runs?${paging}` : `${base}/${kind === 'pulls' ? 'pulls' : 'issues'}?state=open&${paging}`, {
+          headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (!res.ok) throw new Error(`GitHub ${res.status}`);
+        const json = await res.json();
+        const hasMore = /rel="next"/.test(res.headers.get('link') ?? '');
+        if (kind === 'runs')
+          return { hasMore, items: (json.workflow_runs as any[]).map((r) => ({ id: r.id, title: r.name, url: r.html_url, date: r.updated_at, status: r.status, conclusion: r.conclusion, branch: r.head_branch })) };
+        return {
+          hasMore,
+          items: (json as any[]).filter((i) => kind === 'pulls' || !i.pull_request).map((i) => ({ id: i.id, number: i.number, title: i.title, url: i.html_url, author: i.user?.login, date: i.updated_at, draft: !!i.draft })),
+        };
+      },
+      rerun: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
       failing: async () => {
         const repos = (await gh<Repo[]>(`/users/${user()}/repos?sort=pushed&per_page=8`)).filter((r) => !r.archived);
         const out: FailingRun[] = [];

@@ -1,4 +1,4 @@
-import type { CommitPage, FailingRun, GithubProfile, PullSummary, Repo, WorkflowRun } from '../shared/api';
+import type { CommitPage, FailingRun, GithubProfile, ItemPage, PullSummary, Repo, RepoListKind, WorkflowRun } from '../shared/api';
 
 import type { RunInfo } from './alerts-core';
 import { getToken, tokenOwns } from './token';
@@ -145,4 +145,54 @@ export async function listOpenPulls(user: string): Promise<PullSummary[]> {
     draft: !!i.draft,
     author: i.user?.login ?? '',
   }));
+}
+
+// ---------- per-repository lists (pull requests, issues, Actions runs) ----------
+export const ITEMS_PER_PAGE = 8;
+
+export async function listItems(user: string, repo: string, kind: RepoListKind, page = 1): Promise<ItemPage> {
+  const p = Math.max(1, Math.floor(Number(page)) || 1);
+  const base = `/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}`;
+  const paging = `per_page=${ITEMS_PER_PAGE}&page=${p}`;
+
+  if (kind === 'runs') {
+    const res = await ghFetch(`${base}/actions/runs?${paging}`);
+    const raw = ((await res.json()) as { workflow_runs: any[] }).workflow_runs ?? [];
+    return {
+      items: raw.map((r) => ({
+        id: r.id, title: r.name ?? r.display_title ?? 'workflow', url: r.html_url, date: r.updated_at ?? r.created_at,
+        status: r.status, conclusion: r.conclusion, branch: r.head_branch,
+      })),
+      hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
+    };
+  }
+
+  const res = await ghFetch(`${base}/${kind === 'pulls' ? 'pulls' : 'issues'}?state=open&${paging}`);
+  const raw = (await res.json()) as any[];
+  return {
+    // the issues endpoint also returns pull requests: they have their own tab
+    items: raw
+      .filter((i) => kind === 'pulls' || !i.pull_request)
+      .map((i) => ({ id: i.id, number: i.number, title: i.title, url: i.html_url, author: i.user?.login, date: i.updated_at, draft: !!i.draft })),
+    hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
+  };
+}
+
+/** Re-runs the failed jobs of a workflow run. Needs a token that can write Actions. */
+export async function rerunFailed(user: string, repo: string, runId: number): Promise<{ ok: boolean; error?: string }> {
+  const token = getToken();
+  if (!token) return { ok: false, error: 'Necesitas un token de GitHub con permiso de Actions: guárdalo en Settings.' };
+  if (!Number.isInteger(runId) || runId <= 0) return { ok: false, error: 'Ejecución no válida' };
+  try {
+    const res = await fetch(`${API}/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/actions/runs/${runId}/rerun-failed-jobs`, {
+      method: 'POST',
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel', Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) return { ok: true };
+    if (res.status === 403 || res.status === 401) return { ok: false, error: 'Tu token no tiene permiso para reintentar workflows (Actions: write).' };
+    if (res.status === 404) return { ok: false, error: 'No se encontró esa ejecución.' };
+    return { ok: false, error: `GitHub respondió ${res.status}` };
+  } catch {
+    return { ok: false, error: 'No se pudo contactar a GitHub' };
+  }
 }

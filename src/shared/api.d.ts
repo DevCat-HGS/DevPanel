@@ -36,6 +36,27 @@ export interface PullSummary {
   author: string;
 }
 
+export type RepoListKind = 'pulls' | 'issues' | 'runs';
+
+/** One row of the pull requests / issues / Actions runs tabs. */
+export interface RepoItem {
+  id: number;
+  number?: number;
+  title: string;
+  url: string;
+  author?: string;
+  date: string;
+  draft?: boolean;
+  status?: string;
+  conclusion?: string | null;
+  branch?: string;
+}
+
+export interface ItemPage {
+  items: RepoItem[];
+  hasMore: boolean;
+}
+
 export interface CommitPage {
   commits: Commit[];
   /** true when there is a next page. */
@@ -157,6 +178,10 @@ export interface DevPanelApi {
     lookup(input: string): Promise<GithubProfile>;
     repos(): Promise<Repo[]>;
     commits(repo: string, page?: number): Promise<CommitPage>;
+    /** Open pull requests, open issues or Actions runs of one repository (paged). */
+    items(repo: string, kind: RepoListKind, page?: number): Promise<ItemPage>;
+    /** Re-runs the failed jobs of a workflow run (needs a token with Actions: write). */
+    rerun(repo: string, runId: number): Promise<{ ok: boolean; error?: string }>;
     /** Recent repos whose latest Actions run failed. */
     failing(): Promise<FailingRun[]>;
     /** Open pull requests involving the linked user. */

@@ -13,6 +13,8 @@ const api: DevPanelApi = {
     repos: () => ipcRenderer.invoke('github:repos'),
     commits: (repo, page) => ipcRenderer.invoke('github:commits', repo, page),
     runs: (repo) => ipcRenderer.invoke('github:runs', repo),
+    items: (repo, kind, page) => ipcRenderer.invoke('github:items', repo, kind, page),
+    rerun: (repo, runId) => ipcRenderer.invoke('github:rerun', repo, runId),
     failing: () => ipcRenderer.invoke('github:failing'),
     pulls: () => ipcRenderer.invoke('github:pulls'),
   },
