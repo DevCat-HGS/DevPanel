@@ -106,8 +106,8 @@ try {
   await card(page).locator('button[title="Hacer commit"]').click();
   await page.fill('.commit-row input', 'no debería entrar');
   await page.press('.commit-row input', 'Enter');
-  await page.waitForSelector('.toast.bad');
-  assert.match(await page.textContent('.toast.bad'), /secretos/);
+  await page.waitForSelector('.toast.bad:has-text("secretos")'); // an older toast may still be on screen
+  assert.match(await page.textContent('.toast.bad:has-text("secretos")'), /secretos/);
   assert.equal(run(proj, 'log', '-1', '--format=%H'), before, 'nothing was committed');
   const t2 = await term(page);
   assert.match(t2, /config\.txt:1\s+\[aws-access-key\]/);
