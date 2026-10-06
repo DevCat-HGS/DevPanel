@@ -8,7 +8,7 @@ import type { GithubProfile, InstallOptions, Progress, ReleaseInfo } from '../sh
 
 const REPO = 'DevCat-HGS/DevPanel';
 /** The development channel (prereleases) is reserved for this account. */
-const DEV_OWNER = 'DevCat-HGS';
+const DEV_OWNERS = ['DevCat-HGS', 'GalletasU'];
 
 // Same folder the app uses, so the account, code and face configured here are picked up on first launch.
 app.setPath('userData', process.env.DEVPANEL_USER_DATA ?? join(app.getPath('appData'), 'DevPanel'));
@@ -310,8 +310,8 @@ async function install(opts: InstallOptions): Promise<void> {
   }
   if (opts.channel === 'dev') {
     const who = opts.account?.github ?? existingAccount()?.githubUser ?? '';
-    if (who.toLowerCase() !== DEV_OWNER.toLowerCase())
-      return send({ phase: 'error', message: `El canal de desarrollo está reservado para ${DEV_OWNER}` });
+    if (!DEV_OWNERS.some((o) => o.toLowerCase() === who.toLowerCase()))
+      return send({ phase: 'error', message: `El canal de desarrollo está reservado para ${DEV_OWNERS.join(', ')}` });
   }
   if (opts.account && !/^\d{4}$/.test(opts.account.pin)) {
     return send({ phase: 'error', message: 'El código debe tener 4 dígitos' });
@@ -391,7 +391,7 @@ app.whenReady().then(() => {
   void win.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
 
   ipcMain.handle('info', async () => {
-    const base = { defaultDir: defaultDir(), existing: existingAccount(), devOwner: DEV_OWNER };
+    const base = { defaultDir: defaultDir(), existing: existingAccount(), devOwners: DEV_OWNERS };
     try {
       return { ...base, release: (await fetchRelease('stable')).info };
     } catch (e) {

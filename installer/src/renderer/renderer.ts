@@ -90,7 +90,7 @@ let installDir = '';
 let installedDir = '';
 let lastOpts: InstallOptions | null = null;
 let existing: { githubUser: string } | null = null;
-let devOwner = '';
+let devOwners: string[] = [];
 let linked: GithubProfile | null = null;
 let chosenPin = '';
 let chosenChannel: 'stable' | 'dev' = 'stable';
@@ -221,7 +221,7 @@ addEventListener('keydown', (e) => {
   const info = await api.info();
   installDir = info.defaultDir;
   existing = info.existing;
-  devOwner = info.devOwner;
+  devOwners = info.devOwners;
   $<HTMLInputElement>('dir').value = installDir;
 
   if (info.release) {
@@ -249,7 +249,7 @@ function updateStepper(name: Screen): void {
 }
 
 // ---------- Conversational setup ----------
-const isOwner = (login: string) => !!login && login.toLowerCase() === devOwner.toLowerCase();
+const isOwner = (login: string) => !!login && devOwners.some((o) => o.toLowerCase() === login.toLowerCase());
 
 /** Entry point from "Instalar ahora": a returning user skips the questions. */
 function openAccount(): void {

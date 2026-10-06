@@ -451,6 +451,6 @@ export const EN: Record<string, string> = {
   'Reiniciar y actualizar': 'Restart and update',
   'Canal: Estable.': 'Channel: Stable.',
   'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).': 'Channel: Development (early changes, for your account only).',
-  'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.':
-    'Channel: Development, reserved for DevCat-HGS. This account will only get stable versions.',
+  'Canal: Desarrollo, reservado para DevCat-HGS y GalletasU. Esta cuenta recibirá solo versiones estables.':
+    'Channel: Development, reserved for DevCat-HGS and GalletasU. This account will only get stable versions.',
 };

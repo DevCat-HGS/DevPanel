@@ -41,7 +41,7 @@ export interface InstallerApi {
     error?: string;
     /** Account already configured on this machine (reinstall / update). */
     existing: { githubUser: string } | null;
-    devOwner: string;
+    devOwners: string[];
   }>;
   lookup(input: string): Promise<GithubProfile>;
   pickDir(current: string): Promise<string | null>;

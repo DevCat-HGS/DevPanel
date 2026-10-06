@@ -386,7 +386,7 @@ async function showChannel(): Promise<void> {
   const tip = dev
     ? c.allowed
       ? 'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).'
-      : 'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.'
+      : 'Canal: Desarrollo, reservado para DevCat-HGS y GalletasU. Esta cuenta recibirá solo versiones estables.'
     : 'Canal: Estable.';
   chip.title = tip;
   chip.setAttribute('aria-label', tip);
