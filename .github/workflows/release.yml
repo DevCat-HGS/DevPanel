@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           pip install opencv-python numpy pyinstaller
-          (cd python && python -m unittest -q test_liveness)
+          (cd python && python -m unittest -q test_liveness test_face_speed)
           PYTHONPATH=python python -m PyInstaller --onefile --name face_auth python/face_auth.py \
             --distpath python --workpath build/pyi --specpath build/pyi --paths python --noconfirm --log-level WARN
           python/face_auth.exe selftest --models-dir "$RUNNER_TEMP/face-models"
