@@ -913,3 +913,21 @@ a.notif-row:hover { border-color: var(--c); }
 .sharon-text p { margin: 8px 0 18px; font-size: 16px; }
 .sharon-bar { height: 6px; max-width: 460px; }
 @media (max-width: 720px) { .sharon { flex-direction: column; text-align: center; padding: 26px 20px; gap: 20px; } .orb { width: 132px; height: 132px; } .sharon-text h3 { font-size: 24px; } }
+
+/* Home polish: tinted widget cards, icon badges, lifted hover */
+.home-grid { gap: 20px; }
+.hw { position: relative; overflow: hidden; padding: 20px 22px 14px; border-top-width: 1px; border-color: color-mix(in srgb, var(--c) 28%, var(--border)); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 9%, var(--panel)), var(--panel) 55%); box-shadow: 0 8px 24px rgba(0,0,0,.18); transition: transform .25s var(--ease), box-shadow .25s, border-color .25s; }
+.hw::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--c), transparent); }
+.hw:hover { transform: translateY(-3px); border-color: var(--c); box-shadow: 0 14px 32px rgba(0,0,0,.26); }
+.hw.has-items.hw-bad { background: linear-gradient(160deg, color-mix(in srgb, var(--bad) 14%, var(--panel)), var(--panel) 60%); }
+.hw-head { gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid color-mix(in srgb, var(--c) 18%, var(--border)); }
+.hw-head > svg { box-sizing: content-box; width: 20px; height: 20px; padding: 8px; border-radius: 12px; background: color-mix(in srgb, var(--c) 16%, transparent); }
+.hw-head h3 { font-size: 15.5px; letter-spacing: -.1px; }
+.hw-head .chip { min-width: 26px; text-align: center; padding: 3px 10px; border-radius: 999px; font-weight: 700; background: color-mix(in srgb, var(--c) 12%, transparent); }
+.hw-row { padding: 10px 10px; border-radius: 12px; transition: background .2s, transform .2s var(--ease); }
+.hw-row:hover { transform: translateX(3px); background: color-mix(in srgb, var(--c) 10%, var(--panel-hover)); }
+.hw-row > svg { box-sizing: content-box; width: 15px; height: 15px; padding: 6px; border-radius: 9px; background: color-mix(in srgb, var(--c) 13%, transparent); }
+.hw-ok { padding: 14px 0; }
+.hw-ok svg { width: 34px; height: 34px; }
+.hw-body { min-height: 64px; }
+@media (prefers-reduced-motion: reduce) { .hw, .hw-row { transition: none; } .hw:hover, .hw-row:hover { transform: none; } }

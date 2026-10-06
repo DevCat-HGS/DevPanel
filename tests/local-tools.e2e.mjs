@@ -31,7 +31,7 @@ run(proj, 'push', '-q', '-u', 'origin', 'main');
 
 const userData = mkdtempSync(join(tmpdir(), 'devpanel-lt-data-'));
 writeFileSync(join(userData, 'settings.json'), JSON.stringify({ language: 'es', onboarded: true, githubUser: 'octocat' }));
-const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj, DEVPANEL_GITHUB_API: 'http://127.0.0.1:9' };
+const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t.t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t.t', DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj, DEVPANEL_GITHUB_API: 'http://127.0.0.1:9' };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.GITHUB_TOKEN; // CI exports one: these tests control the token themselves
 
