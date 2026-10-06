@@ -2,19 +2,21 @@ import { BrowserWindow, ipcMain, shell } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import type { Catalog, CatalogItem, SoftwareProgress, SoftwareStatus } from '../shared/api';
 import catalogJson from '../shared/catalog.json';
-import { extractVersion, findExisting, parseWingetChunk, WINGET_OK_CODES } from './software-core';
+import { extractVersion, findExisting, parseUpgradeList, parseWingetChunk, WINGET_OK_CODES } from './software-core';
 
 const catalog = catalogJson as Catalog;
 const find = (id: string): CatalogItem | undefined => catalog.items.find((i) => i.id === id);
 
-// DEVPANEL_FAKE_SOFTWARE='{"git":"2.47.0"}' pretends only those are installed and fakes installs,
-// so automated tests never touch the real machine.
+// DEVPANEL_FAKE_SOFTWARE='{"git":"2.47.0"}' pretends only those are installed and fakes installs/upgrades,
+// DEVPANEL_FAKE_SOFTWARE_UPDATES='["git"]' pretends those have a newer version: tests never touch the machine.
 const fake: Record<string, string> | null = process.env.DEVPANEL_FAKE_SOFTWARE
   ? JSON.parse(process.env.DEVPANEL_FAKE_SOFTWARE)
   : null;
+const fakeUpdates: string[] = process.env.DEVPANEL_FAKE_SOFTWARE_UPDATES ? JSON.parse(process.env.DEVPANEL_FAKE_SOFTWARE_UPDATES) : [];
 
 /** Installed during this session: a fresh PATH is not visible to this process until it restarts. */
 const installedNow = new Set<string>();
+const upgradedNow = new Set<string>();
 const running = new Map<string, ChildProcess>();
 
 const lookupCmd = process.platform === 'win32' ? 'where' : 'which';
@@ -51,13 +53,41 @@ async function detectOne(item: CatalogItem, emit: (s: SoftwareStatus) => void): 
   return full;
 }
 
+/** Ids (from the catalog) with a newer version, according to `winget upgrade`. */
+function wingetUpgradable(): Promise<string[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'winget',
+      ['upgrade', '--accept-source-agreements', '--disable-interactivity'],
+      { windowsHide: true, timeout: 90_000, maxBuffer: 4_000_000 },
+      (_err, stdout) => {
+        const wanted = catalog.items.filter((i) => i.winget).map((i) => i.winget!);
+        const hits = new Set(parseUpgradeList(String(stdout), wanted));
+        resolve(catalog.items.filter((i) => i.winget && hits.has(i.winget)).map((i) => i.id));
+      },
+    );
+  });
+}
+
 export function setupSoftware(getWindow: () => BrowserWindow | null): void {
   const send = (channel: string, payload: unknown) => getWindow()?.webContents.send(channel, payload);
   const progress = (p: SoftwareProgress) => send('software:progress', p);
 
+  /** Looks for newer versions in the background; the card shows an "update" icon when one exists. */
+  const checkUpdates = async (installed: Set<string>) => {
+    let ids: string[] = [];
+    if (fake) ids = fakeUpdates;
+    else if (process.platform === 'win32') ids = await wingetUpgradable();
+    for (const id of ids) {
+      if (installed.has(id) && !upgradedNow.has(id)) send('software:update', { id, available: true });
+    }
+  };
+
   ipcMain.handle('software:detect', async () => {
     const results = await Promise.all(catalog.items.map((i) => detectOne(i, (s) => send('software:status', s))));
-    return results.filter((r) => catalog.items.find((i) => i.id === r.id)?.kind === 'app');
+    const apps = results.filter((r) => catalog.items.find((i) => i.id === r.id)?.kind === 'app');
+    void checkUpdates(new Set(apps.filter((a) => a.installed).map((a) => a.id)));
+    return apps;
   });
 
   ipcMain.handle('software:open', async (_e, id: string) => {
@@ -72,13 +102,18 @@ export function setupSoftware(getWindow: () => BrowserWindow | null): void {
     else child.kill('SIGTERM');
   });
 
-  ipcMain.handle('software:install', async (_e, rawId: string): Promise<{ ok: boolean; error?: string }> => {
+  const runWinget = async (rawId: string, mode: 'install' | 'upgrade'): Promise<{ ok: boolean; error?: string }> => {
     // only catalog entries can be installed: the renderer sends an id, never a package name or a command
     const item = find(String(rawId));
     if (!item || item.kind !== 'app' || !item.winget) return { ok: false, error: 'Este programa no se puede instalar desde aquí' };
     if (running.has(item.id)) return { ok: false, error: 'Ya se está instalando' };
 
     progress({ id: item.id, phase: 'start', percent: 0 });
+    const succeeded = () => {
+      installedNow.add(item.id);
+      if (mode === 'upgrade') upgradedNow.add(item.id);
+      progress({ id: item.id, phase: 'done', percent: 100 });
+    };
 
     if (fake) {
       for (let p = 0; p <= 100; p += 20) {
@@ -87,8 +122,7 @@ export function setupSoftware(getWindow: () => BrowserWindow | null): void {
       }
       progress({ id: item.id, phase: 'installing' });
       await new Promise((r) => setTimeout(r, 500));
-      installedNow.add(item.id);
-      progress({ id: item.id, phase: 'done', percent: 100 });
+      succeeded();
       return { ok: true };
     }
 
@@ -97,17 +131,14 @@ export function setupSoftware(getWindow: () => BrowserWindow | null): void {
     return new Promise((resolve) => {
       const child = spawn(
         'winget',
-        ['install', '--id', item.winget!, '-e', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity'],
+        [mode, '--id', item.winget!, '-e', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity'],
         { windowsHide: true },
       );
       running.set(item.id, child);
       let last = 0;
-      let tail = '';
 
       const onData = (d: Buffer) => {
-        const text = d.toString('utf8');
-        tail = (tail + text).slice(-400);
-        const p = parseWingetChunk(text);
+        const p = parseWingetChunk(d.toString('utf8'));
         const now = Date.now();
         if (p.installing) progress({ id: item.id, phase: 'installing' });
         else if (p.percent !== undefined && now - last > 150) {
@@ -125,8 +156,7 @@ export function setupSoftware(getWindow: () => BrowserWindow | null): void {
       child.on('close', (code) => {
         running.delete(item.id);
         if (code !== null && WINGET_OK_CODES.has(code)) {
-          installedNow.add(item.id);
-          progress({ id: item.id, phase: 'done', percent: 100 });
+          succeeded();
           return resolve({ ok: true });
         }
         const error = code === null ? 'Instalación cancelada' : `La instalación terminó con errores (código ${code})`;
@@ -134,7 +164,10 @@ export function setupSoftware(getWindow: () => BrowserWindow | null): void {
         resolve({ ok: false, error });
       });
     });
-  });
+  };
+
+  ipcMain.handle('software:install', (_e, id: string) => runWinget(id, 'install'));
+  ipcMain.handle('software:upgrade', (_e, id: string) => runWinget(id, 'upgrade'));
 }
 
 export function stopAllInstalls(): void {

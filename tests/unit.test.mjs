@@ -10,7 +10,7 @@ import { pageWindow } from '../dist/renderer/pager.js';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expandPath, extractVersion, findExisting, parseWingetChunk, WINGET_OK_CODES } from '../dist/main/software-core.js';
+import { expandPath, extractVersion, findExisting, parseUpgradeList, parseWingetChunk, WINGET_OK_CODES } from '../dist/main/software-core.js';
 import { buildNotes, parseSubject } from '../scripts/release-notes.mjs';
 import { htmlToText, parseNotes } from '../dist/renderer/notes-md.js';
 import { groupNotes } from '../dist/renderer/ui-notes.js';
@@ -293,4 +293,34 @@ test('branch names, commit messages and porcelain paths are validated or parsed 
   assert.ok(isSafeCommitMessage('feat: añade login'));
   for (const bad of ['', '   ', 'two\nlines', 'x'.repeat(201), 'tab\there']) assert.ok(!isSafeCommitMessage(bad), JSON.stringify(bad));
   assert.deepEqual(changedPaths('## main\n M a.txt\n?? dir/b.txt\nR  old.txt -> new.txt\n?? "sp ace.txt"\n'), ['a.txt', 'dir/b.txt', 'new.txt', 'sp ace.txt']);
+});
+
+test('winget upgrade output is read by id, whatever language its headers are in', () => {
+  const es = [
+    'Nombre                  Id                    Versión   Disponible  Origen',
+    '------------------------------------------------------------------------',
+    'Git                     Git.Git               2.47.0    2.55.0.5    winget',
+    'GitHub CLI              GitHub.cli            2.97.0    2.102.0     winget',
+    'Docker Desktop          Docker.DockerDesktop  4.67.0    4.94.0      winget',
+    '3 actualizaciones disponibles.',
+  ].join('\n');
+  const en = es.replace('Nombre', 'Name').replace('Versión', 'Version').replace('Disponible', 'Available').replace('Origen', 'Source').replace('actualizaciones disponibles', 'upgrades available');
+  const ids = ['Git.Git', 'GitHub.cli', 'Docker.DockerDesktop', 'OpenJS.NodeJS', 'Git.GitLFS'];
+  for (const text of [es, en]) assert.deepEqual(parseUpgradeList(text, ids), ['Git.Git', 'GitHub.cli', 'Docker.DockerDesktop']);
+  assert.deepEqual(parseUpgradeList('No hay actualizaciones disponibles.', ids), [], 'no table, nothing to upgrade');
+  assert.deepEqual(parseUpgradeList('', ids), []);
+  assert.deepEqual(parseUpgradeList(es, ['Git.Gi', 'Docker.Docker']), [], 'an id that is only the start of a longer one does not count');
+});
+
+test('profiles only reference catalog entries and each has something installable', () => {
+  const cat = JSON.parse(readFileSync('src/shared/catalog.json', 'utf8'));
+  const byId = new Map(cat.items.map((i) => [i.id, i]));
+  assert.ok(cat.presets.length >= 3);
+  for (const p of cat.presets) {
+    assert.ok(p.name && p.icon, p.id);
+    for (const id of p.items) assert.ok(byId.get(id)?.kind === 'app', `${p.id}: ${id} must be an installable app`);
+    assert.ok(p.items.some((id) => byId.get(id).winget), `${p.id}: needs at least one winget-installable entry`);
+  }
+  for (const must of ['jdk', 'ghcli', 'firebasecli', 'stripecli', 'ngrok', 'figma']) assert.ok(byId.has(must), must);
+  assert.ok(cat.categories.some((c) => c.id === 'cli'));
 });

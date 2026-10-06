@@ -179,6 +179,7 @@ export function createWebApi(): DevPanelApi {
     software: {
       detect: async () => [],
       install: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
+      upgrade: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
       cancel: async () => {},
       open: async (id) => {
         const item = CATALOG.items.find((i) => i.id === id);
@@ -186,6 +187,7 @@ export function createWebApi(): DevPanelApi {
       },
       onStatus: () => {},
       onProgress: () => {},
+      onUpdate: () => {},
     },
     // The web build is always the latest deploy.
     update: {

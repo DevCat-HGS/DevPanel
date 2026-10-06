@@ -27,7 +27,8 @@ writeFileSync(join(proj, 'nuevo.txt'), 'sin commitear');
 // VS Code-like hosts export ELECTRON_RUN_AS_NODE=1, which makes Electron start as plain Node.
 // the catalog test pretends these are installed and fakes installs, so the real machine is never touched
 const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj,
-  DEVPANEL_FAKE_SOFTWARE: JSON.stringify({ git: '2.47.0', node: '22.1.0', python: '3.13.1' }) };
+  DEVPANEL_FAKE_SOFTWARE: JSON.stringify({ git: '2.47.0', node: '22.1.0', python: '3.13.1' }),
+  DEVPANEL_FAKE_SOFTWARE_UPDATES: JSON.stringify(['node']) };
 delete env.ELECTRON_RUN_AS_NODE;
 const launch = () => electron.launch({ args: ['.'], env });
 
@@ -117,6 +118,25 @@ try {
   await page.click('#sw-refresh');
   await page.waitForSelector('.sw-card[data-id="docker"][data-state="installed"]');
   log('filters and re-detect work, and an app installed in this session stays installed');
+
+  // ---------- updates and one-click profiles ----------
+  await page.waitForSelector('.sw-card[data-id="node"][data-state="outdated"]');
+  assert.ok(await page.locator('#sw-summary .chip[title="Actualizaciones disponibles"]').isVisible(), 'the summary counts the updates');
+  assert.equal((await page.textContent('.sw-card[data-id="node"] .sw-action')).trim(), '', 'the update action is an icon');
+  assert.equal(await page.getAttribute('.sw-card[data-id="node"] .sw-action', 'title'), 'Actualizar');
+  await page.click('.sw-card[data-id="node"] .sw-action');
+  await page.waitForSelector('.sw-card[data-id="node"][data-state="installing"]');
+  await page.waitForSelector('.sw-card[data-id="node"][data-state="installed"]', { timeout: 15000 });
+  assert.equal(await page.locator('#sw-summary .chip[title="Actualizaciones disponibles"]').count(), 0, 'no updates left');
+  log('an installed app with a newer version shows an update icon, upgrades with progress and clears the counter');
+
+  assert.equal(await page.locator('#sw-presets .preset-btn').count(), 3);
+  assert.match(await page.getAttribute('#sw-presets [data-preset="ai"]', 'title'), /Claude Code/);
+  await page.click('#sw-presets [data-preset="ai"]');
+  await page.waitForSelector('.sw-card[data-id="claudecode"][data-state="installed"]', { timeout: 20000 });
+  await page.waitForSelector('.sw-card[data-id="cursor"][data-state="installed"]', { timeout: 20000 });
+  await page.waitForSelector('.toast.ok:has-text("listo")');
+  log('a one-click profile installs what is missing, one after another');
 
   const refused = await page.evaluate(async () => window.devpanel.software.install('github'));
   assert.equal(refused.ok, false, 'web services cannot be "installed"');

@@ -63,10 +63,12 @@ const api: DevPanelApi = {
   software: {
     detect: () => ipcRenderer.invoke('software:detect'),
     install: (id) => ipcRenderer.invoke('software:install', id),
+    upgrade: (id) => ipcRenderer.invoke('software:upgrade', id),
     cancel: (id) => ipcRenderer.invoke('software:cancel', id),
     open: (id) => ipcRenderer.invoke('software:open', id),
     onStatus: (cb) => ipcRenderer.on('software:status', (_e, s) => cb(s)),
     onProgress: (cb) => ipcRenderer.on('software:progress', (_e, p) => cb(p)),
+    onUpdate: (cb) => ipcRenderer.on('software:update', (_e, u) => cb(u)),
   },
   update: {
     check: () => ipcRenderer.invoke('update:check'),

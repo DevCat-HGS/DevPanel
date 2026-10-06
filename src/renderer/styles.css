@@ -821,3 +821,11 @@ html.modal-open { overflow: hidden; }
 .commit-row input { flex: 1; }
 .commit-row .icon-btn:hover { transform: none; }
 .scripts .muted svg { width: 16px; height: 16px; vertical-align: middle; }
+
+/* ---------- Software: updates and one-click profiles ---------- */
+.sw-card[data-state='outdated'] .sw-action { color: var(--accent); border-color: var(--accent); animation: sw-nudge 1.8s ease-in-out infinite; }
+.sw-card[data-state='outdated'] { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.preset-btn { display: grid; place-items: center; width: 36px; height: 32px; border: 0; border-radius: 9px; background: none; color: var(--accent-3); cursor: pointer; transition: background 0.2s, transform 0.15s var(--ease); }
+.preset-btn svg { width: 18px; height: 18px; }
+.preset-btn:hover { background: color-mix(in srgb, var(--accent-3) 16%, transparent); transform: translateY(-1px); }
+@keyframes sw-nudge { 50% { transform: translateY(-2px); } }

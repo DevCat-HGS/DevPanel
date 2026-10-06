@@ -130,9 +130,18 @@ export interface CatalogItem {
   detect?: { cmd?: string; versionArgs?: string[]; paths?: string[] };
 }
 
+export interface CatalogPreset {
+  id: string;
+  name: string;
+  icon: string;
+  /** catalog ids installed (one after another) by the one-click profile */
+  items: string[];
+}
+
 export interface Catalog {
   categories: CatalogCategory[];
   items: CatalogItem[];
+  presets: CatalogPreset[];
 }
 
 export interface SoftwareStatus {
@@ -275,10 +284,14 @@ export interface DevPanelApi {
     /** Installs a catalog entry through winget (the renderer only ever sends the catalog id). */
     install(id: string): Promise<{ ok: boolean; error?: string }>;
     cancel(id: string): Promise<void>;
+    /** Upgrades an installed catalog entry through winget. */
+    upgrade(id: string): Promise<{ ok: boolean; error?: string }>;
     /** Opens the entry's website / download page in the browser. */
     open(id: string): Promise<void>;
     onStatus(cb: (s: SoftwareStatus) => void): void;
     onProgress(cb: (p: SoftwareProgress) => void): void;
+    /** Fired (a few seconds after detect) for each installed entry that has a newer version. */
+    onUpdate(cb: (u: { id: string; available: boolean }) => void): void;
   };
   update: {
     check(): Promise<void>;
