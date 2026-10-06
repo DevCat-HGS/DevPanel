@@ -134,7 +134,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('github:lookup', (_e, input: string) => lookupUser(input));
   ipcMain.handle('github:repos', () => listRepos(loadSettings().githubUser));
-  ipcMain.handle('github:commits', (_e, repo: string) => listCommits(loadSettings().githubUser, repo));
+  ipcMain.handle('github:commits', (_e, repo: string, page?: number) => listCommits(loadSettings().githubUser, repo, page));
   ipcMain.handle('github:runs', (_e, repo: string) => listRuns(loadSettings().githubUser, repo));
 
   setupFace();

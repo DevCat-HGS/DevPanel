@@ -11,7 +11,7 @@ const api: DevPanelApi = {
   github: {
     lookup: (input) => ipcRenderer.invoke('github:lookup', input),
     repos: () => ipcRenderer.invoke('github:repos'),
-    commits: (repo) => ipcRenderer.invoke('github:commits', repo),
+    commits: (repo, page) => ipcRenderer.invoke('github:commits', repo, page),
     runs: (repo) => ipcRenderer.invoke('github:runs', repo),
   },
   face: {

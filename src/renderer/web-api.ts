@@ -1,5 +1,5 @@
 import { CATALOG } from './catalog.js';
-import type { Commit, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared/api';
+import type { CommitPage, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared/api';
 
 /**
  * Browser implementation of the DevPanel API, used when the renderer runs on
@@ -68,16 +68,23 @@ export function createWebApi(): DevPanelApi {
           throw new Error(`No existe el usuario "${user}" en GitHub`);
         }
       },
-      repos: () => gh<Repo[]>(`/users/${user()}/repos?sort=pushed&per_page=30`),
-      commits: async (repo): Promise<Commit[]> => {
-        const raw = await gh<any[]>(`/repos/${user()}/${encodeURIComponent(repo)}/commits?per_page=10`);
-        return raw.map((c) => ({
-          sha: c.sha.slice(0, 7),
-          message: String(c.commit.message).split('\n')[0],
-          author: c.commit.author?.name ?? 'unknown',
-          date: c.commit.author?.date ?? '',
-          url: c.html_url,
-        }));
+      repos: () => gh<Repo[]>(`/users/${user()}/repos?sort=pushed&per_page=100`),
+      commits: async (repo, page = 1): Promise<CommitPage> => {
+        const res = await fetch(`${API}/repos/${user()}/${encodeURIComponent(repo)}/commits?per_page=8&page=${Math.max(1, page)}`, {
+          headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (!res.ok) throw new Error(`GitHub ${res.status}`);
+        const raw = (await res.json()) as any[];
+        return {
+          commits: raw.map((c) => ({
+            sha: c.sha.slice(0, 7),
+            message: String(c.commit.message).split('\n')[0],
+            author: c.commit.author?.name ?? 'unknown',
+            date: c.commit.author?.date ?? '',
+            url: c.html_url,
+          })),
+          hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
+        };
       },
       runs: async (repo): Promise<WorkflowRun[]> => {
         const raw = await gh<{ workflow_runs: any[] }>(

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as t from '../dist/renderer/tools.js';
 import { analyzeRepos } from '../dist/renderer/recs.js';
 import { newFailures } from '../dist/main/alerts-core.js';
+import { pageWindow } from '../dist/renderer/pager.js';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -205,4 +206,15 @@ test('the software catalog is consistent', () => {
     if (i.brand) assert.ok(existsSync(`node_modules/simple-icons/icons/${i.brand}.svg`), `${i.id}: brand icon ${i.brand} missing`);
   }
   for (const c of cat.categories) assert.ok(cat.items.some((i) => i.category === c.id), `${c.id}: empty category`);
+});
+
+test('pager shows the first/last page, the neighbours of the current one and gaps as an ellipsis', () => {
+  assert.deepEqual(pageWindow(1, 1), [1]);
+  assert.deepEqual(pageWindow(2, 3), [1, 2, 3]);
+  assert.deepEqual(pageWindow(1, 7), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(pageWindow(5, 10), [1, '…', 4, 5, 6, '…', 10]);
+  assert.deepEqual(pageWindow(1, 10), [1, 2, '…', 10]);
+  assert.deepEqual(pageWindow(10, 10), [1, '…', 9, 10]);
+  assert.deepEqual(pageWindow(2, 8), [1, 2, 3, '…', 8]);
+  assert.deepEqual(pageWindow(3, 8), [1, 2, 3, 4, '…', 8]);
 });

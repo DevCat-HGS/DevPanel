@@ -134,7 +134,7 @@
           <details id="recs" class="recs hidden"></details>
           <div id="stats" class="stats"></div>
           <div id="repos" class="grid" aria-live="polite"></div>
-          <div id="detail" class="detail hidden"></div>
+          <div id="repo-pager" class="pager hidden"></div>
         </section>
 
         <section id="view-local" class="view hidden">
@@ -270,6 +270,25 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="repo-modal" class="repo-modal hidden" role="dialog" aria-modal="true" aria-label="Detalle del proyecto">
+      <div class="folder">
+        <div class="folder-tab">
+          <span class="ft-icon" data-icon="folder" aria-hidden="true"></span>
+          <span id="rm-name" class="rm-name" data-no-i18n></span>
+        </div>
+        <button id="rm-close" class="icon-btn folder-close" title="Cerrar" aria-label="Cerrar"><span data-icon="x"></span></button>
+        <div id="rm-body" class="folder-body">
+          <div class="rm-bar">
+            <span id="rm-badge" class="rm-badge"></span>
+            <span id="rm-actions" class="rm-actions"></span>
+          </div>
+          <p id="rm-desc" class="muted rm-desc" data-no-i18n></p>
+          <div id="rm-commits" class="rm-commits" aria-live="polite"></div>
+          <div id="rm-pager" class="pager hidden"></div>
+        </div>
+      </div>
     </div>
 
     <div id="notes-modal" class="palette hidden" role="dialog" aria-labelledby="notes-title">

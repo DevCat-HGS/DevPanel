@@ -20,6 +20,12 @@ export interface Commit {
   url: string;
 }
 
+export interface CommitPage {
+  commits: Commit[];
+  /** true when there is a next page. */
+  hasMore: boolean;
+}
+
 export interface WorkflowRun {
   name: string;
   status: string;
@@ -134,7 +140,7 @@ export interface DevPanelApi {
     /** Accepts a username, @user or a github.com link; resolves the real profile. */
     lookup(input: string): Promise<GithubProfile>;
     repos(): Promise<Repo[]>;
-    commits(repo: string): Promise<Commit[]>;
+    commits(repo: string, page?: number): Promise<CommitPage>;
     runs(repo: string): Promise<WorkflowRun[]>;
   };
   face: {

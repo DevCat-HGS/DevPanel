@@ -611,3 +611,42 @@ code { font-family: Consolas, monospace; font-size: 12px; padding: 1px 6px; bord
 @keyframes sw-ping { to { transform: scale(7); opacity: 0; } }
 @keyframes spin-rev { to { transform: rotate(-360deg); } }
 @keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }
+
+/* ---------- Pager ---------- */
+.pager { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 20px; }
+.pg-btn { display: inline-grid; place-items: center; min-width: 36px; height: 36px; padding: 0 8px; border-radius: 10px; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); cursor: pointer; background: var(--panel); border: 1px solid var(--border); transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s var(--ease); }
+.pg-btn svg { width: 16px; height: 16px; }
+.pg-btn:hover:not(:disabled):not(.cur) { color: var(--text); border-color: var(--accent); transform: translateY(-1px); }
+.pg-btn:disabled { opacity: 0.35; cursor: default; }
+.pg-btn.cur { color: #04121f; font-weight: 700; border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); cursor: default; }
+.pg-gap { color: var(--muted); padding: 0 4px; }
+
+/* ---------- Repository dialog: a folder ---------- */
+html.modal-open { overflow: hidden; }
+.repo-modal { position: fixed; inset: 0; z-index: 85; display: flex; justify-content: center; align-items: flex-start; padding: 10vh 16px 24px; overflow: auto; background: rgba(3, 8, 18, 0.64); backdrop-filter: blur(5px); animation: fade 0.2s; }
+.folder { --fold: color-mix(in srgb, var(--accent-3) 88%, #000); position: relative; width: min(800px, 100%); margin-top: 40px; animation: folder-in 0.5s var(--ease) both; }
+/* papers peeking out behind the folder */
+.folder::before, .folder::after { content: ''; position: absolute; left: 22px; right: 22px; height: 14px; border-radius: 8px 8px 0 0; background: var(--panel-hover); border: 1px solid var(--border); border-bottom: 0; }
+.folder::before { top: -8px; transform: rotate(-0.4deg); }
+.folder::after { top: -4px; left: 34px; right: 34px; background: color-mix(in srgb, var(--panel-hover) 70%, var(--accent-soft)); transform: rotate(0.5deg); }
+.folder-tab { position: absolute; z-index: 2; top: -38px; left: 0; max-width: 72%; height: 40px; padding: 0 40px 0 20px; display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 14px; color: #1b1100; background: linear-gradient(180deg, color-mix(in srgb, var(--accent-3) 92%, #fff 8%), var(--fold)); clip-path: polygon(0 14px, 14px 0, calc(100% - 30px) 0, calc(100% - 10px) 100%, 0 100%); animation: tab-in 0.55s 0.12s var(--ease) both; }
+.ft-icon svg { width: 18px; height: 18px; }
+.rm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-body { position: relative; z-index: 1; max-height: 70vh; overflow: auto; padding: 22px 24px 20px; border-radius: 0 18px 18px 18px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent-3) 16%, var(--panel-solid)), var(--panel-solid) 140px); border: 1px solid color-mix(in srgb, var(--accent-3) 45%, var(--border)); box-shadow: var(--shadow); }
+.folder-close { position: absolute; z-index: 3; top: 12px; right: 12px; }
+.folder-close:hover { transform: none; color: var(--bad); border-color: var(--bad); }
+.rm-bar { display: flex; align-items: center; gap: 10px; padding-right: 48px; margin-bottom: 4px; }
+.rm-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.rm-actions .icon-btn { text-decoration: none; }
+.rm-actions .icon-btn:hover { transform: none; border-color: var(--accent); color: var(--text); }
+.rm-desc { margin: 8px 0 4px; }
+.status-i { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); }
+.status-i svg { width: 20px; height: 20px; }
+.status-i.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.status-i.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.status-i.none { color: var(--muted); }
+.rm-commits { margin-top: 12px; }
+.rm-commits .commit svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; align-self: center; }
+.skeleton.row { min-height: 38px; margin-bottom: 8px; border-radius: 10px; }
+@keyframes folder-in { from { opacity: 0; transform: translateY(26px) scale(0.96); } }
+@keyframes tab-in { from { opacity: 0; transform: translateX(-14px); } }

@@ -1,12 +1,14 @@
 import type { Repo, UpdateStatus, WorkflowRun } from '../shared/api';
-import { $, copyText, el, toast } from './dom.js';
+import { $, ago, el, friendlyError, toast } from './dom.js';
 import { hydrateIcons, icon } from './icons.js';
 import { runOnboarding } from './onboarding.js';
 import { initPalette } from './palette.js';
 import { analyzeRepos } from './recs.js';
 import { setLangPref, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
+import { renderPager } from './pager.js';
 import { initLocal } from './ui-local.js';
+import { initRepoModal, openRepo } from './ui-repo.js';
 import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
 import { initSoftware } from './ui-software.js';
 import { initTools, TOOLS } from './ui-tools.js';
@@ -28,14 +30,6 @@ function link(href: string, text: string): HTMLAnchorElement {
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
   return a;
-}
-
-function ago(iso: string): string {
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'justo ahora';
-  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
-  return `hace ${Math.floor(s / 86400)} d`;
 }
 
 // ---------- Theme ----------
@@ -98,13 +92,6 @@ function renderStats(repos: Repo[]): void {
   $('subtitle').textContent = repos.length
     ? `Última actividad ${ago(repos[0].pushed_at)}`
     : '';
-}
-
-function friendlyError(e: unknown): string {
-  const m = (e as Error).message ?? String(e);
-  if (m.includes('403')) return 'Límite de la API de GitHub alcanzado (60/hora sin token). Intenta más tarde.';
-  if (m.includes('404')) return 'Usuario o repositorio no encontrado.';
-  return `No se pudo cargar GitHub: ${m}`;
 }
 
 const LANG_COLORS: Record<string, string> = {
@@ -202,6 +189,8 @@ async function initLock(): Promise<void> {
 // ---------- App ----------
 let appShown = false;
 let allRepos: Repo[] = [];
+let repoPage = 1;
+const REPOS_PER_PAGE = 9;
 
 async function showApp(): Promise<void> {
   $('app').classList.remove('hidden');
@@ -376,7 +365,7 @@ function paletteItems() {
       hint: 'proyecto',
       run: () => {
         goView('projects');
-        void showDetail(r);
+        openRepo(r);
       },
     })),
   ];
@@ -395,7 +384,7 @@ function renderRecs(): void {
       li.append(el('span', `lvl ${x.level}`), el('b', undefined, x.repo), el('span', 'muted', x.text));
       li.onclick = () => {
         const repo = allRepos.find((r) => r.name === x.repo);
-        if (repo) void showDetail(repo);
+        if (repo) openRepo(repo);
       };
       return li;
     }),
@@ -443,10 +432,19 @@ function renderRepos(): void {
   const box = $('repos');
   if (list.length === 0) {
     box.replaceChildren(el('p', 'empty', q ? 'Ningún proyecto coincide con tu búsqueda.' : 'No hay repositorios públicos para mostrar.'));
+    renderPager($('repo-pager'), 1, 1, () => {});
     return;
   }
+  const pages = Math.ceil(list.length / REPOS_PER_PAGE);
+  repoPage = Math.min(Math.max(repoPage, 1), pages);
+  const visible = list.slice((repoPage - 1) * REPOS_PER_PAGE, repoPage * REPOS_PER_PAGE);
+  renderPager($('repo-pager'), repoPage, pages, (p) => {
+    repoPage = p;
+    renderRepos();
+    $('repos').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   box.replaceChildren(
-    ...list.map((r, i) => {
+    ...visible.map((r, i) => {
       const card = el('div', 'repo');
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
@@ -486,11 +484,7 @@ function renderRepos(): void {
         card.style.setProperty('--mx', `${e.clientX - b.left}px`);
         card.style.setProperty('--my', `${e.clientY - b.top}px`);
       });
-      card.onclick = () => {
-        document.querySelectorAll('.repo.selected').forEach((n) => n.classList.remove('selected'));
-        card.classList.add('selected');
-        void showDetail(r);
-      };
+      card.onclick = () => openRepo(r);
       return card;
     }),
   );
@@ -508,8 +502,15 @@ async function loadRepos(): Promise<void> {
   }
 }
 
-$('repo-search').addEventListener('input', renderRepos);
-$('repo-sort').addEventListener('change', renderRepos);
+// a new search or order always starts again from the first page
+$('repo-search').addEventListener('input', () => {
+  repoPage = 1;
+  renderRepos();
+});
+$('repo-sort').addEventListener('change', () => {
+  repoPage = 1;
+  renderRepos();
+});
 
 // ---------- Favorites (stored per device) ----------
 const favs = new Set<string>(
@@ -533,73 +534,12 @@ function toggleFav(name: string): void {
 }
 
 
-function runBadge(run?: WorkflowRun): HTMLElement {
-  if (!run) return el('span', 'badge warn', 'Sin Actions');
-  if (run.status !== 'completed') {
-    const b = el('span', 'badge warn');
-    b.append(el('span', 'live'), 'En curso');
-    return b;
-  }
-  return run.conclusion === 'success'
-    ? el('span', 'badge ok', 'Build passing')
-    : el('span', 'badge bad', `Build ${run.conclusion}`);
-}
-
-async function showDetail(repo: Repo): Promise<void> {
-  const d = $('detail');
-  d.classList.remove('hidden');
-  d.replaceChildren(el('div', 'skeleton block'));
-  d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  try {
-    const [commits, runs] = await Promise.all([
-      api.github.commits(repo.name),
-      api.github.runs(repo.name),
-    ]);
-    const head = el('div', 'detail-head');
-    const ext = (href: string, text: string) => {
-      const a = link(href, text);
-      a.append(icon('external'));
-      a.querySelector('svg')!.setAttribute('width', '13');
-      return a;
-    };
-    head.append(el('h3', undefined, repo.name), runBadge(runs[0]), ext(repo.html_url, 'GitHub'));
-    if (runs[0]) head.append(ext(runs[0].html_url, 'Actions'));
-
-    const cloneUrl = `${repo.html_url}.git`;
-    const actions = el('div', 'actions');
-    const copyClone = el('button', 'btn small', 'Copiar git clone');
-    copyClone.onclick = () => void copyText(`git clone ${cloneUrl}`);
-    const vscode = link(`vscode://vscode.git/clone?url=${encodeURIComponent(cloneUrl)}`, 'Abrir en VS Code');
-    vscode.className = 'btn small';
-    const copyLink = el('button', 'btn small', 'Copiar enlace');
-    copyLink.onclick = () => void copyText(repo.html_url);
-    actions.append(copyClone, vscode, copyLink);
-    head.append(actions);
-    d.replaceChildren(
-      head,
-      ...(commits.length
-        ? commits.map((c, i) => {
-            const row = el('div', 'commit');
-            row.style.setProperty('--i', String(i));
-            const sha = link(c.url, c.sha);
-            sha.className = 'sha';
-            row.append(sha, el('span', 'msg', c.message), el('span', 'muted', `${c.author} · ${ago(c.date)}`));
-            return row;
-          })
-        : [el('p', 'empty', 'Sin commits.')]),
-    );
-  } catch (e) {
-    d.replaceChildren(el('p', 'empty', friendlyError(e)));
-  }
-}
-
 // ---------- Settings ----------
 async function saveUser(): Promise<void> {
   try {
     const p = await api.github.lookup($<HTMLInputElement>('gh-user').value);
     await api.settings.set({ githubUser: p.login });
     $<HTMLInputElement>('gh-user').value = p.login;
-    $('detail').classList.add('hidden');
     toast(`Vinculado a @${p.login}`, 'ok');
     await loadRepos();
     void showChannel();
@@ -709,6 +649,7 @@ api.update.onStatus(renderUpdate);
 $('update-check').onclick = () => void api.update.check();
 
 hydrateIcons();
+initRepoModal();
 initTheme();
 async function boot(): Promise<void> {
   const s = await api.settings.get();
