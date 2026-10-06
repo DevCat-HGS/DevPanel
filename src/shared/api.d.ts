@@ -275,9 +275,12 @@ export interface DevPanelApi {
     onExit(cb: (m: { id: number; code: number }) => void): void;
   };
   claude: {
-    /** Runs `claude -p` with the prompt in a registered project. 'read' only inspects (plan mode), 'edit' auto-approves file edits. */
-    run(path: string, prompt: string, mode: 'read' | 'edit'): Promise<{ id: number } | { error: string }>;
+    /** Runs `claude -p` with the prompt in a registered project. 'read' only inspects (plan mode), 'edit' auto-approves file edits. Pass the previous session id to continue the conversation. */
+    run(path: string, prompt: string, mode: 'read' | 'edit', session?: string): Promise<{ id: number } | { error: string }>;
     stop(id: number): Promise<void>;
+    /** Parsed messages of the running session (text, tool calls, final result). */
+    onEvent(cb: (m: { id: number; event: ChatEvent }) => void): void;
+    /** Raw stderr / unparsed output. */
     onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
     onExit(cb: (m: { id: number; code: number }) => void): void;
   };
@@ -309,3 +312,9 @@ export interface DevPanelApi {
     onStatus(cb: (s: UpdateStatus) => void): void;
   };
 }
+
+export type ChatEvent =
+  | { kind: 'init'; session: string; model?: string }
+  | { kind: 'text'; text: string }
+  | { kind: 'tool'; name: string; detail: string }
+  | { kind: 'result'; ok: boolean; text: string; session?: string; ms?: number; cost?: number };

@@ -324,3 +324,45 @@ test('profiles only reference catalog entries and each has something installable
   for (const must of ['jdk', 'ghcli', 'firebasecli', 'stripecli', 'ngrok', 'figma']) assert.ok(byId.has(must), must);
   assert.ok(cat.categories.some((c) => c.id === 'cli'));
 });
+
+import { isSessionId, parseStreamLine, splitLines, toolDetail } from '../dist/main/claude-core.js';
+import { parseInline, parseMarkdown } from '../dist/renderer/chat-md.js';
+
+test('claude stream-json lines become chat events', () => {
+  assert.deepEqual(parseStreamLine('{"type":"system","subtype":"init","session_id":"abc","model":"m"}'), [{ kind: 'init', session: 'abc', model: 'm' }]);
+  const a = parseStreamLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'hola' }, { type: 'tool_use', name: 'Read', input: { file_path: 'a.ts' } }, { type: 'text', text: '  ' }] } }));
+  assert.deepEqual(a, [{ kind: 'text', text: 'hola' }, { kind: 'tool', name: 'Read', detail: 'a.ts' }]);
+  const r = parseStreamLine('{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"s","duration_ms":5,"total_cost_usd":0.5}');
+  assert.deepEqual(r, [{ kind: 'result', ok: true, text: 'ok', session: 's', ms: 5, cost: 0.5 }]);
+  assert.equal(parseStreamLine('{"type":"result","subtype":"error_max_turns","is_error":true}')[0].ok, false);
+  assert.deepEqual(parseStreamLine('not json'), []);
+  assert.deepEqual(parseStreamLine('{"type":"user"}'), []);
+});
+
+test('claude: tool details, session ids and line splitting', () => {
+  assert.equal(toolDetail({ command: 'npm   test' }), 'npm test');
+  assert.equal(toolDetail({ file_path: 'x'.repeat(300) }).length, 140);
+  assert.equal(toolDetail(null), '');
+  assert.ok(isSessionId('3f2b8c1e-5a4d-4e7f-9b6a-0c1d2e3f4a5b'));
+  for (const bad of ['', 'abc', '3f2b8c1e-5a4d-4e7f-9b6a-0c1d2e3f4a5b; rm -rf /', undefined, 5]) assert.ok(!isSessionId(bad));
+  const one = splitLines('', '{"a":1}\n{"b"');
+  assert.deepEqual(one, { lines: ['{"a":1}'], rest: '{"b"' });
+  assert.deepEqual(splitLines(one.rest, ':2}\r\n'), { lines: ['{"b":2}'], rest: '' });
+});
+
+test('chat markdown: blocks and inline spans', () => {
+  const blocks = parseMarkdown('# Título\nuna línea\nsigue\n\n- uno\n2. dos\n\n```ts\nlet a = 1;\n\nlet b = 2;\n```\nfin');
+  assert.deepEqual(blocks, [
+    { type: 'h', text: 'Título' },
+    { type: 'p', text: 'una línea sigue' },
+    { type: 'li', text: 'uno' },
+    { type: 'li', text: 'dos' },
+    { type: 'code', lang: 'ts', text: 'let a = 1;\n\nlet b = 2;' },
+    { type: 'p', text: 'fin' },
+  ]);
+  assert.deepEqual(parseMarkdown('```\nsin cerrar'), [{ type: 'code', lang: '', text: 'sin cerrar' }]);
+  assert.deepEqual(parseInline('usa `npm test` y **ojo** ya'), [
+    { t: 'txt', text: 'usa ' }, { t: 'code', text: 'npm test' }, { t: 'txt', text: ' y ' }, { t: 'b', text: 'ojo' }, { t: 'txt', text: ' ya' },
+  ]);
+  assert.deepEqual(parseInline('<img src=x onerror=1>'), [{ t: 'txt', text: '<img src=x onerror=1>' }]);
+});

@@ -159,6 +159,7 @@ export function createWebApi(): DevPanelApi {
     claude: {
       run: async () => ({ error: 'Solo disponible en la app de escritorio' }),
       stop: async () => {},
+      onEvent: () => {},
       onOutput: () => {},
       onExit: () => {},
     },
