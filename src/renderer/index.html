@@ -88,7 +88,11 @@
           <span id="version" class="chip"></span>
         </div>
         <nav aria-label="Principal">
-          <button class="nav active" data-view="projects">
+          <button class="nav active" data-view="home">
+            <span class="ico" data-icon="home" aria-hidden="true"></span>
+            <span class="nav-label">Inicio</span>
+          </button>
+          <button class="nav" data-view="projects">
             <span class="ico" data-icon="grid" aria-hidden="true"></span>
             <span class="nav-label">Projects</span>
           </button>
@@ -116,7 +120,18 @@
       </aside>
 
       <main id="main" class="content">
-        <section id="view-projects" class="view">
+        <section id="view-home" class="view">
+          <header class="view-head">
+            <div>
+              <h2>Inicio</h2>
+              <p id="home-sub" class="muted"></p>
+            </div>
+            <button id="home-refresh" class="icon-btn" title="Actualizar" aria-label="Actualizar"><span data-icon="refresh"></span></button>
+          </header>
+          <div id="home-grid" class="home-grid"></div>
+        </section>
+
+        <section id="view-projects" class="view hidden">
           <header class="view-head">
             <div>
               <h2 id="greeting">Tus proyectos</h2>

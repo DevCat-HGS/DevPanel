@@ -60,6 +60,7 @@ try {
   app = await electron.launch({ args: ['.'], env });
   const page = await app.firstWindow();
   await page.setViewportSize({ width: 1100, height: 760 });
+  await page.click('.nav[data-view="projects"]');
   await page.waitForSelector('.repo:not(.skeleton)', { timeout: 20000 });
 
   const cards = () => page.locator('.repo:not(.skeleton)').count();

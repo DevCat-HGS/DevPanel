@@ -20,6 +20,22 @@ export interface Commit {
   url: string;
 }
 
+export interface FailingRun {
+  repo: string;
+  url: string;
+  branch?: string;
+  updated: string;
+}
+
+export interface PullSummary {
+  repo: string;
+  title: string;
+  url: string;
+  updated: string;
+  draft: boolean;
+  author: string;
+}
+
 export interface CommitPage {
   commits: Commit[];
   /** true when there is a next page. */
@@ -141,6 +157,10 @@ export interface DevPanelApi {
     lookup(input: string): Promise<GithubProfile>;
     repos(): Promise<Repo[]>;
     commits(repo: string, page?: number): Promise<CommitPage>;
+    /** Recent repos whose latest Actions run failed. */
+    failing(): Promise<FailingRun[]>;
+    /** Open pull requests involving the linked user. */
+    pulls(): Promise<PullSummary[]>;
     runs(repo: string): Promise<WorkflowRun[]>;
   };
   face: {

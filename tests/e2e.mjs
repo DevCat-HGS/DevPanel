@@ -72,6 +72,7 @@ try {
   await page.waitForSelector('#wz-4.active');
   await page.click('#wz-enter');
   await page.waitForSelector('#app:not(.hidden)');
+  await page.click('.nav[data-view="projects"]');
   await page.waitForSelector('.repo:not(.skeleton)', { timeout: 20000 });
   assert.ok((await page.locator('.repo:not(.skeleton)').count()) > 0, 'repos rendered');
   await shot(page, '3-dashboard');

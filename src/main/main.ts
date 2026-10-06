@@ -5,7 +5,7 @@ import { setupAlerts } from './alerts';
 import { mt } from './i18n-main';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
-import { listCommits, listRepos, listRuns, lookupUser } from './github';
+import { listCommits, listFailing, listOpenPulls, listRepos, listRuns, lookupUser } from './github';
 import { setupNotes } from './notes';
 import { setupSoftware, stopAllInstalls } from './software';
 import { loadSettings, saveSettings } from './settings';
@@ -135,6 +135,8 @@ app.whenReady().then(() => {
   ipcMain.handle('github:lookup', (_e, input: string) => lookupUser(input));
   ipcMain.handle('github:repos', () => listRepos(loadSettings().githubUser));
   ipcMain.handle('github:commits', (_e, repo: string, page?: number) => listCommits(loadSettings().githubUser, repo, page));
+  ipcMain.handle('github:failing', () => listFailing(loadSettings().githubUser));
+  ipcMain.handle('github:pulls', () => listOpenPulls(loadSettings().githubUser));
   ipcMain.handle('github:runs', (_e, repo: string) => listRuns(loadSettings().githubUser, repo));
 
   setupFace();

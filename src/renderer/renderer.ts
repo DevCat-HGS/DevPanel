@@ -7,6 +7,7 @@ import { analyzeRepos } from './recs.js';
 import { setLangPref, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { renderPager } from './pager.js';
+import { initHome, refreshHome } from './ui-home.js';
 import { initLocal } from './ui-local.js';
 import { initRepoModal, openRepo } from './ui-repo.js';
 import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
@@ -208,6 +209,8 @@ async function showApp(): Promise<void> {
   $<HTMLInputElement>('gh-user').value = s.githubUser;
   initTools();
   initSoftware();
+  initHome({ repos: () => allRepos, openRepo, goLocal: () => goView('local') });
+  $('home-sub').textContent = s.githubUser ? `Hola, ${s.githubUser}` : '';
   initLocal();
   initNotes();
   void checkWhatsNew();
@@ -411,6 +414,7 @@ document.querySelectorAll<HTMLButtonElement>('.nav').forEach((b) => {
     document.querySelectorAll('.view').forEach((v) => v.classList.add('hidden'));
     $(`view-${b.dataset.view}`).classList.remove('hidden');
     if (b.dataset.view === 'settings' && api.platform !== 'web') void refreshTokenStatus();
+    if (b.dataset.view === 'home') void refreshHome();
   };
 });
 
@@ -513,6 +517,7 @@ async function loadRepos(): Promise<void> {
     renderStats(allRepos);
     renderRecs();
     renderRepos();
+    void refreshHome();
   } catch (e) {
     $('repos').replaceChildren(el('p', 'empty', friendlyError(e)));
   }

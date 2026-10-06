@@ -2,8 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { newFailures, type RunInfo } from './alerts-core';
-import { getToken } from './token';
-import { listRepos } from './github';
+import { latestRun, listRepos } from './github';
 import { mt } from './i18n-main';
 import { loadSettings } from './settings';
 
@@ -19,20 +18,6 @@ const readSeen = (): Record<string, number> => {
     return {};
   }
 };
-
-async function latestRun(user: string, repo: string): Promise<RunInfo | null> {
-  const token = getToken();
-  const res = await fetch(`https://api.github.com/repos/${user}/${repo}/actions/runs?per_page=1`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'DevPanel',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!res.ok) return null;
-  const r = (await res.json()).workflow_runs?.[0];
-  return r ? { repo, id: r.id, status: r.status, conclusion: r.conclusion, url: r.html_url, branch: r.head_branch } : null;
-}
 
 export function setupAlerts(getWindow: () => BrowserWindow | null): void {
   const check = async () => {

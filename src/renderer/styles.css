@@ -763,3 +763,26 @@ html.modal-open { overflow: hidden; }
 .repo-body .desc { margin-top: 2px; }
 .repo:focus-visible { outline: none; }
 .repo:focus-visible .repo-body { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
+
+/* ---------- Home ---------- */
+.home-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); align-items: start; }
+.hw { --c: var(--muted); padding: 16px 18px 12px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); border-top: 3px solid var(--c); animation: rise 0.45s var(--ease) both; }
+.hw-bad { --c: var(--bad); } .hw-accent { --c: var(--accent); } .hw-warn { --c: var(--warn); } .hw-muted { --c: var(--muted); }
+.hw.has-items.hw-bad { background: color-mix(in srgb, var(--bad) 7%, var(--panel)); }
+.hw-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.hw-head > svg { width: 20px; height: 20px; color: var(--c); }
+.hw-head h3 { margin: 0; font-size: 14px; }
+.hw-head .chip { margin-left: auto; color: var(--c); border-color: color-mix(in srgb, var(--c) 45%, transparent); font-variant-numeric: tabular-nums; }
+.hw-body { display: flex; flex-direction: column; gap: 2px; min-height: 44px; }
+.hw-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 8px; border: 0; border-radius: 10px; background: none; color: var(--text); font: inherit; font-size: 13.5px; text-align: left; text-decoration: none; cursor: pointer; transition: background 0.2s; }
+.hw-row:hover { background: var(--panel-hover); }
+.hw-row > svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--c); }
+.hw-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.hw-sub { flex-shrink: 0; font-size: 12px; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hw-chips { display: flex; gap: 6px; }
+.hw-chip { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.hw-chip svg { width: 13px; height: 13px; }
+.hw-ok { display: grid; place-items: center; padding: 8px 0; color: var(--ok); }
+.hw-ok svg { width: 28px; height: 28px; animation: pop 0.5s var(--ease); }
+.hw-ok.hw-err { color: var(--bad); }
+.hw .skeleton.row { min-height: 34px; margin-bottom: 6px; border-radius: 10px; }
