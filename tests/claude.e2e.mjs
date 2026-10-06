@@ -54,7 +54,8 @@ try {
   // ---------- own space under Tools, with the Claude mark and an empty state ----------
   const views = await page.locator('nav .nav').evaluateAll((n) => n.map((b) => b.dataset.view));
   assert.deepEqual(views.slice(-2), ['tools', 'claude']);
-  assert.equal(await page.locator('#nav-claude [data-icon="claude"] svg').count(), 1, 'uses the Claude icon, not sparkles');
+  const mark = await page.locator('#nav-claude .cc-mark').evaluate((n) => getComputedStyle(n).maskImage);
+  assert.match(mark, /brands\/claude\.svg/, 'uses the Claude brand icon that Tools > Software already ships');
   await page.click('#nav-claude');
   await page.waitForFunction(() => document.querySelectorAll('#cc-project option').length === 1);
   await page.waitForSelector('.cc-empty');

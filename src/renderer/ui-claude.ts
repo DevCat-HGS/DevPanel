@@ -77,7 +77,7 @@ function bubble(role: 'user' | 'assistant'): { row: HTMLElement; body: HTMLEleme
   body.dataset.noI18n = '';
   if (role === 'assistant') {
     const avatar = el('span', 'cc-avatar');
-    avatar.append(icon('claude'));
+    avatar.append(el('span', 'cc-mark'));
     row.append(avatar);
   }
   row.append(body);
@@ -87,7 +87,7 @@ function bubble(role: 'user' | 'assistant'): { row: HTMLElement; body: HTMLEleme
 function emptyState(): HTMLElement {
   const box = el('div', 'cc-empty');
   const logo = el('span', 'cc-empty-logo');
-  logo.append(icon('claude'));
+  logo.append(el('span', 'cc-mark'));
   const name = $<HTMLSelectElement>('cc-project').selectedOptions[0]?.textContent ?? '';
   box.append(logo, el('h3', undefined, '¿Qué quieres hacer?'), el('p', 'muted', name ? `${tr('Claude trabajará dentro de')} ${name}.` : 'Agrega una carpeta en Local para empezar.'));
   if (name) {
