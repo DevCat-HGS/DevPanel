@@ -33,6 +33,7 @@ const userData = mkdtempSync(join(tmpdir(), 'devpanel-lt-data-'));
 writeFileSync(join(userData, 'settings.json'), JSON.stringify({ language: 'es', onboarded: true, githubUser: 'octocat' }));
 const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj, DEVPANEL_GITHUB_API: 'http://127.0.0.1:9' };
 delete env.ELECTRON_RUN_AS_NODE;
+delete env.GITHUB_TOKEN; // CI exports one: these tests control the token themselves
 
 let step = 0;
 const log = (m) => console.log(`✔ ${++step}. ${m}`);

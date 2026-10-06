@@ -64,6 +64,7 @@ const userData = mkdtempSync(join(tmpdir(), 'devpanel-home-'));
 writeFileSync(join(userData, 'settings.json'), JSON.stringify({ language: 'es', onboarded: true, githubUser: 'octocat', localProjects: [proj] }));
 const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_GITHUB_API: base };
 delete env.ELECTRON_RUN_AS_NODE;
+delete env.GITHUB_TOKEN; // CI exports one: these tests control the token themselves
 
 const widget = (page, id) => page.locator(`.hw[data-id="${id}"]`);
 let step = 0;
