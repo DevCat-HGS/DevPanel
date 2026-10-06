@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import * as t from '../dist/renderer/tools.js';
 import { analyzeRepos } from '../dist/renderer/recs.js';
 import { newFailures } from '../dist/main/alerts-core.js';
+import { arbKeys, compareLocales, flattenKeys, langOf } from '../dist/main/l10n-core.js';
+import { isBinary, scanName, scanText } from '../dist/main/secrets-core.js';
+import { changedPaths, findRecipe, isSafeBranch, isSafeCommitMessage, recipeCommand, recipesFor } from '../dist/main/local-core.js';
 import { pageWindow } from '../dist/renderer/pager.js';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -232,4 +235,62 @@ test('release notes keep the scope of each line and are grouped into coloured ca
   assert.equal(groups[1].items[0].scope, 'fix');
   assert.equal(groupNotes('<ul><li>a</li><li>b</li></ul>').length, 1, 'HTML notes without headings become one group');
   assert.deepEqual(groupNotes(''), []);
+});
+
+test('translation keys are flattened, ARB metadata ignored and languages named from the file', () => {
+  assert.deepEqual(flattenKeys({ a: { b: 1, c: { d: 2 } }, e: 3, list: [1, 2] }).sort(), ['a.b', 'a.c.d', 'e', 'list']);
+  assert.deepEqual(arbKeys({ '@@locale': 'en', hello: 'Hi', '@hello': { description: 'x' } }), ['hello']);
+  for (const [file, lang] of [['en.json', 'en'], ['es-ES.json', 'es-ES'], ['app_pt_BR.arb', 'pt_BR'], ['intl_en.arb', 'en'], ['translations.json', 'translations']])
+    assert.equal(langOf(file), lang, file);
+});
+
+test('comparing locales reports exactly what each language is missing', () => {
+  const r = compareLocales([
+    { lang: 'en', file: 'en.json', keys: ['a', 'b', 'c'] },
+    { lang: 'es', file: 'es.json', keys: ['a'] },
+    { lang: 'pt', file: 'pt.json', keys: ['a', 'b', 'x'] },
+  ]);
+  assert.deepEqual(r.missing, { en: ['x'], es: ['b', 'c', 'x'], pt: ['c'] });
+  assert.equal(r.missingCount, 5);
+  assert.equal(r.total, 4);
+  assert.deepEqual(compareLocales([{ lang: 'en', file: 'a', keys: ['k'] }, { lang: 'es', file: 'b', keys: ['k'] }]).missing, {});
+});
+
+test('secret detection finds keys and risky files without ever returning the secret', () => {
+  // built at run time so that secret scanners do not flag this test file
+  const aws = 'AK' + 'IA' + '0123456789ABCDEF';
+  const ghp = 'gh' + 'p_' + 'a'.repeat(36);
+  const live = 'sk' + '_live_' + 'b'.repeat(24);
+  const pem = '-----BEGIN ' + 'RSA PRIVATE KEY-----';
+  const found = scanText('src/a.ts', `ok\nconst a = "${aws}";\nx\n${ghp}\n${live}\n${pem}\n"type": "service_account"`);
+  assert.deepEqual(found.map((f) => [f.line, f.rule]), [
+    [2, 'aws-access-key'], [4, 'github-token'], [5, 'stripe-live-key'], [6, 'private-key'], [7, 'service-account'],
+  ]);
+  assert.ok(!JSON.stringify(found).includes(aws), 'findings carry no secret');
+  assert.deepEqual(scanText('x', 'nothing to see here, AKIA is just a word'), []);
+  assert.equal(scanName('.env').rule, 'env-file');
+  assert.equal(scanName('app/.env.production').rule, 'env-file');
+  assert.equal(scanName('.env.example'), null);
+  assert.equal(scanName('keys/server.pem').rule, 'key-file');
+  assert.equal(scanName('id_rsa').rule, 'key-file');
+  assert.equal(scanName('my-app-firebase-adminsdk-x1.json').rule, 'service-account-file');
+  assert.equal(scanName('src/main.ts'), null);
+  assert.equal(isBinary(Uint8Array.from([65, 0, 66])), true);
+  assert.equal(isBinary(Uint8Array.from([65, 66])), false);
+});
+
+test('local recipes are a fixed list tied to the project type', () => {
+  assert.deepEqual(recipesFor(['flutter']).map((r) => r.id), ['flutter-pub-get', 'flutter-analyze', 'flutter-test', 'flutter-doctor']);
+  assert.deepEqual(recipesFor(['firebase']).map((r) => r.id), ['firebase-emulators']);
+  assert.deepEqual(recipesFor(['node']), []);
+  assert.equal(recipeCommand(findRecipe('flutter-doctor')), 'flutter doctor -v');
+  assert.equal(findRecipe('rm -rf /'), undefined);
+});
+
+test('branch names, commit messages and porcelain paths are validated or parsed safely', () => {
+  for (const ok of ['main', 'feature/login', 'release-1.2', 'fix_x']) assert.ok(isSafeBranch(ok), ok);
+  for (const bad of ['', '-D', 'a b', 'x && calc', 'a..b', '$(id)', 'a'.repeat(101)]) assert.ok(!isSafeBranch(bad), bad);
+  assert.ok(isSafeCommitMessage('feat: añade login'));
+  for (const bad of ['', '   ', 'two\nlines', 'x'.repeat(201), 'tab\there']) assert.ok(!isSafeCommitMessage(bad), JSON.stringify(bad));
+  assert.deepEqual(changedPaths('## main\n M a.txt\n?? dir/b.txt\nR  old.txt -> new.txt\n?? "sp ace.txt"\n'), ['a.txt', 'dir/b.txt', 'new.txt', 'sp ace.txt']);
 });

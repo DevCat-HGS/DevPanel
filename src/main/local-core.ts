@@ -45,3 +45,39 @@ export function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\r(?!\n)/g, '\n');
 }
+
+// ---------- fixed "recipes": the only commands besides npm scripts that Local will ever run ----------
+export interface Recipe {
+  id: string;
+  kind: 'flutter' | 'firebase';
+  icon: string;
+  cmd: string;
+  args: string[];
+}
+
+export const RECIPES: Recipe[] = [
+  { id: 'flutter-pub-get', kind: 'flutter', icon: 'download', cmd: 'flutter', args: ['pub', 'get'] },
+  { id: 'flutter-analyze', kind: 'flutter', icon: 'search', cmd: 'flutter', args: ['analyze'] },
+  { id: 'flutter-test', kind: 'flutter', icon: 'checkcircle', cmd: 'flutter', args: ['test'] },
+  { id: 'flutter-doctor', kind: 'flutter', icon: 'info', cmd: 'flutter', args: ['doctor', '-v'] },
+  { id: 'firebase-emulators', kind: 'firebase', icon: 'server', cmd: 'firebase', args: ['emulators:start'] },
+];
+
+export const recipesFor = (kinds: string[]): Recipe[] => RECIPES.filter((r) => kinds.includes(r.kind));
+export const findRecipe = (id: string): Recipe | undefined => RECIPES.find((r) => r.id === id);
+export const recipeCommand = (r: Recipe): string => [r.cmd, ...r.args].join(' ');
+
+/** Branch names we are willing to pass to `git checkout`. */
+export const isSafeBranch = (name: string): boolean => /^[A-Za-z0-9._/-]{1,100}$/.test(name) && !name.startsWith('-') && !name.includes('..');
+
+/** One-line commit message without control characters, at most 200 characters. */
+export const isSafeCommitMessage = (msg: string): boolean =>
+  typeof msg === 'string' && msg.trim().length > 0 && msg.length <= 200 && !/[\u0000-\u001f\u007f]/.test(msg);
+
+/** Paths from `git status --porcelain=v1 -uall` ("XY path" or "XY old -> new"). */
+export function changedPaths(porcelain: string): string[] {
+  return porcelain
+    .split(/\r?\n/)
+    .filter((l) => l.length > 3 && !l.startsWith('## '))
+    .map((l) => l.slice(3).replace(/^.* -> /, '').replace(/^"(.*)"$/, '$1'));
+}

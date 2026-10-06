@@ -804,3 +804,20 @@ html.modal-open { overflow: hidden; }
 .icon-btn.mini { width: 28px; height: 28px; flex-shrink: 0; }
 .icon-btn.mini svg { width: 15px; height: 15px; }
 .icon-btn.mini:hover { transform: none; color: var(--accent); border-color: var(--accent); }
+
+/* ---------- Local project cards: icon buttons, branch picker, commit row ---------- */
+.rm-commits .commit .run-i.st-ok svg { color: var(--ok); }
+.rm-commits .commit .run-i.st-bad svg { color: var(--bad); }
+.rm-commits .commit .run-i.st-muted svg { color: var(--muted); }
+.local-card .actions { gap: 6px; margin-top: 0; }
+.local-card .actions .icon-btn.mini { width: 32px; height: 32px; }
+.local-card .actions .icon-btn.mini svg { width: 16px; height: 16px; }
+.local-card .actions .recipe-btn { color: var(--accent); }
+.local-card .actions .icon-btn.primary { color: #04121f; }
+.chip.lc { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.chip.lc svg { width: 13px; height: 13px; }
+.branch-select { height: 30px; max-width: 200px; padding: 0 10px; font-size: 12.5px; border-radius: 9px; }
+.commit-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.commit-row input { flex: 1; }
+.commit-row .icon-btn:hover { transform: none; }
+.scripts .muted svg { width: 16px; height: 16px; vertical-align: middle; }

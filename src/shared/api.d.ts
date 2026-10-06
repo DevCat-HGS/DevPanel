@@ -71,7 +71,35 @@ export interface WorkflowRun {
   updated_at: string;
 }
 
+export interface LocalRecipe {
+  id: string;
+  icon: string;
+  /** the exact command, shown as the tooltip */
+  tip: string;
+}
+
+export interface L10nResult {
+  /** folder (relative to the project) where the translation files were found */
+  dir: string;
+  languages: string[];
+  total: number;
+  missing: Record<string, string[]>;
+  missingCount: number;
+}
+
+/** A possible secret: never carries the secret itself. */
+export interface SecretFinding {
+  file: string;
+  line?: number;
+  rule: string;
+}
+
 export interface LocalProject {
+  /** flutter / firebase / node, from pubspec.yaml / firebase.json / package.json */
+  kinds: string[];
+  recipes: LocalRecipe[];
+  /** has two or more translation files that can be compared */
+  hasL10n: boolean;
   path: string;
   name: string;
   exists: boolean;
@@ -223,6 +251,15 @@ export interface DevPanelApi {
     remove(path: string): Promise<void>;
     git(path: string, action: 'fetch' | 'pull'): Promise<{ ok: boolean; output: string }>;
     run(path: string, script: string): Promise<{ id: number } | { error: string }>;
+    /** Runs one of the fixed recipes (flutter pub get, firebase emulators...) that applies to the project. */
+    recipe(path: string, id: string): Promise<{ id: number } | { error: string }>;
+    branches(path: string): Promise<{ current: string; all: string[] }>;
+    checkout(path: string, branch: string): Promise<{ ok: boolean; output: string }>;
+    /** Stages everything and commits; refuses when the changes look like they contain secrets. */
+    commit(path: string, message: string): Promise<{ ok: boolean; output: string; findings?: SecretFinding[] }>;
+    push(path: string): Promise<{ ok: boolean; output: string }>;
+    l10n(path: string): Promise<L10nResult | null>;
+    secrets(path: string): Promise<SecretFinding[]>;
     stop(id: number): Promise<void>;
     open(path: string, how: 'folder' | 'code'): Promise<void>;
     onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;

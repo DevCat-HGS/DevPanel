@@ -140,8 +140,8 @@ try {
   await page.click('.nav[data-view="local"]');
   await page.click('#local-add');
   await page.waitForSelector('.local-card');
-  assert.match(await page.textContent('.local-card .chips'), /trabajo/);
-  assert.match(await page.textContent('.local-card .chips'), /1 cambios/);
+  assert.equal(await page.locator('.local-card .branch-select').inputValue(), 'trabajo');
+  assert.equal((await page.textContent('.local-card .chip.dirty')).trim(), '1');
   assert.match(await page.textContent('.local-card .chips'), /primer commit/);
   await page.click('.script-btn:has-text("hello")');
   await page.waitForFunction(() => document.getElementById('term-out').textContent.includes('hola-desde-script'), null, { timeout: 30000 });
