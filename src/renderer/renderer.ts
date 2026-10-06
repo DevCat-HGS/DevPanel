@@ -8,10 +8,11 @@ import { setLangPref, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { renderPager } from './pager.js';
 import { initHome, refreshHome } from './ui-home.js';
-import { initLocal } from './ui-local.js';
+import { initNotices, pushNotice } from './notifications.js';
+import { getLocalProjects, initLocal, runScriptFrom } from './ui-local.js';
 import { initRepoModal, openRepo } from './ui-repo.js';
 import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
-import { initSoftware } from './ui-software.js';
+import { initSoftware, installable, requestInstall } from './ui-software.js';
 import { initTools, TOOLS } from './ui-tools.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
@@ -366,7 +367,10 @@ async function initPrefs(): Promise<void> {
     void loadRepos();
   };
 
-  api.alerts.onFailure((f) => toast(`Build fallido en ${f.repo}`, 'bad'));
+  api.alerts.onFailure((f) => {
+    toast(`Build fallido en ${f.repo}`, 'bad');
+    pushNotice({ key: `fail:${f.url}`, kind: 'bad', icon: 'xcircle', text: `Build fallido en ${f.repo}`, href: f.url });
+  });
 }
 
 async function showChannel(): Promise<void> {
@@ -406,6 +410,30 @@ function paletteItems() {
         document.querySelector<HTMLButtonElement>(`.tool-btn[data-id="${t.id}"]`)?.click();
       },
     })),
+    ...(api.platform === 'web'
+      ? []
+      : [
+          ...installable().map((i) => ({
+            label: `Instalar ${i.name}`,
+            hint: 'programa',
+            run: () => {
+              goView('tools');
+              document.querySelector<HTMLButtonElement>('.tab[data-tab="software"]')?.click(); // the cards live on the Software tab
+              requestInstall(i.id);
+            },
+          })),
+          ...getLocalProjects().flatMap((p) => [
+            { label: `Proyecto local: ${p.name}`, hint: 'local', run: () => goView('local') },
+            ...p.scripts.map((s) => ({
+              label: `npm run ${s} · ${p.name}`,
+              hint: 'script',
+              run: () => {
+                goView('local');
+                runScriptFrom(p.path, s);
+              },
+            })),
+          ]),
+        ]),
     ...allRepos.map((r) => ({
       label: r.name,
       hint: 'proyecto',
@@ -724,6 +752,7 @@ function renderUpdate(s: UpdateStatus): void {
     case 'error': return setUpdStatus('error', `Error al actualizar: ${s.message}`);
     case 'available':
       setUpdStatus('available', `Nueva versión ${s.version} disponible.`);
+      pushNotice({ key: `upd:${s.version}`, kind: 'info', icon: 'download', text: `Nueva versión ${s.version} disponible.` });
       box.classList.remove('hidden');
       box.append(
         updRow(icon('sparkles'), `v${s.version}`, [
@@ -745,6 +774,7 @@ function renderUpdate(s: UpdateStatus): void {
     }
     case 'ready':
       setUpdStatus('ready', `v${s.version} lista para instalar.`);
+      pushNotice({ key: `ready:${s.version}`, kind: 'ok', icon: 'refresh', text: `v${s.version} lista para instalar.` });
       box.classList.remove('hidden');
       box.append(updRow(icon('checkcircle'), `v${s.version}`, [updButton('refresh', 'Reiniciar y actualizar', true, () => void api.update.install())]));
       return;
@@ -756,6 +786,7 @@ api.update.onStatus(renderUpdate);
 
 hydrateIcons();
 initRepoModal();
+initNotices();
 initSidebar();
 initTheme();
 async function boot(): Promise<void> {

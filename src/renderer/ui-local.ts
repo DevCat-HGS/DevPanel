@@ -2,6 +2,7 @@ import type { LocalProject, SecretFinding } from '../shared/api';
 import { $, el, toast } from './dom.js';
 import { tr } from './i18n.js';
 import { icon } from './icons.js';
+import { pushNotice } from './notifications.js';
 
 const api = () => window.devpanel;
 let activeRun: number | null = null;
@@ -9,6 +10,10 @@ let activeRun: number | null = null;
 /** Results of the on-demand scans, kept per project so the chips survive a refresh. */
 const l10nMissing = new Map<string, number>();
 const secretCount = new Map<string, number>();
+let lastProjects: LocalProject[] = [];
+
+export const getLocalProjects = (): readonly LocalProject[] => lastProjects;
+
 
 function term(text: string, cls = ''): void {
   const out = $('term-out');
@@ -68,6 +73,7 @@ function chip(name: string, text: string, tip: string, tone = ''): HTMLElement {
 function showFindings(name: string, findings: SecretFinding[]): void {
   if (!findings.length) return term(`${tr('Sin secretos a la vista')}\n`, 'ok');
   term(`${findings.length} ${tr('posibles secretos')} (${name}):\n`, 'err');
+  pushNotice({ key: `sec:${name}:${findings.length}`, kind: 'bad', icon: 'shield', text: `${findings.length} posibles secretos en ${name}` });
   for (const f of findings) term(`  ${f.file}${f.line ? `:${f.line}` : ''}  [${f.rule}]\n`, 'err');
 }
 
@@ -211,6 +217,7 @@ function card(p: LocalProject): HTMLElement {
 export async function refresh(): Promise<void> {
   const box = $('local-list');
   const projects = await api().local.list();
+  lastProjects = projects;
   // keep a half-typed commit message when the list redraws
   const typed = new Map<string, string>();
   box.querySelectorAll<HTMLElement>('.local-card').forEach((c) => {
@@ -252,4 +259,9 @@ export function initLocal(): void {
 
   setRunning(null);
   void refresh();
+}
+
+/** Runs an npm script of a registered project (used by the command palette). */
+export function runScriptFrom(path: string, script: string): void {
+  void runWith(`npm run ${script}`, () => api().local.run(path, script));
 }

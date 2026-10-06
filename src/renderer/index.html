@@ -111,6 +111,9 @@
           <button class="nav nav-settings" data-view="settings" title="Settings" aria-label="Settings">
             <span class="ico" data-icon="settings" aria-hidden="true"></span>
           </button>
+          <button id="bell-btn" class="icon-btn bell-btn" title="Notificaciones" aria-label="Notificaciones">
+            <span data-icon="bell"></span><span id="bell-badge" class="bell-badge hidden"></span>
+          </button>
           <button id="whatsnew-btn" class="icon-btn news-btn" title="Novedades" aria-label="Novedades">
             <span data-icon="alert"></span>
           </button>
@@ -334,6 +337,20 @@
           <div id="rm-commits" class="rm-commits" aria-live="polite"></div>
           <div id="rm-pager" class="pager hidden"></div>
         </div>
+      </div>
+    </div>
+
+    <div id="notif-modal" class="palette hidden" role="dialog" aria-label="Notificaciones">
+      <div class="pal-box notif-box">
+        <div class="notes-hero notif-hero">
+          <span class="nh-ico" data-icon="bell" aria-hidden="true"></span>
+          <h2>Notificaciones</h2>
+          <span class="nh-actions">
+            <button id="notif-clear" class="icon-btn" title="Borrar todo" aria-label="Borrar todo"><span data-icon="trash"></span></button>
+            <button id="notif-close" class="icon-btn" title="Cerrar" aria-label="Cerrar"><span data-icon="x"></span></button>
+          </span>
+        </div>
+        <div id="notif-list" class="notif-list"></div>
       </div>
     </div>
 

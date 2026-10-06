@@ -856,3 +856,26 @@ html.modal-open { overflow: hidden; }
 .pinned-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--warn); }
 .pinned-head svg { width: 18px; height: 18px; fill: color-mix(in srgb, var(--warn) 35%, transparent); }
 .pinned-head .chip { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+
+/* ---------- Notification centre ---------- */
+.bell-btn { position: relative; }
+.bell-btn.has-new { color: var(--accent); border-color: var(--accent); }
+.bell-btn.has-new svg { animation: bell-ring 1.4s ease-in-out 2; transform-origin: 50% 0; }
+.bell-btn:hover { transform: none; }
+.bell-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: grid; place-items: center; font: 700 10.5px Inter, 'Segoe UI', sans-serif; color: #fff; background: var(--bad); box-shadow: 0 0 0 2px var(--bg); }
+.notif-box { padding: 0; gap: 0; overflow: hidden; width: min(540px, 92vw); max-height: 78vh; }
+.notif-hero .nh-actions { margin-left: auto; display: flex; gap: 8px; position: relative; z-index: 1; }
+.notif-hero .nh-actions .icon-btn:hover { transform: none; }
+.notif-hero .nh-ico { background: linear-gradient(135deg, var(--accent), var(--accent-2)); animation: none; }
+.notif-list { overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; }
+.notif-row { --c: var(--accent); display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; color: var(--text); text-decoration: none; background: color-mix(in srgb, var(--c) 7%, var(--panel-solid)); border: 1px solid color-mix(in srgb, var(--c) 25%, var(--border)); animation: rise 0.35s var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms); }
+a.notif-row:hover { border-color: var(--c); }
+.nk-bad { --c: var(--bad); } .nk-ok { --c: var(--ok); }
+.notif-ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.notif-ico svg { width: 17px; height: 17px; }
+.notif-text { flex: 1; min-width: 0; font-size: 13.5px; }
+.notif-when { font-size: 12px; flex-shrink: 0; }
+.notif-row > svg { width: 14px; height: 14px; color: var(--muted); flex-shrink: 0; }
+.notif-empty { display: grid; place-items: center; padding: 34px 0; color: var(--muted); }
+.notif-empty svg { width: 38px; height: 38px; opacity: 0.5; }
+@keyframes bell-ring { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); } 60% { transform: rotate(8deg); } 80% { transform: rotate(-5deg); } }

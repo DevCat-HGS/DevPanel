@@ -2,6 +2,7 @@ import type { CatalogItem, SoftwareProgress, SoftwareStatus } from '../shared/ap
 import { CATALOG } from './catalog.js';
 import { $, el, toast } from './dom.js';
 import { icon } from './icons.js';
+import { pushNotice } from './notifications.js';
 
 type State = 'checking' | 'installed' | 'outdated' | 'missing' | 'installing' | 'error' | 'web' | 'unknown';
 type Filter = 'all' | 'installed' | 'missing';
@@ -243,8 +244,10 @@ export function initSoftware(): void {
 
   api().software.onStatus(applyStatus);
   api().software.onUpdate(({ id, available }) => {
-    if (available) outdated.add(id);
-    else outdated.delete(id);
+    if (available) {
+      outdated.add(id);
+      pushNotice({ key: `sw:${id}`, kind: 'info', icon: 'arrowup', text: `Actualización disponible: ${items.get(id)?.name ?? id}` });
+    } else outdated.delete(id);
     if (available && cards.get(id)?.dataset.state === 'installed') setState(id, 'outdated');
   });
   // one-click profiles (icons; the tooltip lists what each one installs)
@@ -265,4 +268,14 @@ export function initSoftware(): void {
     else if (p.phase === 'installing') setState(p.id, 'installing', { percent: null }); // the installer runs: no percentage
   });
   void detect();
+}
+
+/** Programs the profile/palette could still install (missing and installable through winget). */
+export const installable = (): CatalogItem[] =>
+  CATALOG.items.filter((i) => i.kind === 'app' && i.winget && ['missing', 'error'].includes(cards.get(i.id)?.dataset.state ?? ''));
+
+/** Starts the same action as clicking the card's icon (used by the command palette). */
+export function requestInstall(id: string): void {
+  const item = items.get(id);
+  if (item) onAction(item);
 }

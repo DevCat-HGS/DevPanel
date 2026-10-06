@@ -235,6 +235,29 @@ try {
   assert.equal(await page.getAttribute('#upd-status', 'data-state'), 'none');
   log('the update box (icons only) appears above Settings, shows progress, then the restart icon, then hides');
 
+  // ---------- notification centre ----------
+  const unread = async () => ((await page.locator('#bell-badge').isVisible()) ? Number(await page.textContent('#bell-badge')) : 0);
+  const sendAlert = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('alert:failure', { repo: 'api-service', url: 'https://github.com/o/r/actions/runs/7' }));
+  const before = await unread(); // the update notices from the previous step are still unread
+  assert.ok(before >= 1, 'update notices were recorded');
+  await sendAlert();
+  await page.waitForFunction((n) => Number(document.getElementById('bell-badge').textContent) === n + 1, before);
+  await sendAlert(); // the same failed run again must not pile up
+  await page.waitForTimeout(300);
+  assert.equal(await unread(), before + 1, 'repeats are deduplicated');
+  await page.click('#bell-btn');
+  await page.waitForSelector('#notif-modal:not(.hidden) .notif-row');
+  assert.ok(await page.locator('#bell-badge').isHidden(), 'opening the panel marks everything as read');
+  assert.equal(await page.locator('.notif-row', { hasText: 'api-service' }).getAttribute('href'), 'https://github.com/o/r/actions/runs/7');
+  assert.ok((await page.locator('.notif-row', { hasText: '9.9.9' }).count()) >= 1, 'update notices are kept too');
+  assert.equal((await page.textContent('#notif-clear')).trim(), '', 'icon button');
+  await shot(page, '5e-notifications');
+  await page.click('#notif-clear');
+  await page.waitForSelector('#notif-list .notif-empty');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#notif-modal.hidden', { state: 'attached' });
+  log('the bell collects failed builds and updates (deduplicated), clears its badge when opened and can be emptied');
+
   // ---------- language ----------
   await page.click('#lang-seg [data-lang="en"]');
   await page.waitForFunction(() => document.getElementById('greeting').textContent === 'Your projects');
@@ -284,6 +307,24 @@ try {
   await page.keyboard.press('Enter');
   await page.waitForSelector('#tool-title:has-text("UUID")');
   log('command palette navigates to a tool');
+
+  // the palette can install a missing program and run a project's npm script
+  await page.keyboard.press('Control+k');
+  await page.waitForSelector('#palette:not(.hidden)');
+  await page.fill('#pal-input', 'instalar postman');
+  await page.waitForFunction(() => document.querySelector('#pal-list li.sel')?.textContent.includes('Instalar Postman'));
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#view-tools:not(.hidden)');
+  await page.waitForSelector('.sw-card[data-id="postman"][data-state="installed"]', { timeout: 20000 });
+  const hellos = () => page.evaluate(() => document.getElementById('term-out').textContent.split('hola-desde-script').length - 1);
+  const n0 = await hellos();
+  await page.keyboard.press('Control+k');
+  await page.fill('#pal-input', 'npm run hello');
+  await page.waitForFunction(() => document.querySelector('#pal-list li.sel')?.textContent.includes('npm run hello'));
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#view-local:not(.hidden)');
+  await page.waitForFunction((n) => document.getElementById('term-out').textContent.split('hola-desde-script').length - 1 > n, n0, { timeout: 30000 });
+  log('the palette installs a missing program and runs a local project script');
 
   // ---------- theme ----------
   await page.click('#theme-toggle');
