@@ -829,3 +829,30 @@ html.modal-open { overflow: hidden; }
 .preset-btn svg { width: 18px; height: 18px; }
 .preset-btn:hover { background: color-mix(in srgb, var(--accent-3) 16%, transparent); transform: translateY(-1px); }
 @keyframes sw-nudge { 50% { transform: translateY(-2px); } }
+
+/* ---------- Collapsible sidebar (icons only) ---------- */
+.sidebar { transition: width 0.3s var(--ease), padding 0.3s var(--ease); }
+.brand { position: relative; }
+.side-toggle { margin-left: auto; flex-shrink: 0; }
+.side-toggle svg { transition: transform 0.3s var(--ease); }
+.side-toggle:hover { transform: none; }
+.app.collapsed .sidebar { width: 72px; padding: 20px 10px; align-items: center; }
+.app.collapsed .brand { flex-direction: column; gap: 10px; padding: 0; }
+.app.collapsed .brand > span, .app.collapsed .nav-label { display: none; }
+.app.collapsed .side-toggle svg { transform: rotate(180deg); }
+.app.collapsed .sidebar nav { align-items: center; width: 100%; }
+.app.collapsed .nav { justify-content: center; padding: 11px 0; width: 100%; gap: 0; }
+.app.collapsed .nav:hover { transform: none; }
+.app.collapsed .nav.active::before { left: -10px; }
+.app.collapsed .side-foot { flex-direction: column; gap: 8px; width: 100%; align-items: center; }
+.app.collapsed .side-foot #theme-toggle { margin-left: 0; }
+.app.collapsed .update-box { padding: 8px 4px; width: 100%; }
+.app.collapsed .upd-row { flex-direction: column; gap: 6px; }
+.app.collapsed .upd-ver, .app.collapsed .upd-bar { display: none; }
+.app.collapsed .upd-btns { margin-left: 0; flex-direction: column; }
+
+/* ---------- Pinned projects ---------- */
+.pinned { margin-bottom: 26px; padding: 14px 16px 6px; border-radius: var(--radius); background: color-mix(in srgb, var(--warn) 5%, transparent); border: 1px dashed color-mix(in srgb, var(--warn) 35%, var(--border)); animation: rise 0.4s var(--ease) both; }
+.pinned-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--warn); }
+.pinned-head svg { width: 18px; height: 18px; fill: color-mix(in srgb, var(--warn) 35%, transparent); }
+.pinned-head .chip { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }

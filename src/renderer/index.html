@@ -86,6 +86,7 @@
           <img class="logo" src="icon.png" alt="" />
           <span>DevPanel</span>
           <span id="version" class="chip"></span>
+          <button id="side-toggle" class="icon-btn mini side-toggle" title="Contraer menú" aria-label="Contraer menú" aria-expanded="true"><span data-icon="chevl"></span></button>
         </div>
         <nav aria-label="Principal">
           <button class="nav active" data-view="home">
@@ -151,6 +152,12 @@
 
           <details id="recs" class="recs hidden"></details>
           <div id="stats" class="stats"></div>
+          <div id="repo-pinned" class="pinned hidden">
+            <div class="pinned-head" title="Fijados">
+              <span data-icon="star" aria-hidden="true"></span><span id="pinned-count" class="chip"></span>
+            </div>
+            <div id="repo-pinned-grid" class="grid"></div>
+          </div>
           <div id="repos" class="grid" aria-live="polite"></div>
           <div id="repo-pager" class="pager hidden"></div>
         </section>

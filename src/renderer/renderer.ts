@@ -45,6 +45,37 @@ function applyTheme(theme: 'dark' | 'light'): void {
   }
 }
 
+/** Collapses the sidebar to an icon rail; the choice is remembered on this device. */
+function initSidebar(): void {
+  const app = $('app');
+  const btn = $('side-toggle');
+  const apply = (collapsed: boolean) => {
+    app.classList.toggle('collapsed', collapsed);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.title = collapsed ? 'Expandir menú' : 'Contraer menú';
+    btn.setAttribute('aria-label', btn.title);
+    try {
+      localStorage.setItem('devpanel.sidebar', collapsed ? 'collapsed' : 'open');
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  let saved = false;
+  try {
+    saved = localStorage.getItem('devpanel.sidebar') === 'collapsed';
+  } catch {
+    /* storage unavailable */
+  }
+  app.classList.toggle('collapsed', saved);
+  btn.setAttribute('aria-expanded', String(!saved));
+  // labels become tooltips when only the icons are visible
+  document.querySelectorAll<HTMLButtonElement>('.nav').forEach((n) => {
+    const label = n.querySelector('.nav-label')?.textContent?.trim();
+    if (label) n.title = label;
+  });
+  btn.onclick = () => apply(!app.classList.contains('collapsed'));
+}
+
 function initTheme(): void {
   let saved: string | null = null;
   try {
@@ -431,6 +462,54 @@ function skeletons(n = 6): HTMLElement[] {
   return Array.from({ length: n }, () => el('div', 'repo skeleton'));
 }
 
+function repoCard(r: Repo, i: number): HTMLElement {
+  const card = el('div', 'repo');
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+  card.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), card.click());
+  card.style.setProperty('--i', String(Math.min(i, 14)));
+
+  const top = el('div', 'top');
+  if (r.private) top.append(el('span', 'chip priv', 'privado'));
+  if (Date.now() - new Date(r.pushed_at).getTime() < 86_400_000) {
+    const live = el('span', 'live');
+    live.title = 'Actividad en las últimas 24 h';
+    top.append(live);
+  }
+
+  const lang = el('span', 'lang');
+  const dot = el('span', 'dot');
+  dot.style.background = LANG_COLORS[r.language ?? ''] ?? '#6b7280';
+  lang.append(dot, r.language ?? '—');
+  const branch = el('span', 'branch');
+  branch.append(icon('branch'), r.default_branch);
+  branch.querySelector('svg')!.setAttribute('width', '13');
+  const meta = el('div', 'meta');
+  meta.append(lang, branch, el('span', undefined, ago(r.pushed_at)));
+
+  const star = el('button', `star${favs.has(r.name) ? ' on' : ''}`, favs.has(r.name) ? '★' : '☆');
+  star.setAttribute('aria-label', 'Marcar como favorito');
+  star.onclick = (e) => {
+    e.stopPropagation();
+    toggleFav(r.name);
+  };
+  top.append(star);
+
+  // folder: the tab carries the name, the body carries everything else
+  const tab = el('div', 'repo-tab');
+  tab.append(icon('folder'), el('span', 'name', r.name));
+  const body = el('div', 'repo-body');
+  body.append(top, el('div', 'desc', r.description ?? 'Sin descripción'), meta);
+  card.append(tab, body);
+  card.addEventListener('pointermove', (e) => {
+    const b = card.getBoundingClientRect();
+    card.style.setProperty('--mx', `${e.clientX - b.left}px`);
+    card.style.setProperty('--my', `${e.clientY - b.top}px`);
+  });
+  card.onclick = () => openRepo(r);
+  return card;
+}
+
 function renderRepos(): void {
   const q = $<HTMLInputElement>('repo-search').value.trim().toLowerCase();
   const sort = $<HTMLSelectElement>('repo-sort').value;
@@ -446,67 +525,36 @@ function renderRepos(): void {
     `${r.name} ${r.description ?? ''} ${r.language ?? ''}`.toLowerCase().includes(q),
   );
   const box = $('repos');
+  // favourites are pinned above the grid (while not searching) and leave the paginated list
+  const pinned = !q && favs.size ? list.filter((r) => favs.has(r.name)) : [];
+  $('repo-pinned').classList.toggle('hidden', !pinned.length);
+  if (pinned.length) {
+    $('pinned-count').textContent = String(pinned.length);
+    $('repo-pinned-grid').replaceChildren(...pinned.map(repoCard));
+  } else {
+    $('repo-pinned-grid').replaceChildren(); // no stale hidden cards
+  }
+  const rest = pinned.length ? list.filter((r) => !favs.has(r.name)) : list;
   if (list.length === 0) {
     box.replaceChildren(el('p', 'empty', q ? 'Ningún proyecto coincide con tu búsqueda.' : 'No hay repositorios públicos para mostrar.'));
     renderPager($('repo-pager'), 1, 1, () => {});
     return;
   }
-  const pages = Math.ceil(list.length / REPOS_PER_PAGE);
+  if (rest.length === 0) {
+    box.replaceChildren();
+    renderPager($('repo-pager'), 1, 1, () => {});
+    return;
+  }
+  const pages = Math.ceil(rest.length / REPOS_PER_PAGE);
   repoPage = Math.min(Math.max(repoPage, 1), pages);
-  const visible = list.slice((repoPage - 1) * REPOS_PER_PAGE, repoPage * REPOS_PER_PAGE);
+  const visible = rest.slice((repoPage - 1) * REPOS_PER_PAGE, repoPage * REPOS_PER_PAGE);
   renderPager($('repo-pager'), repoPage, pages, (p) => {
     repoPage = p;
     renderRepos();
     $('repos').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   box.replaceChildren(
-    ...visible.map((r, i) => {
-      const card = el('div', 'repo');
-      card.tabIndex = 0;
-      card.setAttribute('role', 'button');
-      card.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), card.click());
-      card.style.setProperty('--i', String(Math.min(i, 14)));
-
-      const top = el('div', 'top');
-      if (r.private) top.append(el('span', 'chip priv', 'privado'));
-      if (Date.now() - new Date(r.pushed_at).getTime() < 86_400_000) {
-        const live = el('span', 'live');
-        live.title = 'Actividad en las últimas 24 h';
-        top.append(live);
-      }
-
-      const lang = el('span', 'lang');
-      const dot = el('span', 'dot');
-      dot.style.background = LANG_COLORS[r.language ?? ''] ?? '#6b7280';
-      lang.append(dot, r.language ?? '—');
-      const branch = el('span', 'branch');
-      branch.append(icon('branch'), r.default_branch);
-      branch.querySelector('svg')!.setAttribute('width', '13');
-      const meta = el('div', 'meta');
-      meta.append(lang, branch, el('span', undefined, ago(r.pushed_at)));
-
-      const star = el('button', `star${favs.has(r.name) ? ' on' : ''}`, favs.has(r.name) ? '★' : '☆');
-      star.setAttribute('aria-label', 'Marcar como favorito');
-      star.onclick = (e) => {
-        e.stopPropagation();
-        toggleFav(r.name);
-      };
-      top.append(star);
-
-      // folder: the tab carries the name, the body carries everything else
-      const tab = el('div', 'repo-tab');
-      tab.append(icon('folder'), el('span', 'name', r.name));
-      const body = el('div', 'repo-body');
-      body.append(top, el('div', 'desc', r.description ?? 'Sin descripción'), meta);
-      card.append(tab, body);
-      card.addEventListener('pointermove', (e) => {
-        const b = card.getBoundingClientRect();
-        card.style.setProperty('--mx', `${e.clientX - b.left}px`);
-        card.style.setProperty('--my', `${e.clientY - b.top}px`);
-      });
-      card.onclick = () => openRepo(r);
-      return card;
-    }),
+    ...visible.map(repoCard),
   );
 }
 
@@ -708,6 +756,7 @@ api.update.onStatus(renderUpdate);
 
 hydrateIcons();
 initRepoModal();
+initSidebar();
 initTheme();
 async function boot(): Promise<void> {
   const s = await api.settings.get();

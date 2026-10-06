@@ -264,6 +264,19 @@ try {
   PIN = '5678';
   log('the code can be changed with the pad dialog (and cancelled with Escape)');
 
+  // ---------- collapsible sidebar ----------
+  await page.click('#side-toggle');
+  await page.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().width < 90);
+  assert.ok(await page.locator('.nav-label').first().isHidden(), 'labels are hidden');
+  assert.equal(await page.getAttribute('.nav[data-view="tools"]', 'title'), 'Tools', 'labels become tooltips');
+  await page.click('.nav[data-view="home"]');
+  assert.ok(await page.locator('#view-home').isVisible(), 'navigation still works while collapsed');
+  assert.equal(await page.evaluate(() => localStorage.getItem('devpanel.sidebar')), 'collapsed');
+  await shot(page, '5d-collapsed');
+  await page.click('#side-toggle');
+  await page.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().width > 200);
+  log('the sidebar collapses to an icon rail (remembered) and expands again');
+
   // ---------- palette ----------
   await page.keyboard.press('Control+k');
   await page.waitForSelector('#palette:not(.hidden)');

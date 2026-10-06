@@ -124,6 +124,25 @@ try {
   assert.equal(await curPage(), '1', 'a new search starts from page 1');
   log('searching resets to the first page and hides the pager when everything fits');
 
+  // ---------- pinned projects ----------
+  await page.click('.repo:has(.name:text("repo-02")) .star');
+  await page.click('.repo:has(.name:text("repo-05")) .star');
+  await page.waitForSelector('#repo-pinned:not(.hidden)');
+  assert.deepEqual(await page.locator('#repo-pinned .repo .name').allTextContents(), ['repo-02', 'repo-05']);
+  assert.equal(await page.textContent('#pinned-count'), '2');
+  assert.equal(await page.locator('#repos .repo:has(.name:text("repo-02"))').count(), 0, 'pinned projects leave the paginated grid');
+  assert.equal(await page.locator('#repo-pager .pg-num').count(), 3, '21 projects left: 9 + 9 + 3');
+  await shot(page, 'p0b-pinned');
+  await page.fill('#repo-search', 'repo-0');
+  await page.waitForFunction(() => document.getElementById('repo-pinned').classList.contains('hidden'));
+  await page.fill('#repo-search', '');
+  await page.waitForSelector('#repo-pinned:not(.hidden)');
+  await page.click('#repo-pinned .repo:has(.name:text("repo-02")) .star');
+  await page.click('#repo-pinned .repo:has(.name:text("repo-05")) .star');
+  await page.waitForSelector('#repo-pinned.hidden', { state: 'attached' });
+  assert.equal(await page.locator('#repo-pager .pg-num').count(), 3);
+  log('starred projects are pinned in their own section above the grid, searching shows everything, unpinning returns them');
+
   // ---------- the folder dialog ----------
   const scrollBefore = await page.evaluate(() => window.scrollY);
   await page.click('.repo:has(.name:text("repo-03"))');
