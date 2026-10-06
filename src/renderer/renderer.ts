@@ -464,7 +464,6 @@ function renderRepos(): void {
       card.style.setProperty('--i', String(Math.min(i, 14)));
 
       const top = el('div', 'top');
-      top.append(el('div', 'name', r.name));
       if (r.private) top.append(el('span', 'chip priv', 'privado'));
       if (Date.now() - new Date(r.pushed_at).getTime() < 86_400_000) {
         const live = el('span', 'live');
@@ -490,7 +489,12 @@ function renderRepos(): void {
       };
       top.append(star);
 
-      card.append(top, el('div', 'desc', r.description ?? 'Sin descripción'), meta);
+      // folder: the tab carries the name, the body carries everything else
+      const tab = el('div', 'repo-tab');
+      tab.append(icon('folder'), el('span', 'name', r.name));
+      const body = el('div', 'repo-body');
+      body.append(top, el('div', 'desc', r.description ?? 'Sin descripción'), meta);
+      card.append(tab, body);
       card.addEventListener('pointermove', (e) => {
         const b = card.getBoundingClientRect();
         card.style.setProperty('--mx', `${e.clientX - b.left}px`);

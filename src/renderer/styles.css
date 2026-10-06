@@ -738,3 +738,28 @@ html.modal-open { overflow: hidden; }
 .notes .empty-note { display: grid; place-items: center; gap: 8px; padding: 24px; color: var(--muted); }
 .notes .empty-note svg { width: 34px; height: 34px; color: var(--accent); opacity: 0.7; }
 @keyframes nh-spin { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(14deg) scale(1.06); } }
+
+/* ---------- Project cards as folders (same look as the project dialog) ---------- */
+.repo:not(.skeleton) { --fold: color-mix(in srgb, var(--accent-3) 88%, #000); padding: 30px 0 0; background: none; border: 0; border-radius: 0; overflow: visible; box-shadow: none; text-align: left; }
+.repo:not(.skeleton):hover { transform: translateY(-3px); background: none; border-color: transparent; box-shadow: none; }
+.repo:not(.skeleton):active { transform: translateY(-1px) scale(0.99); }
+
+/* the tab */
+.repo-tab { position: absolute; z-index: 2; top: 0; left: 0; max-width: 80%; height: 32px; padding: 0 30px 0 12px; display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: #1b1100; background: linear-gradient(180deg, color-mix(in srgb, var(--accent-3) 92%, #fff 8%), var(--fold)); clip-path: polygon(0 11px, 11px 0, calc(100% - 24px) 0, calc(100% - 8px) 100%, 0 100%); transition: filter 0.25s, transform 0.3s var(--ease); }
+.repo-tab svg { width: 15px; height: 15px; flex-shrink: 0; }
+.repo-tab .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; margin: 0; }
+
+/* a sheet of paper peeking out behind the folder: it rises when the folder "opens" */
+.repo:not(.skeleton)::after { inset: auto; left: 14px; right: 14px; top: 24px; height: 12px; opacity: 1; z-index: 0; background: var(--panel-hover); border: 1px solid var(--border); border-bottom: 0; border-radius: 7px 7px 0 0; transition: transform 0.35s var(--ease); transform: none; }
+.repo:not(.skeleton):hover::after { transform: translateY(-6px) rotate(-0.7deg); }
+.repo:not(.skeleton):hover .repo-tab { filter: brightness(1.12); transform: translateY(-2px); }
+
+/* the body */
+.repo-body { position: relative; z-index: 1; min-height: 118px; padding: 12px 16px 14px; overflow: hidden; border-radius: 0 14px 14px 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent-3) 13%, var(--panel-solid)), var(--panel-solid) 90px); border: 1px solid color-mix(in srgb, var(--accent-3) 38%, var(--border)); transition: border-color 0.25s, box-shadow 0.25s; }
+.repo-body::after { content: ''; position: absolute; inset: 0; opacity: 0; pointer-events: none; background: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--accent-3) 18%, transparent), transparent 70%); transition: opacity 0.3s; }
+.repo:not(.skeleton):hover .repo-body { border-color: color-mix(in srgb, var(--accent-3) 75%, transparent); box-shadow: var(--shadow); }
+.repo:hover .repo-body::after { opacity: 1; }
+.repo-body .top { justify-content: flex-end; min-height: 24px; margin-bottom: 2px; }
+.repo-body .desc { margin-top: 2px; }
+.repo:focus-visible { outline: none; }
+.repo:focus-visible .repo-body { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }

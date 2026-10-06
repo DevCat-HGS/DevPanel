@@ -72,7 +72,14 @@ try {
   assert.equal(await curPage(), '1');
   assert.ok(await page.locator('#repo-pager .pg-btn[aria-label="Anterior"]').isDisabled());
   assert.deepEqual((await names()).slice(0, 2), ['repo-01', 'repo-02']);
-  log('the projects grid is paginated (9 per page) and the first page starts at the newest');
+  assert.equal(await page.locator('.repo:not(.skeleton) .repo-tab').count(), 9, 'every project is a folder with a tab');
+  assert.deepEqual(await page.locator('.repo-tab .name').allTextContents(), await names(), 'the tab carries the project name');
+  assert.ok(await page.locator('.repo:not(.skeleton) .repo-body .star').first().isVisible(), 'the body keeps the star');
+  assert.ok(await page.locator('.repo-tab svg').first().isVisible(), 'the tab has the folder icon');
+  await page.hover('.repo:not(.skeleton) >> nth=1');
+  await page.waitForTimeout(450);
+  await shot(page, 'p0-folder-cards');
+  log('the projects grid is paginated (9 per page), starts at the newest and every project is drawn as a folder');
 
   await page.click('#repo-pager .pg-num:has-text("2")');
   await page.waitForFunction(() => document.querySelector('#repo-pager .pg-num.cur')?.textContent === '2');
