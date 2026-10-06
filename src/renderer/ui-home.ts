@@ -167,8 +167,66 @@ function failedLocal(): void {
   document.querySelector('.hw[data-id="local"]')?.classList.add('hidden');
 }
 
+/** Sharon's orb: a rotating sphere of particles plus a few drifting dust motes, drawn on a canvas. */
+function initOrb(): void {
+  const cv = document.querySelector<HTMLCanvasElement>('.orb-particles');
+  const g = cv?.getContext('2d');
+  if (!cv || !g) return;
+  const N = 110;
+  const pts = Array.from({ length: N }, (_, i) => {
+    const y = 1 - (2 * (i + 0.5)) / N; // fibonacci sphere
+    const r = Math.sqrt(1 - y * y);
+    const a = i * 2.399963;
+    return { x: Math.cos(a) * r, y, z: Math.sin(a) * r };
+  });
+  const dust = Array.from({ length: 26 }, () => ({ a: Math.random() * 6.283, r: 0.95 + Math.random() * 0.45, s: (0.2 + Math.random() * 0.5) * (Math.random() < 0.5 ? -1 : 1), k: Math.random() }));
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const css = getComputedStyle(document.documentElement);
+  const c1 = css.getPropertyValue('--accent').trim() || '#8b5cf6';
+  const c2 = css.getPropertyValue('--accent-2').trim() || '#38bdf8';
+  const W = cv.width;
+  const R = W * 0.3;
+  let t = 0;
+  const frame = (): void => {
+    if (!cv.isConnected) return;
+    if (!document.hidden && cv.offsetParent) {
+      t += reduce ? 0 : 0.008;
+      g.clearRect(0, 0, W, W);
+      const cy = Math.cos(t), sy = Math.sin(t), tilt = 0.35, ct = Math.cos(tilt), st = Math.sin(tilt);
+      const proj = pts.map((p, i) => {
+        const x = p.x * cy + p.z * sy, z0 = -p.x * sy + p.z * cy;
+        const y = p.y * ct - z0 * st, z = p.y * st + z0 * ct;
+        const wave = 1 + 0.07 * Math.sin(t * 3 + i * 0.35 + p.y * 4); // ripple travelling over the surface
+        return { x: W / 2 + x * R * wave, y: W / 2 + y * R * wave, z, i };
+      });
+      proj.sort((a, b) => a.z - b.z);
+      for (const p of proj) {
+        const d = (p.z + 1) / 2;
+        g.globalAlpha = 0.25 + d * 0.75;
+        g.fillStyle = p.i % 3 ? c1 : c2;
+        g.beginPath();
+        g.arc(p.x, p.y, 1.2 + d * 2.2, 0, 6.283);
+        g.fill();
+      }
+      for (const m of dust) {
+        const a = m.a + t * m.s;
+        const rr = R * m.r * (1 + 0.08 * Math.sin(t * 2 + m.k * 9));
+        g.globalAlpha = 0.25 + 0.45 * Math.abs(Math.sin(t * 1.5 + m.k * 6));
+        g.fillStyle = m.k > 0.5 ? c2 : c1;
+        g.beginPath();
+        g.arc(W / 2 + Math.cos(a) * rr * 1.25, W / 2 + Math.sin(a) * rr * 0.9, 1.4, 0, 6.283);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+    }
+    requestAnimationFrame(frame);
+  };
+  frame();
+}
+
 export function initHome(context: HomeContext): void {
   ctx = context;
+  initOrb();
   $('home-grid').replaceChildren(...WIDGETS.map(widget));
   $('home-refresh').onclick = () => void refreshHome();
 }
