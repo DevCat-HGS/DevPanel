@@ -1,3 +1,4 @@
+import { CATALOG } from './catalog.js';
 import type { Commit, DevPanelApi, Repo, Settings, WorkflowRun } from '../shared/api';
 
 /**
@@ -120,7 +121,18 @@ export function createWebApi(): DevPanelApi {
       onExit: () => {},
     },
     notes: { get: async () => null },
-    env: { check: async () => [] },
+    // The web build cannot detect or install anything: cards are plain links.
+    software: {
+      detect: async () => [],
+      install: async () => ({ ok: false, error: 'Solo disponible en la app de escritorio' }),
+      cancel: async () => {},
+      open: async (id) => {
+        const item = CATALOG.items.find((i) => i.id === id);
+        if (item) window.open(item.url, '_blank', 'noopener,noreferrer');
+      },
+      onStatus: () => {},
+      onProgress: () => {},
+    },
     // The web build is always the latest deploy.
     update: {
       check: noop,

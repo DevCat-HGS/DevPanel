@@ -25,7 +25,9 @@ git('commit', '-q', '-m', 'primer commit');
 writeFileSync(join(proj, 'nuevo.txt'), 'sin commitear');
 
 // VS Code-like hosts export ELECTRON_RUN_AS_NODE=1, which makes Electron start as plain Node.
-const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj };
+// the catalog test pretends these are installed and fakes installs, so the real machine is never touched
+const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj,
+  DEVPANEL_FAKE_SOFTWARE: JSON.stringify({ git: '2.47.0', node: '22.1.0', python: '3.13.1' }) };
 delete env.ELECTRON_RUN_AS_NODE;
 const launch = () => electron.launch({ args: ['.'], env });
 
@@ -80,8 +82,49 @@ try {
   assert.ok(await page.locator('#recs li').first().isVisible());
   log('recommendations panel is collapsed by default and expands');
 
-  // ---------- tools ----------
+  // ---------- software catalog ----------
   await page.click('.nav[data-view="tools"]');
+  await page.waitForSelector('.sw-card[data-id="git"][data-state="installed"]');
+  assert.equal(await page.textContent('.sw-card[data-id="git"] .sw-ver'), '2.47.0');
+  assert.equal(await page.getAttribute('.sw-card[data-id="docker"]', 'data-state'), 'missing');
+  assert.equal(await page.getAttribute('.sw-card[data-id="github"]', 'data-state'), 'web');
+  for (const id of ['python', 'claudecode', 'flutter', 'postman', 'vscode', 'cursor']) assert.equal(await page.locator(`.sw-card[data-id="${id}"]`).count(), 1, id);
+  assert.ok((await page.locator('.sw-section').count()) >= 11, 'categories');
+  assert.equal((await page.textContent('.sw-card[data-id="docker"] .sw-action')).trim(), '', 'actions are icons, not words');
+  assert.ok((await page.locator('.sw-card[data-id="git"] img.sw-logo').count()) === 1, 'brand icon');
+  await shot(page, '4a-software');
+  log('the catalog lists categories, detects installed apps with their version and uses icon-only actions');
+
+  await page.click('.sw-card[data-id="docker"] .sw-action');
+  await page.waitForSelector('.sw-card[data-id="docker"][data-state="installing"]');
+  await page.waitForFunction(() => {
+    const w = parseFloat(document.querySelector('.sw-card[data-id="docker"] .sw-bar i').style.width);
+    return w > 0 && w < 100;
+  });
+  await shot(page, '4b-installing');
+  await page.waitForSelector('.sw-card[data-id="docker"][data-state="installed"]', { timeout: 15000 });
+  assert.match(await page.textContent('#sw-summary'), /4\/\d+/, 'git, node, python and the app installed just now');
+  log('clicking download animates the card with live progress and ends installed');
+
+  await page.click('#sw-filter [data-f="missing"]');
+  assert.ok(await page.locator('.sw-card[data-id="git"]').isHidden());
+  assert.ok(await page.locator('.sw-card[data-id="postman"]').isVisible());
+  await page.click('#sw-filter [data-f="installed"]');
+  assert.ok(await page.locator('.sw-card[data-id="postman"]').isHidden());
+  assert.ok(await page.locator('.sw-card[data-id="docker"]').isVisible());
+  await page.click('#sw-filter [data-f="all"]');
+  await page.click('#sw-refresh');
+  await page.waitForSelector('.sw-card[data-id="docker"][data-state="installed"]');
+  log('filters and re-detect work, and an app installed in this session stays installed');
+
+  const refused = await page.evaluate(async () => window.devpanel.software.install('github'));
+  assert.equal(refused.ok, false, 'web services cannot be "installed"');
+  const unknown = await page.evaluate(async () => window.devpanel.software.install('calc && del *'));
+  assert.equal(unknown.ok, false, 'only catalog ids are accepted');
+  log('install refuses web services and anything that is not a catalog id');
+
+  // ---------- utilities tab ----------
+  await page.click('.tab[data-tab="utils"]');
   await page.fill('#tool-input', '{"a":1,"b":[true]}');
   await page.click('#tool-actions >> text=Formatear');
   assert.match(await page.textContent('#tool-output'), /"a": 1/);
@@ -90,12 +133,7 @@ try {
   await page.click('#tool-actions >> text=SHA-256');
   assert.match(await page.textContent('#tool-output'), /^ba7816bf/);
   await shot(page, '4-tools');
-  log('developer tools run (JSON, SHA-256)');
-
-  await page.click('#env-check');
-  await page.waitForSelector('#env-list li');
-  assert.ok((await page.locator('#env-list li').count()) >= 5);
-  log('environment check lists the dev tools');
+  log('developer utilities run (JSON, SHA-256)');
 
   // ---------- local projects + terminal ----------
   await page.click('.nav[data-view="local"]');

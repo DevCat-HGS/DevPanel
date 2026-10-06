@@ -39,11 +39,43 @@ export interface LocalProject {
   lastCommit?: { subject: string; when: string };
 }
 
-export interface EnvTool {
+export interface CatalogCategory {
+  id: string;
   name: string;
-  version: string | null;
-  /** Why it matters for DevPanel / dev work, shown when missing. */
-  hint: string;
+  icon: string;
+}
+
+export interface CatalogItem {
+  id: string;
+  name: string;
+  category: string;
+  /** 'web' = an online service (just a link); 'app' = software that can be installed. */
+  kind: 'app' | 'web';
+  url: string;
+  /** simple-icons slug of the brand icon. */
+  brand?: string;
+  /** winget package id; without it the card opens the download page instead. */
+  winget?: string;
+  detect?: { cmd?: string; versionArgs?: string[]; paths?: string[] };
+}
+
+export interface Catalog {
+  categories: CatalogCategory[];
+  items: CatalogItem[];
+}
+
+export interface SoftwareStatus {
+  id: string;
+  installed: boolean;
+  version?: string;
+}
+
+export interface SoftwareProgress {
+  id: string;
+  phase: 'start' | 'progress' | 'installing' | 'done' | 'error';
+  /** 0-100 while downloading; absent when it cannot be measured. */
+  percent?: number;
+  message?: string;
 }
 
 export interface Settings {
@@ -149,9 +181,16 @@ export interface DevPanelApi {
     /** Release notes (markdown) of a version, or of the running one; null if none. */
     get(version?: string): Promise<string | null>;
   };
-  env: {
-    /** Detects the dev tools installed on this machine (desktop only). */
-    check(): Promise<EnvTool[]>;
+  software: {
+    /** Detects what is installed; results also stream through onStatus as they are found. */
+    detect(): Promise<SoftwareStatus[]>;
+    /** Installs a catalog entry through winget (the renderer only ever sends the catalog id). */
+    install(id: string): Promise<{ ok: boolean; error?: string }>;
+    cancel(id: string): Promise<void>;
+    /** Opens the entry's website / download page in the browser. */
+    open(id: string): Promise<void>;
+    onStatus(cb: (s: SoftwareStatus) => void): void;
+    onProgress(cb: (p: SoftwareProgress) => void): void;
   };
   update: {
     check(): Promise<void>;

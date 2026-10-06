@@ -1,0 +1,126 @@
+{
+  "categories": [
+    { "id": "vcs", "name": "Control de versiones", "icon": "branch" },
+    { "id": "tasks", "name": "Tareas", "icon": "tasks" },
+    { "id": "design", "name": "Diseño", "icon": "palette" },
+    { "id": "ide", "name": "IDEs", "icon": "code" },
+    { "id": "runtime", "name": "Entornos", "icon": "cpu" },
+    { "id": "flutter", "name": "Flutter", "icon": "phone" },
+    { "id": "python", "name": "Python", "icon": "terminal" },
+    { "id": "db", "name": "Bases de datos", "icon": "database" },
+    { "id": "servers", "name": "Servidores", "icon": "server" },
+    { "id": "containers", "name": "Contenedores", "icon": "box" },
+    { "id": "api", "name": "Testing de API", "icon": "send" },
+    { "id": "ai", "name": "IA", "icon": "sparkles" }
+  ],
+  "items": [
+    { "id": "github", "name": "GitHub", "category": "vcs", "kind": "web", "url": "https://github.com/", "brand": "github" },
+    {
+      "id": "git", "name": "Git", "category": "vcs", "kind": "app", "url": "https://git-scm.com/install/", "brand": "git",
+      "winget": "Git.Git",
+      "detect": { "cmd": "git", "versionArgs": ["--version"], "paths": ["%ProgramFiles%\\Git\\cmd\\git.exe", "%LOCALAPPDATA%\\Programs\\Git\\cmd\\git.exe"] }
+    },
+
+    { "id": "lucidchart", "name": "Lucidchart", "category": "tasks", "kind": "web", "url": "https://www.lucidchart.com/", "brand": "lucid" },
+    { "id": "trello", "name": "Trello", "category": "tasks", "kind": "web", "url": "https://trello.com/", "brand": "trello" },
+
+    { "id": "uiverse", "name": "Uiverse", "category": "design", "kind": "web", "url": "https://uiverse.io/" },
+    { "id": "v0", "name": "v0", "category": "design", "kind": "web", "url": "https://v0.app/", "brand": "v0" },
+
+    {
+      "id": "trae", "name": "Trae", "category": "ide", "kind": "app", "url": "https://www.trae.ai/", "brand": "trae",
+      "winget": "ByteDance.Trae",
+      "detect": { "paths": ["%LOCALAPPDATA%\\Programs\\Trae\\Trae.exe", "%ProgramFiles%\\Trae\\Trae.exe"] }
+    },
+    {
+      "id": "vscode", "name": "VS Code", "category": "ide", "kind": "app", "url": "https://code.visualstudio.com/download",
+      "winget": "Microsoft.VisualStudioCode",
+      "detect": { "cmd": "code", "versionArgs": ["--version"], "paths": ["%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe", "%ProgramFiles%\\Microsoft VS Code\\Code.exe"] }
+    },
+    {
+      "id": "androidstudio", "name": "Android Studio", "category": "ide", "kind": "app", "url": "https://developer.android.com/studio", "brand": "androidstudio",
+      "winget": "Google.AndroidStudio",
+      "detect": { "paths": ["%ProgramFiles%\\Android\\Android Studio\\bin\\studio64.exe", "%LOCALAPPDATA%\\Programs\\Android Studio\\bin\\studio64.exe"] }
+    },
+    {
+      "id": "cursor", "name": "Cursor", "category": "ide", "kind": "app", "url": "https://cursor.com/", "brand": "cursor",
+      "winget": "Anysphere.Cursor",
+      "detect": { "cmd": "cursor", "paths": ["%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe", "%LOCALAPPDATA%\\Programs\\Cursor\\Cursor.exe"] }
+    },
+
+    {
+      "id": "node", "name": "Node.js", "category": "runtime", "kind": "app", "url": "https://nodejs.org/en/download/current", "brand": "nodedotjs",
+      "winget": "OpenJS.NodeJS",
+      "detect": { "cmd": "node", "versionArgs": ["--version"], "paths": ["%ProgramFiles%\\nodejs\\node.exe"] }
+    },
+    {
+      "id": "bun", "name": "Bun", "category": "runtime", "kind": "app", "url": "https://bun.com/", "brand": "bun",
+      "winget": "Oven-sh.Bun",
+      "detect": { "cmd": "bun", "versionArgs": ["--version"], "paths": ["%USERPROFILE%\\.bun\\bin\\bun.exe"] }
+    },
+    {
+      "id": "deno", "name": "Deno", "category": "runtime", "kind": "app", "url": "https://deno.com/", "brand": "deno",
+      "winget": "DenoLand.Deno",
+      "detect": { "cmd": "deno", "versionArgs": ["--version"], "paths": ["%USERPROFILE%\\.deno\\bin\\deno.exe"] }
+    },
+
+    {
+      "id": "flutter", "name": "Flutter", "category": "flutter", "kind": "app", "url": "https://docs.flutter.dev/install/archive", "brand": "flutter",
+      "detect": { "cmd": "flutter", "versionArgs": ["--version"], "paths": ["%USERPROFILE%\\flutter\\bin\\flutter.bat", "C:\\src\\flutter\\bin\\flutter.bat", "C:\\flutter\\bin\\flutter.bat"] }
+    },
+
+    {
+      "id": "python", "name": "Python", "category": "python", "kind": "app", "url": "https://www.python.org/downloads/", "brand": "python",
+      "winget": "Python.Python.3.13",
+      "detect": { "cmd": "python", "versionArgs": ["--version"], "paths": ["%LOCALAPPDATA%\\Programs\\Python\\Python3*\\python.exe", "%ProgramFiles%\\Python3*\\python.exe"] }
+    },
+
+    {
+      "id": "mysqlworkbench", "name": "MySQL Workbench", "category": "db", "kind": "app", "url": "https://dev.mysql.com/downloads/workbench/", "brand": "mysql",
+      "winget": "Oracle.MySQLWorkbench",
+      "detect": { "paths": ["%ProgramFiles%\\MySQL\\MySQL Workbench*\\MySQLWorkbench.exe"] }
+    },
+    {
+      "id": "xampp", "name": "XAMPP", "category": "db", "kind": "app", "url": "https://www.apachefriends.org/es/download.html", "brand": "xampp",
+      "winget": "ApacheFriends.Xampp.8.2",
+      "detect": { "paths": ["C:\\xampp\\xampp-control.exe"] }
+    },
+    {
+      "id": "mongodb", "name": "MongoDB", "category": "db", "kind": "app", "url": "https://www.mongodb.com/try/download/community", "brand": "mongodb",
+      "winget": "MongoDB.Server",
+      "detect": { "cmd": "mongod", "paths": ["%ProgramFiles%\\MongoDB\\Server\\*\\bin\\mongod.exe"] }
+    },
+    { "id": "firebase", "name": "Firebase", "category": "db", "kind": "web", "url": "https://firebase.google.com/", "brand": "firebase" },
+    { "id": "supabase", "name": "Supabase", "category": "db", "kind": "web", "url": "https://supabase.com/", "brand": "supabase" },
+
+    {
+      "id": "apache", "name": "Apache", "category": "servers", "kind": "app", "url": "https://httpd.apache.org/download.cgi", "brand": "apache",
+      "detect": { "cmd": "httpd", "paths": ["C:\\Apache24\\bin\\httpd.exe", "%APPDATA%\\Apache24\\bin\\httpd.exe"] }
+    },
+    {
+      "id": "nginx", "name": "Nginx", "category": "servers", "kind": "app", "url": "https://nginx.org/en/download.html", "brand": "nginx",
+      "winget": "nginxinc.nginx",
+      "detect": { "cmd": "nginx", "paths": ["C:\\nginx\\nginx.exe"] }
+    },
+    { "id": "vercel", "name": "Vercel", "category": "servers", "kind": "web", "url": "https://vercel.com/", "brand": "vercel" },
+    { "id": "netlify", "name": "Netlify", "category": "servers", "kind": "web", "url": "https://www.netlify.com/", "brand": "netlify" },
+
+    {
+      "id": "docker", "name": "Docker", "category": "containers", "kind": "app", "url": "https://docs.docker.com/desktop/setup/install/windows-install/", "brand": "docker",
+      "winget": "Docker.DockerDesktop",
+      "detect": { "cmd": "docker", "versionArgs": ["--version"], "paths": ["%ProgramFiles%\\Docker\\Docker\\Docker Desktop.exe"] }
+    },
+
+    {
+      "id": "postman", "name": "Postman", "category": "api", "kind": "app", "url": "https://www.postman.com/downloads/", "brand": "postman",
+      "winget": "Postman.Postman",
+      "detect": { "paths": ["%LOCALAPPDATA%\\Postman\\Postman.exe", "%ProgramFiles%\\Postman\\Postman.exe"] }
+    },
+
+    {
+      "id": "claudecode", "name": "Claude Code", "category": "ai", "kind": "app", "url": "https://docs.claude.com/en/docs/claude-code/setup", "brand": "claude",
+      "winget": "Anthropic.ClaudeCode",
+      "detect": { "cmd": "claude", "versionArgs": ["--version"], "paths": ["%USERPROFILE%\\.local\\bin\\claude.exe", "%APPDATA%\\npm\\claude.cmd"] }
+    }
+  ]
+}

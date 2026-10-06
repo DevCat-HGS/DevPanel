@@ -550,3 +550,64 @@ code { font-family: Consolas, monospace; font-size: 12px; padding: 1px 6px; bord
 .side-foot .nav-settings { flex: none; width: 38px; height: 38px; padding: 0; justify-content: center; gap: 0; }
 .side-foot .nav-settings:hover { transform: none; }
 .side-foot .nav-settings.active::before { left: -14px; }
+
+/* ---------- Tabs + filter (icons only) ---------- */
+.tabs, .seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel); border: 1px solid var(--border); }
+.tab, .seg button { display: grid; place-items: center; width: 36px; height: 32px; border: 0; border-radius: 9px; background: none; color: var(--muted); cursor: pointer; transition: background 0.2s, color 0.2s; }
+.tab:hover, .seg button:hover { color: var(--text); background: var(--panel-hover); }
+.tab.active, .seg button.active { color: var(--text); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* ---------- Software catalog ---------- */
+.sw-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.sw-summary { margin-right: auto; }
+.sw-chip { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.sw-chip svg { width: 14px; height: 14px; color: var(--ok); }
+.sw-section { margin-bottom: 22px; animation: rise 0.4s var(--ease) both; }
+.sw-head { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.sw-head svg { width: 18px; height: 18px; color: var(--accent); }
+.sw-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+
+.sw-card { position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--border); transition: transform 0.25s var(--ease), border-color 0.25s, box-shadow 0.25s; }
+.sw-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.sw-logo { width: 34px; height: 34px; flex-shrink: 0; object-fit: contain; transition: transform 0.3s var(--ease); }
+:root[data-theme='dark'] img.sw-logo { filter: invert(1) opacity(0.92); }
+.sw-fallback { display: grid; place-items: center; color: var(--accent); }
+.sw-fallback svg { width: 26px; height: 26px; }
+.sw-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.sw-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw-ver { font: 11px Consolas, monospace; color: var(--muted); }
+.sw-action { position: relative; flex-shrink: 0; transform: none !important; }
+.sw-action svg { width: 18px; height: 18px; }
+.sw-card[data-state='installed'] .sw-action { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); cursor: default; }
+.sw-card[data-state='missing'] .sw-action { color: var(--accent); }
+.sw-card[data-state='error'] .sw-action { color: var(--bad); border-color: var(--bad); }
+.sw-card[data-state='missing'] .sw-name, .sw-card[data-state='error'] .sw-name { opacity: 0.85; }
+.sw-card[data-state='missing'] .sw-logo, .sw-card[data-state='error'] .sw-logo { opacity: 0.55; }
+
+/* progress along the bottom edge */
+.sw-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: transparent; }
+.sw-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 0.3s var(--ease); }
+
+/* installing: glowing border, bobbing logo, progress ring around the stop button, shimmering bar */
+.sw-card[data-state='installing'] { border-color: var(--accent); animation: sw-glow 1.6s ease-in-out infinite; }
+.sw-card[data-state='installing'] .sw-logo { animation: sw-bob 1.2s ease-in-out infinite; opacity: 1; }
+.sw-card[data-state='installing'] .sw-action { color: var(--text); border-color: transparent; background: conic-gradient(var(--accent) var(--p, 0%), color-mix(in srgb, var(--accent) 18%, transparent) 0); }
+.sw-card[data-state='installing'] .sw-action::before { content: ''; position: absolute; inset: 3px; border-radius: 8px; background: var(--panel-solid); }
+.sw-card[data-state='installing'] .sw-action svg { position: relative; }
+.sw-card.indeterminate .sw-bar i { width: 40% !important; animation: sw-slide 1.1s ease-in-out infinite; }
+.sw-card.indeterminate .sw-action { background: conic-gradient(from 0deg, var(--accent) 25%, color-mix(in srgb, var(--accent) 18%, transparent) 0); animation: spin 1.1s linear infinite; }
+.sw-card.indeterminate .sw-action svg { animation: spin-rev 1.1s linear infinite; }
+
+/* one-shot celebrations */
+.sw-card.pop { animation: sw-done 0.9s var(--ease); }
+.sw-card.pop .sw-action svg { animation: pop 0.6s var(--ease); }
+.sw-card.shake { animation: shake 0.45s; }
+.sw-card.ping::after { content: ''; position: absolute; right: 24px; top: 50%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; border: 2px solid var(--accent); animation: sw-ping 0.9s ease-out forwards; pointer-events: none; }
+
+@keyframes sw-glow { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent), 0 8px 30px color-mix(in srgb, var(--accent) 25%, transparent); } }
+@keyframes sw-bob { 50% { transform: translateY(-4px) scale(1.08); } }
+@keyframes sw-slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+@keyframes sw-done { 0% { transform: scale(0.97); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); } 40% { transform: scale(1.04); } 100% { transform: scale(1); box-shadow: 0 0 0 18px transparent; } }
+@keyframes sw-ping { to { transform: scale(7); opacity: 0; } }
+@keyframes spin-rev { to { transform: rotate(-360deg); } }
+@keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }

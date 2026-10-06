@@ -49,7 +49,14 @@ const api: DevPanelApi = {
     onExit: (cb) => ipcRenderer.on('local:exit', (_e, m) => cb(m)),
   },
   notes: { get: (v) => ipcRenderer.invoke('notes:get', v) },
-  env: { check: () => ipcRenderer.invoke('env:check') },
+  software: {
+    detect: () => ipcRenderer.invoke('software:detect'),
+    install: (id) => ipcRenderer.invoke('software:install', id),
+    cancel: (id) => ipcRenderer.invoke('software:cancel', id),
+    open: (id) => ipcRenderer.invoke('software:open', id),
+    onStatus: (cb) => ipcRenderer.on('software:status', (_e, s) => cb(s)),
+    onProgress: (cb) => ipcRenderer.on('software:progress', (_e, p) => cb(p)),
+  },
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     download: () => ipcRenderer.invoke('update:download'),

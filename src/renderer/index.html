@@ -159,12 +159,28 @@
 
         <section id="view-tools" class="view hidden">
           <header class="view-head">
-            <div>
-              <h2>Herramientas</h2>
-              <p class="muted">Utilidades de desarrollo sin salir del panel. Atajo: Ctrl + K.</p>
+            <h2>Herramientas</h2>
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-tab="software" title="Software" aria-label="Software"><span data-icon="grid"></span></button>
+              <button class="tab" data-tab="utils" title="Utilidades" aria-label="Utilidades"><span data-icon="tools"></span></button>
             </div>
           </header>
-          <div class="tools">
+
+          <div id="tab-software">
+            <div class="sw-toolbar">
+              <div id="sw-summary" class="sw-summary"></div>
+              <div id="sw-filter" class="seg" role="group" aria-label="Filtro">
+                <button class="active" data-f="all" title="Todo" aria-label="Todo"><span data-icon="grid"></span></button>
+                <button data-f="installed" title="Instalados" aria-label="Instalados"><span data-icon="checkcircle"></span></button>
+                <button data-f="missing" title="Faltan" aria-label="Faltan"><span data-icon="download"></span></button>
+              </div>
+              <button id="sw-refresh" class="icon-btn" title="Volver a detectar" aria-label="Volver a detectar"><span data-icon="refresh"></span></button>
+            </div>
+            <div id="sw-list" class="sw-list"></div>
+          </div>
+
+          <div id="tab-utils" class="hidden">
+            <div class="tools">
             <div id="tool-list" class="tool-list"></div>
             <div class="tool-panel card">
               <h3 id="tool-title"></h3>
@@ -175,11 +191,6 @@
               <pre id="tool-output" aria-live="polite"></pre>
             </div>
           </div>
-          <div id="env-card" class="card">
-            <h3>Entorno de desarrollo</h3>
-            <p class="muted">Detecta qué herramientas tienes instaladas y qué te recomendamos añadir.</p>
-            <button id="env-check" class="btn small">Verificar entorno</button>
-            <ul id="env-list" class="env-list"></ul>
           </div>
         </section>
 

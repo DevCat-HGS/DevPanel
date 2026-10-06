@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import * as t from '../dist/renderer/tools.js';
 import { analyzeRepos } from '../dist/renderer/recs.js';
 import { newFailures } from '../dist/main/alerts-core.js';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { expandPath, extractVersion, findExisting, parseWingetChunk, WINGET_OK_CODES } from '../dist/main/software-core.js';
 import { buildNotes, parseSubject } from '../scripts/release-notes.mjs';
 import { htmlToText, parseNotes } from '../dist/renderer/notes-md.js';
 import { parseGitStatus, isSafeScriptName, stripAnsi } from '../dist/main/local-core.js';
@@ -141,4 +145,64 @@ test('release notes parser handles markdown and the HTML electron-updater return
   assert.equal(html[1].text, 'uno & dos');
   assert.equal(html.length, 4, 'tags are stripped; scripts never become markup');
   assert.equal(htmlToText('a<br>b'), 'a\nb');
+});
+
+test('winget progress is read from numbers only (any language)', () => {
+  assert.equal(parseWingetChunk('  ██████░░░░░░░░░░░░░░  45%').percent, 45);
+  assert.equal(parseWingetChunk('  28.0 MB / 62.3 MB').percent, 45);
+  assert.equal(parseWingetChunk('  512 KB / 2.0 MB').percent, 25);
+  assert.equal(parseWingetChunk('12,5 MB / 25,0 MB').percent, 50, 'decimal comma');
+  assert.equal(parseWingetChunk('\r  10%\r  55%\r  90%').percent, 90, 'the last value in the chunk wins');
+  assert.equal(parseWingetChunk('  400%').percent, 100, 'clamped');
+  assert.equal(parseWingetChunk('Starting package install...').installing, true);
+  assert.equal(parseWingetChunk('Iniciando instalación del paquete...').installing, true);
+  assert.deepEqual(parseWingetChunk('Found Git [Git.Git] Version 2.47.0'), {});
+});
+
+test('versions are extracted from typical --version output', () => {
+  assert.equal(extractVersion('git version 2.47.0.windows.1'), '2.47.0');
+  assert.equal(extractVersion('v22.14.0'), '22.14.0');
+  assert.equal(extractVersion('Python 3.13.1'), '3.13.1');
+  assert.equal(extractVersion('no digits here'), undefined);
+});
+
+test('path patterns expand variables and wildcards, and never match when a variable is missing', () => {
+  const root = mkdtempSync(join(tmpdir(), 'devpanel-sw-'));
+  mkdirSync(join(root, 'MySQL Workbench 8.0 CE'), { recursive: true });
+  writeFileSync(join(root, 'MySQL Workbench 8.0 CE', 'MySQLWorkbench.exe'), '');
+  mkdirSync(join(root, 'Python313'), { recursive: true });
+  writeFileSync(join(root, 'Python313', 'python.exe'), '');
+  const env = { FAKE_ROOT: root };
+
+  assert.equal(expandPath('%FAKE_ROOT%/plain.txt', env)[0], root + '/plain.txt');
+  assert.equal(findExisting([join(root, 'MySQL Workbench *', 'MySQLWorkbench.exe')], env) !== null, true);
+  assert.equal(findExisting(['%FAKE_ROOT%/Python3*/python.exe'], env) !== null, true);
+  assert.equal(findExisting(['%FAKE_ROOT%/Nope*/x.exe'], env), null);
+  assert.equal(findExisting(['%DOES_NOT_EXIST%/x.exe'], env), null);
+  assert.deepEqual(expandPath('%DOES_NOT_EXIST%/x.exe', env), []);
+  assert.equal(findExisting(undefined, env), null);
+});
+
+test('winget exit codes: already installed counts as success, other failures do not', () => {
+  for (const ok of [0, -1978335189, -1978335135, 0x8a15002b, 0x8a150061]) assert.ok(WINGET_OK_CODES.has(ok), String(ok));
+  for (const bad of [1, 2, -1, 0x8a150010]) assert.ok(!WINGET_OK_CODES.has(bad), String(bad));
+});
+
+test('the software catalog is consistent', () => {
+  const cat = JSON.parse(readFileSync('src/shared/catalog.json', 'utf8'));
+  const cats = new Set(cat.categories.map((c) => c.id));
+  const ids = cat.items.map((i) => i.id);
+  assert.equal(new Set(ids).size, ids.length, 'unique ids');
+  assert.ok(cat.items.length >= 25);
+  for (const must of ['python', 'claudecode', 'git', 'vscode', 'docker', 'postman', 'flutter', 'node']) assert.ok(ids.includes(must), must);
+  for (const i of cat.items) {
+    assert.ok(cats.has(i.category), `${i.id}: unknown category`);
+    assert.ok(i.url.startsWith('https://'), `${i.id}: url must be https`);
+    assert.ok(['app', 'web'].includes(i.kind), `${i.id}: kind`);
+    if (i.kind === 'web') assert.ok(!i.winget && !i.detect, `${i.id}: web entries are only links`);
+    if (i.winget) assert.match(i.winget, /^[A-Za-z0-9._-]+$/, `${i.id}: winget id`);
+    if (i.winget) assert.ok(i.detect, `${i.id}: installable entries need a way to be detected`);
+    if (i.brand) assert.ok(existsSync(`node_modules/simple-icons/icons/${i.brand}.svg`), `${i.id}: brand icon ${i.brand} missing`);
+  }
+  for (const c of cat.categories) assert.ok(cat.items.some((i) => i.category === c.id), `${c.id}: empty category`);
 });

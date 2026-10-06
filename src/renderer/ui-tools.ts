@@ -97,24 +97,3 @@ export function initTools(): void {
   $('tool-copy').onclick = () => void copyText(output.textContent ?? '');
   select(current);
 }
-
-export function initEnvCheck(): void {
-  const card = $('env-card');
-  if (window.devpanel.platform === 'web') return card.classList.add('hidden');
-
-  $('env-check').onclick = async () => {
-    const btn = $<HTMLButtonElement>('env-check');
-    btn.disabled = true;
-    btn.textContent = 'Verificando…';
-    const tools = await window.devpanel.env.check();
-    $('env-list').replaceChildren(
-      ...tools.map((t) => {
-        const li = el('li', t.version ? 'ok' : 'miss');
-        li.append(el('b', undefined, t.name), el('span', 'muted', t.version ?? `No encontrado · ${t.hint}`));
-        return li;
-      }),
-    );
-    btn.disabled = false;
-    btn.textContent = 'Verificar de nuevo';
-  };
-}

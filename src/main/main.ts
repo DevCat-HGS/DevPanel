@@ -2,12 +2,12 @@ import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, shell, 
 import { join } from 'node:path';
 import type { Settings } from '../shared/api';
 import { setupAlerts } from './alerts';
-import { setupEnv } from './env';
 import { mt } from './i18n-main';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
 import { listCommits, listRepos, listRuns, lookupUser } from './github';
 import { setupNotes } from './notes';
+import { setupSoftware, stopAllInstalls } from './software';
 import { loadSettings, saveSettings } from './settings';
 import { setupToken } from './token';
 import { setupUpdater } from './updater';
@@ -138,12 +138,12 @@ app.whenReady().then(() => {
   ipcMain.handle('github:runs', (_e, repo: string) => listRuns(loadSettings().githubUser, repo));
 
   setupFace();
-  setupEnv();
   setupToken();
   setupNotes();
   win = createWindow();
   const getWin = () => (win && !win.isDestroyed() ? win : null);
   setupLocal(getWin);
+  setupSoftware(getWin);
   setupAlerts(getWin);
   setupUpdater(win, () => loadSettings().githubUser);
   setupTray();
@@ -157,5 +157,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   quitting = true;
   stopAllLocal();
+  stopAllInstalls();
 });
 app.on('will-quit', () => globalShortcut.unregisterAll());

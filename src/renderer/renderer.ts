@@ -8,7 +8,8 @@ import { setLangPref, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { initLocal } from './ui-local.js';
 import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
-import { initEnvCheck, initTools, TOOLS } from './ui-tools.js';
+import { initSoftware } from './ui-software.js';
+import { initTools, TOOLS } from './ui-tools.js';
 
 // Inside Electron the preload exposes window.devpanel; on the web we use the browser implementation.
 if (!window.devpanel) {
@@ -216,7 +217,7 @@ async function showApp(): Promise<void> {
   const s = await api.settings.get();
   $<HTMLInputElement>('gh-user').value = s.githubUser;
   initTools();
-  initEnvCheck();
+  initSoftware();
   initLocal();
   initNotes();
   void checkWhatsNew();
@@ -366,6 +367,7 @@ function paletteItems() {
       hint: t.hint,
       run: () => {
         goView('tools');
+        document.querySelector<HTMLButtonElement>('.tab[data-tab="utils"]')?.click();
         document.querySelector<HTMLButtonElement>(`.tool-btn[data-id="${t.id}"]`)?.click();
       },
     })),
