@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
 import { isSessionId, parseStreamLine, splitLines } from './claude-core';
+import { projectBrief } from './health';
 import { stripAnsi } from './local-core';
 import { loadSettings } from './settings';
 
@@ -9,6 +10,10 @@ export const MAX_PROMPT = 8000;
 /** Read-only: Claude can look at the code but not change it. Edit: file edits are auto-approved (never a bypass of every permission). */
 export const CLAUDE_MODES = { read: 'plan', edit: 'acceptEdits' } as const;
 export type ClaudeMode = keyof typeof CLAUDE_MODES;
+
+/** Prepends DevPanel's project brief to the first prompt of a conversation. */
+export const withContext = (brief: string, prompt: string): string =>
+  brief.trim() ? `[Contexto de DevPanel sobre este proyecto]\n${brief.trim().slice(0, 1500)}\n\n[Mensaje del usuario]\n${prompt}` : prompt;
 
 export const isValidPrompt = (p: unknown): p is string =>
   typeof p === 'string' && p.trim().length > 0 && p.length <= MAX_PROMPT && !p.includes('\u0000');
@@ -32,12 +37,15 @@ function known(path: string): string | null {
 export function setupClaude(getWindow: () => BrowserWindow | null): void {
   const send = (channel: string, payload: unknown) => getWindow()?.webContents.send(channel, payload);
 
-  ipcMain.handle('claude:run', (_e, path: string, prompt: string, mode: ClaudeMode, session?: string) => {
+  ipcMain.handle('claude:run', async (_e, path: string, prompt: string, mode: ClaudeMode, session?: string) => {
     const dir = known(path);
     if (!dir) return { error: 'Proyecto no registrado' };
     if (!isValidPrompt(prompt)) return { error: 'Escribe una instrucción (máx. 8000 caracteres)' };
     const permission = CLAUDE_MODES[mode] ?? CLAUDE_MODES.read;
     if (session !== undefined && !isSessionId(session)) return { error: 'Sesión no válida' };
+    // A new conversation starts with what DevPanel already knows (health score, problems); a resumed one already has it.
+    const brief = session ? '' : await projectBrief(dir).catch(() => '');
+    const framed = withContext(brief, prompt);
     const id = nextId++;
     // The command line is a constant; the user's text travels through stdin, so it can never become shell syntax.
     const child = spawn(`claude -p --output-format stream-json --verbose --permission-mode ${permission}${session ? ` --resume ${session}` : ''}`, [], { cwd: dir, shell: true, windowsHide: true, env: { ...process.env, FORCE_COLOR: '0' } });
@@ -60,7 +68,7 @@ export function setupClaude(getWindow: () => BrowserWindow | null): void {
       send('claude:exit', { id, code: code ?? 0 });
     });
     child.stdin?.on('error', () => {});
-    child.stdin?.end(prompt);
+    child.stdin?.end(framed);
     return { id };
   });
 

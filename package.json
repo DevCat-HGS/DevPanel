@@ -14,7 +14,7 @@
     "dist": "npm run build && electron-builder --win --publish never",
     "release": "npm run build && electron-builder --win --publish always",
     "test": "npm run build && npm --prefix installer run build && node --test tests/unit.test.mjs tests/i18n.test.mjs",
-    "test:e2e": "npm run build && node tests/e2e.mjs && node tests/token.e2e.mjs && node tests/pager.e2e.mjs && node tests/home.e2e.mjs && node tests/local-tools.e2e.mjs && node tests/claude.e2e.mjs",
+    "test:e2e": "npm run build && node tests/e2e.mjs && node tests/token.e2e.mjs && node tests/pager.e2e.mjs && node tests/home.e2e.mjs && node tests/local-tools.e2e.mjs && node tests/claude.e2e.mjs && node tests/face-worker.e2e.mjs",
     "test:installer": "npm --prefix installer run build && node tests/installer.e2e.mjs"
   },
   "dependencies": {
@@ -46,13 +46,15 @@
           "*.py",
           "requirements.txt",
           "face_auth.exe",
+          "project_health.exe",
           "!test_*.py"
         ]
       }
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "sign": "scripts/sign.cjs"
     },
     "nsis": {
       "oneClick": false,

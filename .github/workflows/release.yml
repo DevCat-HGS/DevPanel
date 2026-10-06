@@ -74,25 +74,31 @@ jobs:
         shell: bash
         run: |
           pip install opencv-python numpy pyinstaller
-          (cd python && python -m unittest -q test_liveness)
+          (cd python && python -m unittest -q test_liveness test_face_speed)
           PYTHONPATH=python python -m PyInstaller --onefile --name face_auth python/face_auth.py \
             --distpath python --workpath build/pyi --specpath build/pyi --paths python --noconfirm --log-level WARN
           python/face_auth.exe selftest --models-dir "$RUNNER_TEMP/face-models"
 
-      - name: Code signing status
+      - name: Package the project health module
         shell: bash
         run: |
-          if [ -n "${{ secrets.CSC_LINK }}" ]; then
-            echo "Code signing is ON (CSC_LINK is set)."
-          else
-            echo "::warning title=Unsigned build::No CSC_LINK secret, so the .exe files are not signed and Windows SmartScreen will warn. See docs/SIGNING.md"
-          fi
+          python -m PyInstaller --onefile --name project_health python/project_health.py             --distpath python --workpath build/pyi --specpath build/pyi --noconfirm --log-level WARN
+          python/project_health.exe local . > /dev/null
+
+      # signtool signs the Python executables here; electron-builder signs the app and installer through
+      # the same script (build.win.sign). Without the CSC_LINK secret this only prints a warning.
+      - name: Sign the Python executables
+        shell: bash
+        run: node scripts/sign.cjs python/face_auth.exe python/project_health.exe
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
       - name: Build, package and publish release
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # electron-builder signs automatically when these are present (empty values = unsigned)
+          # scripts/sign.cjs (signtool) signs the app and installer when these exist (empty = unsigned)
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 

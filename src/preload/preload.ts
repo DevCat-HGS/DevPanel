@@ -48,6 +48,10 @@ const api: DevPanelApi = {
     onOutput: (cb) => ipcRenderer.on('claude:output', (_e, m) => cb(m)),
     onExit: (cb) => ipcRenderer.on('claude:exit', (_e, m) => cb(m)),
   },
+  health: {
+    local: (p) => ipcRenderer.invoke('health:local', p),
+    repo: (n) => ipcRenderer.invoke('health:repo', n),
+  },
   local: {
     list: () => ipcRenderer.invoke('local:list'),
     add: () => ipcRenderer.invoke('local:add'),
@@ -61,6 +65,11 @@ const api: DevPanelApi = {
     push: (p) => ipcRenderer.invoke('local:push', p),
     l10n: (p) => ipcRenderer.invoke('local:l10n', p),
     secrets: (p) => ipcRenderer.invoke('local:secrets', p),
+    tree: (p, r) => ipcRenderer.invoke('local:tree', p, r),
+    read: (p, r) => ipcRenderer.invoke('local:read', p, r),
+    search: (p, q) => ipcRenderer.invoke('local:search', p, q),
+    inspect: (p, d) => ipcRenderer.invoke('local:inspect', p, d),
+    action: (p, id) => ipcRenderer.invoke('local:action', p, id),
     stop: (id) => ipcRenderer.invoke('local:stop', id),
     open: (p, how) => ipcRenderer.invoke('local:open', p, how),
     onOutput: (cb) => ipcRenderer.on('local:output', (_e, m) => cb(m)),

@@ -1,8 +1,13 @@
 import type { GithubProfile, InstallOptions, Progress } from '../shared/api';
 import { currentLang, setLangPref, type LangPref } from './i18n.js';
+import { LEGAL, LEGAL_ORDER, type LegalTab } from './legal.js';
 
 const api = window.installer;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+let legalOk = false;
+let afterLegal: (() => void) | null = null;
+let legalTab: LegalTab = 'use';
 
 // Language: system-detected unless the user toggled it (remembered on this machine).
 const LANG_KEY = 'devpanel.installer.lang';
@@ -17,6 +22,7 @@ function savedLang(): LangPref {
 function applyLang(pref: LangPref): void {
   const lang = setLangPref(pref);
   $('lang').textContent = lang === 'es' ? 'EN' : 'ES'; // shows the language you would switch to
+  renderLegal();
 }
 applyLang(savedLang());
 $('lang').onclick = () => {
@@ -30,7 +36,7 @@ $('lang').onclick = () => {
 };
 
 // ---------- Screen routing ----------
-type Screen = 'welcome' | 'options' | 'gh' | 'pin' | 'channel' | 'progress' | 'face' | 'done' | 'error';
+type Screen = 'welcome' | 'legal' | 'options' | 'gh' | 'pin' | 'channel' | 'progress' | 'face' | 'done' | 'error';
 const STEP_OF: Partial<Record<Screen, number>> = { gh: 0, pin: 1, channel: 2, progress: 2, face: 3 };
 
 function show(name: Screen): void {
@@ -90,7 +96,7 @@ let installDir = '';
 let installedDir = '';
 let lastOpts: InstallOptions | null = null;
 let existing: { githubUser: string } | null = null;
-let devOwner = '';
+let devOwners: string[] = [];
 let linked: GithubProfile | null = null;
 let chosenPin = '';
 let chosenChannel: 'stable' | 'dev' = 'stable';
@@ -181,8 +187,8 @@ api.onProgress((p: Progress) => {
 // ---------- Wiring ----------
 $('min').onclick = () => api.win.minimize();
 $('close').onclick = () => api.win.close();
-$('go-install').onclick = openAccount;
-$('install2').onclick = openAccount;
+$('go-install').onclick = () => gate(openAccount);
+$('install2').onclick = () => gate(openAccount);
 $('go-options').onclick = () => show('options');
 $('back').onclick = () => show('welcome');
 $('pick').onclick = async () => {
@@ -221,7 +227,7 @@ addEventListener('keydown', (e) => {
   const info = await api.info();
   installDir = info.defaultDir;
   existing = info.existing;
-  devOwner = info.devOwner;
+  devOwners = info.devOwners;
   $<HTMLInputElement>('dir').value = installDir;
 
   if (info.release) {
@@ -249,9 +255,76 @@ function updateStepper(name: Screen): void {
 }
 
 // ---------- Conversational setup ----------
-const isOwner = (login: string) => !!login && login.toLowerCase() === devOwner.toLowerCase();
+const isOwner = (login: string) => !!login && devOwners.some((o) => o.toLowerCase() === login.toLowerCase());
 
 /** Entry point from "Instalar ahora": a returning user skips the questions. */
+// ---------- Legal: usage, privacy, security and terms are read (and accepted) before anything is installed ----------
+
+function renderLegal(): void {
+  const tabs = document.getElementById('legal-tabs');
+  const body = document.getElementById('legal-body');
+  if (!tabs || !body) return; // called once during the first applyLang, before the page is wired
+  const docs = LEGAL[currentLang()];
+  tabs.replaceChildren(
+    ...LEGAL_ORDER.map((id) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `legal-tab${id === legalTab ? ' active' : ''}`;
+      b.dataset.tab = id;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(id === legalTab));
+      b.textContent = docs[id].tab;
+      b.onclick = () => {
+        legalTab = id;
+        renderLegal();
+        body.scrollTop = 0;
+      };
+      return b;
+    }),
+  );
+  body.replaceChildren(
+    ...docs[legalTab].sections.flatMap((s) => {
+      const h = document.createElement('h3');
+      h.textContent = s.title;
+      const ul = document.createElement('ul');
+      for (const t of s.items) {
+        const li = document.createElement('li');
+        li.textContent = t;
+        ul.append(li);
+      }
+      return [h, ul];
+    }),
+  );
+}
+
+/** Runs `next` right away once the terms were accepted; otherwise shows them first. */
+function gate(next: () => void): void {
+  if (legalOk) return next();
+  openLegal(next);
+}
+
+function openLegal(next: (() => void) | null): void {
+  afterLegal = next;
+  legalTab = 'use';
+  const accepting = next !== null;
+  $('legal-accept-row').classList.toggle('hidden', !accepting);
+  $('legal-go').classList.toggle('hidden', !accepting);
+  $<HTMLInputElement>('legal-accept').checked = false;
+  $<HTMLButtonElement>('legal-go').disabled = true;
+  renderLegal();
+  show('legal');
+}
+
+$('legal-open').onclick = () => openLegal(null);
+$('legal-back').onclick = () => show('welcome');
+$('legal-accept').onchange = () => ($<HTMLButtonElement>('legal-go').disabled = !$<HTMLInputElement>('legal-accept').checked);
+$('legal-go').onclick = () => {
+  legalOk = true;
+  const next = afterLegal;
+  afterLegal = null;
+  next?.();
+};
+
 function openAccount(): void {
   chosenChannel = 'stable';
   if (existing) return isOwner(existing.githubUser) ? show('channel') : startInstall();

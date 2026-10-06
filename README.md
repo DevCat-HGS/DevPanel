@@ -7,12 +7,16 @@ La misma interfaz corre en la **web**, solo para previsualizar durante el desarr
 
 ---
 
+> **Meta:** que los desarrolladores automaticen su trabajo sin salir de DevPanel. Alcance y hoja de ruta en [`docs/VISION.md`](docs/VISION.md).
+>
+> Documentación: [uso](docs/USAGE.md) · [privacidad](docs/PRIVACY.md) · [seguridad](docs/SECURITY.md) · [términos](docs/TERMS.md) · [licencia MIT](LICENSE). El instalador las muestra antes de instalar.
+
 ## Ramas y releases (lo importante)
 
 | Rama | Qué publica | Versión | Quién la recibe |
 | --- | --- | --- | --- |
 | `main` | **Release estable** | `v0.1.<n>` | Todos los usuarios |
-| `developer` | **Release de desarrollo** (prerelease, cambios adelantados) | `v0.1.<n>-dev` | Solo `DevCat-HGS` |
+| `developer` | **Release de desarrollo** (prerelease, cambios adelantados) | `v0.1.<n>-dev` | Solo `DevCat-HGS` y `GalletasU` |
 
 Flujo de trabajo:
 
@@ -25,8 +29,8 @@ Cómo se mantienen separados los canales:
 
 - El sufijo `-dev` en la versión es lo que los separa. `electron-updater` solo ofrece prereleases a apps que ya son `-dev`.
 - El instalador usa `releases/latest` de GitHub, que **nunca** apunta a un prerelease. Por eso instala siempre la estable.
-- La app `-dev` solo sigue prereleases si la cuenta de GitHub vinculada es `DevCat-HGS`. Cualquier otra cuenta se queda en estables.
-- El instalador solo muestra la opción de canal "Desarrollo" cuando la cuenta vinculada es `DevCat-HGS`.
+- La app `-dev` solo sigue prereleases si la cuenta de GitHub vinculada es `DevCat-HGS` o `GalletasU`. Cualquier otra cuenta se queda en estables.
+- El instalador solo muestra la opción de canal "Desarrollo" cuando la cuenta vinculada es `DevCat-HGS` o `GalletasU`.
 
 > **Límite honesto:** el repo es público, así que cualquiera que sepa la URL puede descargar un prerelease a mano.
 > Lo anterior controla qué **reciben y se actualizan** las apps, no quién puede descargar el archivo.

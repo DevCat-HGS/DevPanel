@@ -5,13 +5,14 @@ import type { UpdateStatus } from '../shared/api';
 const CHECK_EVERY_MS = 15 * 60 * 1000;
 const MIN_GAP_ON_FOCUS_MS = 5 * 60 * 1000;
 
-/** Only this GitHub account may run and update on the development ("-dev") channel. */
-export const DEV_CHANNEL_OWNER = 'DevCat-HGS';
+/** Only these GitHub accounts may run and update on the development ("-dev") channel. */
+export const DEV_CHANNEL_OWNERS = ['DevCat-HGS', 'GalletasU'];
 
 export const isDevBuild = () => app.getVersion().includes('-');
 
 export function canUseDevChannel(githubUser: string): boolean {
-  return githubUser.trim().toLowerCase() === DEV_CHANNEL_OWNER.toLowerCase();
+  const who = githubUser.trim().toLowerCase();
+  return DEV_CHANNEL_OWNERS.some((o) => o.toLowerCase() === who);
 }
 
 export function setupUpdater(win: BrowserWindow, getGithubUser: () => string): void {

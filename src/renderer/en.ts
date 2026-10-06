@@ -2,12 +2,17 @@
 // parts are translated recursively, so "Última actividad hace 3 d" works from two entries.
 export const EN: Record<string, string> = {
   // ---- generic
+  'Buscar': 'Search',
+  'Explorador de archivos': 'File explorer',
+  'Buscar texto en el proyecto…': 'Search text in the project…',
+  'Buscar texto en el proyecto': 'Search text in the project',
+  'Árbol de archivos': 'File tree',
+  'Copiar ruta': 'Copy path',
+  'Abrir el proyecto en VS Code': 'Open the project in VS Code',
   'Saltar al contenido': 'Skip to content',
   'Principal': 'Main',
   'Cambiar tema': 'Toggle theme',
   'Guardar': 'Save',
-  'Bienvenido, soy Sharon': "Welcome, I'm Sharon",
-  'IA MCP en proceso': 'MCP AI in progress',
   'Notificaciones': 'Notifications',
   'Borrar todo': 'Clear all',
   'Sin notificaciones': 'No notifications',
@@ -451,6 +456,6 @@ export const EN: Record<string, string> = {
   'Reiniciar y actualizar': 'Restart and update',
   'Canal: Estable.': 'Channel: Stable.',
   'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).': 'Channel: Development (early changes, for your account only).',
-  'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.':
-    'Channel: Development, reserved for DevCat-HGS. This account will only get stable versions.',
+  'Canal: Desarrollo, reservado para DevCat-HGS y GalletasU. Esta cuenta recibirá solo versiones estables.':
+    'Channel: Development, reserved for DevCat-HGS and GalletasU. This account will only get stable versions.',
 };

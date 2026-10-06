@@ -40,12 +40,27 @@
             <button id="go-options" class="btn ghost">Personalizar</button>
           </div>
           <p id="welcome-error" class="error hidden"></p>
+          <p class="legal-links"><button id="legal-open" class="link" type="button">Uso, privacidad, seguridad y términos</button></p>
         </div>
         <ul class="features">
           <li style="--i: 0"><b>Tus proyectos</b><span>Repos, commits y builds de GitHub en un vistazo.</span></li>
           <li style="--i: 1"><b>Login con tu rostro</b><span>Biometría local, cifrada, sin subir nada.</span></li>
           <li style="--i: 2"><b>Siempre al día</b><span>Se actualiza sola con cada release.</span></li>
         </ul>
+      </section>
+
+      <!-- 1b. Legal: usage, privacy, security and terms, read before installing -->
+      <section id="s-legal" class="screen">
+        <div class="panel legal">
+          <h2>Antes de instalar</h2>
+          <div id="legal-tabs" class="legal-tabs" role="tablist" aria-label="Documentos"></div>
+          <div id="legal-body" class="legal-body" tabindex="0"></div>
+          <label id="legal-accept-row" class="switch"><input id="legal-accept" type="checkbox" /><i></i>He leído y acepto el uso, la privacidad, la seguridad y los términos</label>
+          <div class="actions">
+            <button id="legal-back" class="btn ghost">Atrás</button>
+            <button id="legal-go" class="btn primary" disabled>Aceptar y continuar</button>
+          </div>
+        </div>
       </section>
 
       <!-- 2. Options -->
