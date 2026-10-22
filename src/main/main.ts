@@ -126,6 +126,9 @@ function applyLoginItem(open: boolean): void {
 }
 
 app.whenReady().then(() => {
+  // Re-applied on every start: an uninstall or reinstall removes the Windows entry, and a new install folder
+  // changes the .exe path it must point at. The saved setting is the source of truth.
+  applyLoginItem(loadSettings().openAtLogin);
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('settings:get', () => loadSettings());
   ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
