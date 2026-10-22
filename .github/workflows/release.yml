@@ -86,7 +86,7 @@ jobs:
           python/project_health.exe local . > /dev/null
 
       # signtool signs the Python executables here; electron-builder signs the app and installer through
-      # the same script (build.win.sign). Without the CSC_LINK secret this only prints a warning.
+      # the same script (build.win.signtoolOptions.sign). Without the CSC_LINK secret this only prints a warning.
       - name: Sign the Python executables
         shell: bash
         run: node scripts/sign.cjs python/face_auth.exe python/project_health.exe

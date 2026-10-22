@@ -33,7 +33,7 @@ Solo se usa al registrar o verificar tu rostro. El acceso con rostro es opcional
 ## Tu control
 
 - Puedes borrar el token y los datos de acceso (PIN y rostro) desde la app.
-- Desinstalar DevPanel y borrar su carpeta de datos elimina todo lo guardado.
+- Al desinstalar puedes elegir la **desinstalación completa**, que borra también la carpeta de datos (`%APPDATA%\DevPanel`) con todo lo guardado. La normal la conserva para cuando reinstales.
 - Puedes revocar el token de GitHub en tu cuenta de GitHub cuando quieras.
 
 *Este documento es informativo y describe el funcionamiento técnico; no sustituye asesoría legal. Si distribuyes DevPanel en una organización, revísalo con tu responsable de cumplimiento.*

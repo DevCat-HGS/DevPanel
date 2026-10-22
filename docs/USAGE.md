@@ -20,6 +20,10 @@ DevPanel es un panel para que los desarrolladores trabajen y automaticen tareas 
 
 ## Canales de versión
 
-`main` publica la versión estable; `developer` publica versiones `-dev` solo para cuentas autorizadas. Ver el [README](../README.md).
+`main` publica la versión estable; `developer` publica versiones `-dev` solo para cuentas autorizadas. Nadie elige el canal: lo decide la cuenta vinculada. Ver el [README](../README.md).
+
+## Desinstalar
+
+Al desinstalar eliges entre la desinstalación **normal**, que conserva tus datos para cuando reinstales, y la **completa**, que también borra tu configuración, PIN, rostro y token. Ver el [README](../README.md#desinstalar).
 
 Privacidad: [PRIVACY.md](PRIVACY.md) · Seguridad: [SECURITY.md](SECURITY.md) · Términos: [TERMS.md](TERMS.md)

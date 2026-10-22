@@ -28,6 +28,10 @@ También puedes firmar a mano: `CSC_LINK=<base64 o ruta .pfx> CSC_KEY_PASSWORD=.
 
 Mientras no haya certificado, cada release muestra una advertencia "Unsigned build" en el log del workflow.
 
+## Estado actual
+
+Los `.exe` publicados **no están firmados**: el repositorio no tiene los secretos `CSC_LINK` ni `CSC_KEY_PASSWORD`. El código de firma funciona (`scripts/sign.cjs`, conectado en `build.win.signtoolOptions.sign`) y se activa solo en cuanto existan. Un certificado autofirmado no sirve: SmartScreen solo confía en certificados emitidos por una autoridad reconocida (ver las opciones de arriba).
+
 ## Después de firmar
 
 Cuando el certificado exista, conviene fijar el nombre del editor en `package.json` (`build.win.publisherName`).
