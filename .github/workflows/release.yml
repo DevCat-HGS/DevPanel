@@ -19,6 +19,8 @@ on:
       - "docker-compose.yml"
       - ".dockerignore"
       - "**/*.md"
+      - "site/**"
+      - ".github/workflows/pages.yml"
       - ".github/workflows/installer.yml"
       - ".github/workflows/ci.yml"
       - ".github/workflows/docker.yml"
