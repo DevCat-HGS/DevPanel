@@ -107,10 +107,11 @@ try {
   await page.waitForSelector('#s-progress.active');
   assert.equal(await page.textContent('#pct'), '42%');
   await page.screenshot({ path: join(shots, 'i4-progress.png') });
+  assert.equal(await page.getAttribute('body', 'data-channel'), 'stable');
   log('the physical keyboard works and a non-owner goes straight to installing');
   await app.close();
 
-  // ---------- owner account: channel choice ----------
+  // ---------- authorized account: no channel question, it gets the development build ----------
   ({ app, page: globalThis.page } = await launch());
   const p2 = globalThis.page;
   await p2.click('#go-install');
@@ -124,13 +125,11 @@ try {
   assert.ok(await p2.locator('#pin-noted').isVisible());
   await p2.screenshot({ path: join(shots, 'i5-pin-generated.png') });
   await p2.click('#pin-noted');
-  await p2.waitForSelector('#s-channel.active');
-  await p2.click('.choice[data-channel="dev"]');
-  assert.ok(await p2.locator('.choice[data-channel="dev"].selected').isVisible());
-  await p2.screenshot({ path: join(shots, 'i6-channel.png') });
-  await p2.click('#ch-next');
   await p2.waitForSelector('#s-progress.active');
-  log('the owner generates a code and unlocks the development channel choice');
+  assert.equal(await p2.locator('#s-channel').count(), 0, 'nobody chooses a channel');
+  assert.equal(await p2.getAttribute('body', 'data-channel'), 'dev');
+  assert.equal(await p2.textContent('#pct'), '42%');
+  log('an authorized account generates a code and installs without a channel question');
 
   await app.close();
 
