@@ -45,6 +45,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      # face_auth (and test_face_speed) import numpy and OpenCV; headless avoids the libGL the runner lacks
+      - name: Python test dependencies
+        run: pip install numpy opencv-python-headless
+
       - name: Python sidecar compiles and its liveness logic passes
         run: |
           python -m py_compile python/face_auth.py python/project_health.py
