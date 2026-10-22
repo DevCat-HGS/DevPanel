@@ -5,6 +5,10 @@ Protocol: progress is not streamed; the LAST line of stdout is a JSON result.
 
   enroll                      -> {"ok": true, "embeddings": [[...128 floats], ...]}
   verify  (embeddings on stdin) -> {"ok": true, "score": 0.61}
+  serve                       -> stays alive with the models loaded; one JSON request per stdin line
+                                 ({"id": 1, "cmd": "verify", "embeddings": [...], "liveness": true}) and one
+                                 {"id": 1, "result": {...}} line per answer. Starting Python, OpenCV and the models is
+                                 most of the wait, so the app starts this once and reuses it.
 
 No images are ever written to disk; only embeddings leave this process.
 """
@@ -26,6 +30,8 @@ MODELS = {
     "recognizer": ("face_recognition_sface_2021dec.onnx", f"{ZOO}/face_recognition_sface/face_recognition_sface_2021dec.onnx"),
 }
 
+DET_WIDTH = 320  # faces are detected on a downscaled copy (several times faster), then mapped back
+CAM_WIDTH, CAM_HEIGHT = 640, 480
 ENROLL_SAMPLES = 5
 ENROLL_TIMEOUT_S = 25
 VERIFY_TIMEOUT_S = 10
@@ -36,7 +42,21 @@ TURN_TIMEOUT_S = 9
 RETURN_TIMEOUT_S = 6
 
 
+class Done(Exception):
+    """Ends one request in serve mode (the one-shot modes print the result and exit instead)."""
+
+    def __init__(self, payload: dict):
+        super().__init__("done")
+        self.payload = payload
+
+
+SERVER = False
+_cap = None
+
+
 def finish(payload: dict) -> None:
+    if SERVER:
+        raise Done(payload)
     print(json.dumps(payload), flush=True)
     sys.exit(0)
 
@@ -53,10 +73,23 @@ def ensure_models(models_dir: Path) -> tuple[str, str]:
 
 
 def open_camera() -> cv2.VideoCapture:
+    global _cap
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW if sys.platform == "win32" else 0)
     if not cap.isOpened():
         finish({"ok": False, "error": "No se pudo abrir la cámara"})
+    # MJPG at 640x480 opens and streams much faster than the camera's default (often 1080p raw), with a 1-frame buffer
+    for prop, value in ((cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")), (cv2.CAP_PROP_FRAME_WIDTH, CAM_WIDTH),
+                        (cv2.CAP_PROP_FRAME_HEIGHT, CAM_HEIGHT), (cv2.CAP_PROP_BUFFERSIZE, 1)):
+        cap.set(prop, value)
+    _cap = cap
     return cap
+
+
+def release_camera() -> None:
+    global _cap
+    if _cap is not None:
+        _cap.release()
+        _cap = None
 
 
 def frames(cap: cv2.VideoCapture, timeout_s: float):
@@ -69,12 +102,19 @@ def frames(cap: cv2.VideoCapture, timeout_s: float):
 
 def best_face(detector, frame):
     h, w = frame.shape[:2]
-    detector.setInputSize((w, h))
-    _, faces = detector.detect(frame)
+    scale = DET_WIDTH / w if w > DET_WIDTH else 1.0
+    small = cv2.resize(frame, (DET_WIDTH, max(1, round(h * scale))), interpolation=cv2.INTER_AREA) if scale < 1.0 else frame
+    detector.setInputSize((small.shape[1], small.shape[0]))
+    _, faces = detector.detect(small)
     if faces is None:
         return None
     face = max(faces, key=lambda f: f[2] * f[3])  # largest face
-    return face if face[-1] >= MIN_DET_SCORE else None
+    if face[-1] < MIN_DET_SCORE:
+        return None
+    if scale < 1.0:
+        face = face.copy()
+        face[:14] /= scale  # box + 5 landmarks back to full-frame pixels (the last value is the score)
+    return face
 
 
 def embed(recognizer, frame, face) -> np.ndarray:
@@ -110,8 +150,10 @@ def say(**payload) -> None:
     print(json.dumps(payload), flush=True)
 
 
-def verify(detector, recognizer, liveness: bool) -> None:
-    stored = [np.array(e, dtype=np.float32).reshape(1, -1) for e in json.loads(sys.stdin.read())]
+def verify(detector, recognizer, liveness: bool, embeddings=None) -> None:
+    if embeddings is None:
+        embeddings = json.loads(sys.stdin.read())
+    stored = [np.array(e, dtype=np.float32).reshape(1, -1) for e in embeddings]
 
     def score_of(frame, face) -> float:
         probe = embed(recognizer, frame, face)
@@ -164,9 +206,40 @@ def verify(detector, recognizer, liveness: bool) -> None:
     finish({"ok": True, "score": best, "live": liveness})
 
 
+def serve(detector, recognizer) -> None:
+    """Long-lived worker: models stay loaded between logins."""
+    global SERVER
+    SERVER = True
+    say(ready=True)
+    for line in sys.stdin:
+        try:
+            req = json.loads(line)
+        except ValueError:
+            continue
+        rid, cmd = req.get("id"), req.get("cmd")
+        if cmd == "quit":
+            break
+        try:
+            if cmd == "ping":
+                payload = {"ok": True, "pong": True}
+            elif cmd == "enroll":
+                enroll(detector, recognizer)
+            elif cmd == "verify":
+                verify(detector, recognizer, bool(req.get("liveness")), req.get("embeddings") or [])
+            else:
+                payload = {"ok": False, "error": "Comando desconocido"}
+        except Done as d:
+            payload = d.payload
+        except Exception as e:  # a bad frame or camera hiccup must not kill the worker
+            payload = {"ok": False, "error": f"Error del módulo facial: {e}"}
+        finally:
+            release_camera()
+        print(json.dumps({"id": rid, "result": payload}), flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["enroll", "verify", "selftest"])
+    ap.add_argument("mode", choices=["enroll", "verify", "selftest", "serve"])
     ap.add_argument("--models-dir", required=True)
     ap.add_argument("--liveness", action="store_true", help="verify: also require a head-turn challenge")
     args = ap.parse_args()
@@ -180,6 +253,9 @@ def main() -> None:
     recognizer = cv2.FaceRecognizerSF.create(rec_path, "")
     if args.mode == "selftest":  # models load and OpenCV works; no camera involved (used by CI)
         finish({"ok": True, "selftest": True, "opencv": cv2.__version__})
+    if args.mode == "serve":
+        serve(detector, recognizer)
+        return
     if args.mode == "enroll":
         enroll(detector, recognizer)
     verify(detector, recognizer, args.liveness)

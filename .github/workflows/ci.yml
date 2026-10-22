@@ -19,9 +19,9 @@ jobs:
     name: Typecheck + unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -41,22 +41,26 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
+      # face_auth (and test_face_speed) import numpy and OpenCV; headless avoids the libGL the runner lacks
+      - name: Python test dependencies
+        run: pip install numpy opencv-python-headless
+
       - name: Python sidecar compiles and its liveness logic passes
         run: |
-          python -m py_compile python/face_auth.py
-          cd python && python -m unittest -q test_liveness
+          python -m py_compile python/face_auth.py python/project_health.py
+          cd python && python -m unittest -q test_liveness test_face_speed test_project_health test_project_inspect
 
   e2e:
     name: End-to-end (Electron)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -69,7 +73,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           E2E_SHOTS: ${{ runner.temp }}/devpanel-shots
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-screenshots

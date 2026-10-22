@@ -1,15 +1,16 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
-import type { L10nResult, LocalProject, SecretFinding } from '../shared/api';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { basename, join, resolve, sep } from 'node:path';
+import type { FileEntry, FileRead, InspectResult, L10nResult, LocalProject, SecretFinding } from '../shared/api';
 import { arbKeys, compareLocales, flattenKeys, L10N_DIRS, langOf, type LocaleFile } from './l10n-core';
 import {
-  changedPaths, findRecipe, isSafeBranch, isSafeCommitMessage, isSafeScriptName, parseGitStatus,
+  buildAction, changedPaths, findRecipe, isSafeRel, MAX_READ_BYTES, parseGrep, SKIP_DIRS, isSafeBranch, isSafeCommitMessage, isSafeScriptName, parseGitStatus,
   recipeCommand, recipesFor, stripAnsi,
 } from './local-core';
 import { isBinary, MAX_SCAN_BYTES, MAX_SCAN_FILES, scanName, scanText } from './secrets-core';
 import { loadSettings, saveSettings } from './settings';
+import { runSidecar } from './sidecar';
 
 const git = (cwd: string, args: string[]): Promise<{ ok: boolean; out: string }> =>
   new Promise((res) => {
@@ -28,6 +29,20 @@ function readScripts(dir: string): string[] {
   } catch {
     return [];
   }
+}
+
+/** Cheap manager detection for the list (the full report comes from Python on demand). */
+function lightManager(dir: string): string | null {
+  try {
+    const declared = String(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).packageManager ?? '').split('@')[0];
+    if (['npm', 'pnpm', 'yarn', 'bun'].includes(declared)) return declared;
+  } catch {
+    /* no package.json */
+  }
+  const locks: [string, string][] = [['pnpm-lock.yaml', 'pnpm'], ['yarn.lock', 'yarn'], ['bun.lockb', 'bun'], ['bun.lock', 'bun'], ['package-lock.json', 'npm'], ['deno.lock', 'deno']];
+  for (const [f, m] of locks) if (existsSync(join(dir, f))) return m;
+  if (existsSync(join(dir, 'deno.json')) || existsSync(join(dir, 'deno.jsonc'))) return 'deno';
+  return existsSync(join(dir, 'package.json')) ? 'npm' : null;
 }
 
 /** What kind of project a folder is, from files that are hard to fake by accident. */
@@ -69,11 +84,12 @@ function readL10n(dir: string): { rel: string; files: LocaleFile[] } | null {
 async function describe(dir: string): Promise<LocalProject> {
   const kinds = detectKinds(dir);
   const base: LocalProject = {
-    path: dir, name: basename(dir), exists: existsSync(dir), isGit: false, scripts: [],
+    path: dir, name: basename(dir), exists: existsSync(dir), isGit: false, scripts: [], manager: null,
     kinds: [], recipes: [], hasL10n: false,
   };
   if (!base.exists) return base;
   base.scripts = readScripts(dir);
+  base.manager = lightManager(dir);
   base.kinds = kinds;
   base.recipes = recipesFor(kinds).map((r) => ({ id: r.id, icon: r.icon, tip: recipeCommand(r) }));
   base.hasL10n = !!readL10n(dir);
@@ -224,7 +240,81 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
     const dir = known(path);
     if (!dir) return { error: 'Proyecto no registrado' };
     if (!isSafeScriptName(script) || !readScripts(dir).includes(script)) return { error: 'Ese script no existe en package.json' };
-    return runShell(dir, `npm run ${script}`); // shell is required for npm.cmd on Windows; the name was validated above
+    const manager = lightManager(dir);
+    const line = buildAction(`script:${script}`, { manager, kinds: [], scripts: readScripts(dir), tasks: [], devices: [], emulators: [] });
+    if (!line) return { error: `No se puede ejecutar con ${manager ?? 'ningún gestor'}` };
+    return runShell(dir, line); // shell is required for npm.cmd on Windows; manager and name were validated above
+  });
+
+  // ---- Python inspection and the fixes it offers ----
+  ipcMain.handle('local:inspect', async (_e, path: string, deep?: boolean): Promise<InspectResult> => {
+    const dir = known(path);
+    if (!dir) return { ok: false, error: 'Proyecto no registrado' };
+    return runSidecar<Extract<InspectResult, { ok: true }>>(['inspect', dir, ...(deep ? ['--deep'] : [])]);
+  });
+
+  ipcMain.handle('local:action', async (_e, path: string, id: string) => {
+    const dir = known(path);
+    if (!dir) return { error: 'Proyecto no registrado' };
+    const wantsDevice = /^flutter-(run|emulator):/.test(String(id));
+    const info = await runSidecar<Extract<InspectResult, { ok: true }>>(['inspect', dir, ...(wantsDevice ? ['--deep'] : [])]);
+    if (!info.ok) return { error: info.error };
+    const line = buildAction(String(id), {
+      manager: info.manager, kinds: info.kinds, scripts: info.scripts, tasks: info.tasks,
+      devices: info.flutter?.devices.map((d) => d.id) ?? [], emulators: info.flutter?.emulators.map((d) => d.id) ?? [],
+    });
+    return line ? runShell(dir, line) : { error: 'Esa acción no aplica a este proyecto' };
+  });
+
+  // ---- read-only explorer ----
+  /** Resolves a project-relative path and refuses anything (links included) that lands outside the project. */
+  const inside = (dir: string, rel: string): string | null => {
+    if (!isSafeRel(rel)) return null;
+    try {
+      const root = realpathSync(dir);
+      const full = realpathSync(join(dir, rel));
+      return full === root || full.startsWith(root + sep) ? full : null;
+    } catch {
+      return null;
+    }
+  };
+
+  ipcMain.handle('local:tree', (_e, path: string, rel: string): FileEntry[] => {
+    const dir = known(path);
+    const full = dir ? inside(dir, String(rel ?? '')) : null;
+    if (!full) return [];
+    try {
+      return readdirSync(full, { withFileTypes: true })
+        .filter((d) => !(d.isDirectory() && SKIP_DIRS.has(d.name)))
+        .map((d) => ({ name: d.name, dir: d.isDirectory() }))
+        .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name))
+        .slice(0, 500);
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle('local:read', (_e, path: string, rel: string): FileRead => {
+    const dir = known(path);
+    const full = dir ? inside(dir, String(rel ?? '')) : null;
+    if (!full) return { ok: false, error: 'Archivo no disponible' };
+    try {
+      const st = statSync(full);
+      if (!st.isFile()) return { ok: false, error: 'No es un archivo' };
+      const buf = readFileSync(full).subarray(0, MAX_READ_BYTES);
+      if (isBinary(buf)) return { ok: false, error: 'Archivo binario: no se puede mostrar como texto' };
+      return { ok: true, text: buf.toString('utf8'), size: st.size, truncated: st.size > MAX_READ_BYTES };
+    } catch {
+      return { ok: false, error: 'No se pudo leer el archivo' };
+    }
+  });
+
+  ipcMain.handle('local:search', async (_e, path: string, query: string) => {
+    const dir = known(path);
+    const q = String(query ?? '');
+    if (!dir || q.trim().length < 2 || q.length > 200 || /[\u0000-\u001f]/.test(q)) return [];
+    const r = await git(dir, ['-c', 'core.quotepath=off', 'grep', '-n', '-I', '-F', '-i', '--max-count=5', '-e', q]);
+    return r.ok ? parseGrep(r.out) : [];
   });
 
   ipcMain.handle('local:recipe', (_e, path: string, id: string) => {

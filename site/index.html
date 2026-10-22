@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DevPanel — Desktop dashboard for developers</title>
+    <meta
+      name="description"
+      content="DevPanel is a free, open-source Windows app that brings your GitHub repos, local projects, developer tools and Claude Code into one panel, with face sign-in."
+    />
+    <link rel="canonical" href="https://devpanel.hgsportafolio.site/" />
+    <link rel="alternate" hreflang="en" href="https://devpanel.hgsportafolio.site/" />
+    <link rel="alternate" hreflang="es" href="https://devpanel.hgsportafolio.site/es/" />
+    <link rel="icon" type="image/png" href="img/favicon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="DevPanel — Desktop dashboard for developers" />
+    <meta property="og:description" content="Your GitHub repos, local projects, tools and Claude Code in one Windows app." />
+    <meta property="og:image" content="https://devpanel.hgsportafolio.site/img/home.webp" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="wrap top">
+      <a class="brand" href="./"><img src="img/icon.png" alt="" width="36" height="36" />DevPanel</a>
+      <nav aria-label="Sections">
+        <a href="#features">Features</a>
+        <a href="#download">Download</a>
+        <a href="#privacy">Privacy</a>
+        <a href="https://github.com/DevCat-HGS/DevPanel">GitHub</a>
+        <a href="es/" hreflang="es" lang="es">Español</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="wrap hero">
+        <div>
+          <h1>Everything a developer opens every day, in one panel.</h1>
+          <p class="lead">
+            DevPanel is a free, open-source Windows app that brings your GitHub repositories, your local projects,
+            developer tools and Claude Code together, and opens with your face or a 4-digit code.
+          </p>
+          <div class="actions">
+            <a class="btn primary" href="#download">Download for Windows</a>
+            <a class="btn" href="https://github.com/DevCat-HGS/DevPanel">Source code on GitHub</a>
+          </div>
+          <p class="small">Windows 10 and 11 · Spanish and English · MIT license</p>
+        </div>
+        <figure class="shot">
+          <img
+            src="img/home.webp"
+            alt="DevPanel home screen with failing builds, open pull requests, local changes and recent activity"
+            width="960"
+            height="663"
+          />
+        </figure>
+      </div>
+
+      <section id="features">
+        <div class="wrap">
+          <h2>What it does</h2>
+          <div class="grid">
+            <article class="card">
+              <h3>GitHub at a glance</h3>
+              <p>Repositories, commits, Actions runs and pull requests, with a desktop alert when a build fails.</p>
+            </article>
+            <article class="card">
+              <h3>Local projects</h3>
+              <p>Branch and changes, a project diagnosis with one-click fixes, and npm scripts in a built-in terminal.</p>
+            </article>
+            <article class="card">
+              <h3>Developer tools, offline</h3>
+              <p>JSON, Base64, JWT, hashes, UUIDs, dates and regex, all on your machine. No token pasted into a website.</p>
+            </article>
+            <article class="card">
+              <h3>Claude Code</h3>
+              <p>Talk to Claude Code about a project, with the project's diagnosis as context.</p>
+            </article>
+            <article class="card">
+              <h3>Face sign-in</h3>
+              <p>Unlock with your face and a random head turn that stops photos, or with your 4-digit code.</p>
+            </article>
+            <article class="card">
+              <h3>Automatic updates</h3>
+              <p>Checks for new versions on start and every 15 minutes, and shows what changed after each update.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="screens">
+        <div class="wrap">
+          <h2 id="screens">Screens</h2>
+          <div class="gallery">
+            <figure>
+              <img src="img/lock.webp" alt="DevPanel lock screen with the 4-digit code keypad" width="960" height="628" loading="lazy" />
+              <figcaption>Lock screen: face or code.</figcaption>
+            </figure>
+            <figure>
+              <img
+                src="img/tools.webp"
+                alt="DevPanel tools grouped by category with the install status of each one"
+                width="960"
+                height="628"
+                loading="lazy"
+              />
+              <figcaption>Tools: install or open what you use in one click.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="download">
+        <div class="wrap">
+          <h2>Download</h2>
+          <ol class="steps">
+            <li>
+              Download <strong>DevPanel-Installer.exe</strong> from the
+              <a href="https://github.com/DevCat-HGS/DevPanel/releases/tag/installer">installer release</a> on GitHub.
+            </li>
+            <li>Run it. It downloads the latest version and checks its SHA-256 checksum before installing.</li>
+            <li>Link your GitHub username, create your 4-digit code and, if you want, enroll your face.</li>
+          </ol>
+          <div class="actions" style="margin-top: 1.25rem">
+            <a class="btn primary" href="https://github.com/DevCat-HGS/DevPanel/releases/tag/installer">Download for Windows</a>
+            <a class="btn" href="https://github.com/DevCat-HGS/DevPanel/releases">All releases and release notes</a>
+          </div>
+          <p class="note" style="margin-top: 1.5rem">
+            <strong>Code signing.</strong> Free code signing provided by
+            <a href="https://signpath.io">SignPath.io</a>, certificate by
+            <a href="https://signpath.org">SignPath Foundation</a>. Until signed builds are published, Windows
+            SmartScreen may show "Unknown publisher": download DevPanel only from this page or its GitHub releases.
+          </p>
+        </div>
+      </section>
+
+      <section id="privacy">
+        <div class="wrap">
+          <h2>Privacy and security</h2>
+          <div class="grid">
+            <article class="card">
+              <h3>Your data stays on your PC</h3>
+              <p>Settings, your code, your face fingerprint and your GitHub token are stored locally, encrypted by Windows.</p>
+            </article>
+            <article class="card">
+              <h3>No photos</h3>
+              <p>Face sign-in keeps a numeric fingerprint of your face, never pictures or video.</p>
+            </article>
+            <article class="card">
+              <h3>Open and reviewed</h3>
+              <p>The code is public. Every change runs tests, CodeQL and secret scanning on GitHub Actions.</p>
+            </article>
+          </div>
+          <p class="small">
+            Read the full <a href="https://github.com/DevCat-HGS/DevPanel/blob/main/docs/PRIVACY.md">privacy policy</a>,
+            <a href="https://github.com/DevCat-HGS/DevPanel/blob/main/docs/SECURITY.md">security policy</a> and
+            <a href="https://github.com/DevCat-HGS/DevPanel/blob/main/docs/TERMS.md">terms of use</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>DevPanel · open source under the <a href="https://github.com/DevCat-HGS/DevPanel/blob/main/LICENSE">MIT license</a></span>
+        <span>Made by <a href="https://hgsportafolio.site/en/devpanel/">Harol Guerrero Salgado</a></span>
+      </div>
+    </footer>
+  </body>
+</html>

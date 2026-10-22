@@ -142,6 +142,54 @@ try {
   assert.equal(bad.outside.ok, false);
   log('unknown recipes, unregistered folders, shell-looking branch names and multi-line messages are refused');
 
+  // ---------- Python diagnosis: manager, problems before they hurt, fixes ----------
+  assert.equal((await card(page).locator('.chip.branch').allTextContents()).includes('npm'), true, 'the manager is shown on the card');
+  await card(page).locator('button[title^="Diagnóstico"]').click();
+  await page.waitForFunction(() => /Faltan las dependencias/.test(document.querySelector('.diag')?.textContent ?? ''));
+  const diagText = await page.textContent('.diag');
+  assert.match(diagText, /Faltan las dependencias/, 'no node_modules is reported');
+  assert.ok(await page.locator('.diag .diag-act', { hasText: 'Instalar con npm' }).isVisible(), 'and a one-click fix is offered');
+  assert.ok(await page.locator('.diag .diag-act', { hasText: 'build' }).isVisible(), 'scripts run through the detected manager');
+  assert.match(diagText, /Flutter/, 'the Flutter block is there');
+  await shot(page, 'l2-diagnosis');
+  const refused = await page.evaluate(async (p) => ({
+    bad: await window.devpanel.local.action(p, 'rm -rf /'),
+    other: await window.devpanel.local.action('C:/Windows', 'install'),
+    device: await window.devpanel.local.action(p, 'flutter-run:x & calc'),
+  }), proj);
+  assert.ok('error' in refused.bad && 'error' in refused.other && 'error' in refused.device);
+  log('Python diagnosis shows the manager, the missing dependencies with a fix and the scripts; unknown actions are refused');
+
+  // ---------- read-only explorer ----------
+  await card(page).locator('button[title="Explorar archivos"]').click();
+  await page.waitForSelector('#files-modal:not(.hidden) .ft-row');
+  assert.ok(await page.locator('.ft-row', { hasText: 'pubspec.yaml' }).isVisible());
+  await page.locator('.ft-row', { hasText: 'pubspec.yaml' }).click();
+  await page.waitForSelector('.code-line');
+  assert.match(await page.textContent('#files-view'), /name: migozz_app/);
+  await page.fill('#files-search', 'Hola');
+  await page.press('#files-search', 'Enter');
+  await page.waitForSelector('.hit-row');
+  assert.match(await page.textContent('.hit-row'), /es\.json:1/);
+  await page.locator('.hit-row').first().click();
+  await page.waitForSelector('.code-line.hit');
+  const outside = await page.evaluate(async (p) => ({
+    up: await window.devpanel.local.read(p, '../remote.git/HEAD'),
+    abs: await window.devpanel.local.read(p, 'C:/Windows/win.ini'),
+    tree: await window.devpanel.local.tree(p, '..'),
+    other: await window.devpanel.local.read('C:/Windows', 'win.ini'),
+    top: (await window.devpanel.local.tree(p, '')).map((e) => e.name),
+  }), proj);
+  assert.equal(outside.up.ok, false);
+  assert.equal(outside.abs.ok, false);
+  assert.deepEqual(outside.tree, []);
+  assert.equal(outside.other.ok, false);
+  assert.ok(!outside.top.includes('.git'), '.git is not listed');
+  await shot(page, 'l3-explorer');
+  await page.keyboard.press('Escape');
+  assert.ok(await page.locator('#files-modal').isHidden());
+  log('the explorer lists files, shows code with line numbers, finds text and jumps to the line; paths outside the project are refused');
+
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {
   console.error('\n✘ Local tools test failed:', e.message);

@@ -10,6 +10,7 @@ import { renderPager } from './pager.js';
 import { initHome, refreshHome } from './ui-home.js';
 import { initNotices, pushNotice } from './notifications.js';
 import { getLocalProjects, initLocal, runScriptFrom } from './ui-local.js';
+import { initFiles } from './ui-files.js';
 import { initRepoModal, openRepo } from './ui-repo.js';
 import { checkWhatsNew, initNotes, showNotes } from './ui-notes.js';
 import { initSoftware, installable, requestInstall } from './ui-software.js';
@@ -386,7 +387,7 @@ async function showChannel(): Promise<void> {
   const tip = dev
     ? c.allowed
       ? 'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).'
-      : 'Canal: Desarrollo, reservado para DevCat-HGS. Esta cuenta recibirá solo versiones estables.'
+      : 'Canal: Desarrollo, reservado para DevCat-HGS y GalletasU. Esta cuenta recibirá solo versiones estables.'
     : 'Canal: Estable.';
   chip.title = tip;
   chip.setAttribute('aria-label', tip);
@@ -789,6 +790,7 @@ api.update.onStatus(renderUpdate);
 
 hydrateIcons();
 initRepoModal();
+initFiles();
 initNotices();
 initSidebar();
 initTheme();

@@ -7,12 +7,16 @@ La misma interfaz corre en la **web**, solo para previsualizar durante el desarr
 
 ---
 
+> **Meta:** que los desarrolladores automaticen su trabajo sin salir de DevPanel. Alcance y hoja de ruta en [`docs/VISION.md`](docs/VISION.md).
+>
+> Documentación: [uso](docs/USAGE.md) · [privacidad](docs/PRIVACY.md) · [seguridad](docs/SECURITY.md) · [términos](docs/TERMS.md) · [licencia MIT](LICENSE). El instalador las muestra antes de instalar.
+
 ## Ramas y releases (lo importante)
 
 | Rama | Qué publica | Versión | Quién la recibe |
 | --- | --- | --- | --- |
 | `main` | **Release estable** | `v0.1.<n>` | Todos los usuarios |
-| `developer` | **Release de desarrollo** (prerelease, cambios adelantados) | `v0.1.<n>-dev` | Solo `DevCat-HGS` |
+| `developer` | **Release de desarrollo** (prerelease, cambios adelantados) | `v0.1.<n>-dev` | Solo `DevCat-HGS` y `GalletasU` |
 
 Flujo de trabajo:
 
@@ -24,13 +28,16 @@ Flujo de trabajo:
 Cómo se mantienen separados los canales:
 
 - El sufijo `-dev` en la versión es lo que los separa. `electron-updater` solo ofrece prereleases a apps que ya son `-dev`.
-- El instalador usa `releases/latest` de GitHub, que **nunca** apunta a un prerelease. Por eso instala siempre la estable.
-- La app `-dev` solo sigue prereleases si la cuenta de GitHub vinculada es `DevCat-HGS`. Cualquier otra cuenta se queda en estables.
-- El instalador solo muestra la opción de canal "Desarrollo" cuando la cuenta vinculada es `DevCat-HGS`.
+- Para las cuentas no autorizadas, el instalador usa `releases/latest` de GitHub, que **nunca** apunta a un prerelease: siempre instala la estable.
+- La app `-dev` solo sigue prereleases si la cuenta de GitHub vinculada es `DevCat-HGS` o `GalletasU`. Cualquier otra cuenta se queda en estables.
+- **Nadie elige el canal.** El instalador lo decide según la cuenta vinculada: las autorizadas reciben la de desarrollo y el resto, la estable. La lista vive en dos sitios que deben coincidir: `DEV_OWNERS` en `installer/src/main/main.ts` y `DEV_CHANNEL_OWNERS` en `src/main/updater.ts`.
 
 > **Límite honesto:** el repo es público, así que cualquiera que sepa la URL puede descargar un prerelease a mano.
 > Lo anterior controla qué **reciben y se actualizan** las apps, no quién puede descargar el archivo.
 > Para un bloqueo real habría que pasar los prereleases a un repo privado (o usar la imagen Docker `:dev`, que en GHCR es privada por defecto).
+>
+> Además, la cuenta vinculada es el usuario que se escribe en el instalador, no un inicio de sesión: quien escriba un
+> usuario autorizado recibe el canal de desarrollo. Verificarlo de verdad exigiría iniciar sesión con GitHub (OAuth).
 
 Cada release trae sus **notas de versión**, generadas desde los commits (`feat`, `fix`, y el resto como mejoras internas).
 La app las muestra una vez tras actualizar, desde el aviso de actualización y desde *Settings → Ver novedades*.
@@ -43,7 +50,7 @@ Es un instalador propio, una pregunta por pantalla, en español o inglés (se de
 1. Descarga la última versión y verifica su suma SHA-256 (si GitHub limita la API, la busca por las páginas públicas).
 2. Te pide tu **usuario o enlace de GitHub** (te busca mientras escribes y muestra tu perfil).
 3. Te hace crear tu **código de 4 dígitos** en un teclado animado.
-4. Instala (carpeta y accesos directos a elección; la descarga se puede cancelar). Si DevPanel está abierto en la bandeja, lo cierra antes.
+4. Instala la versión que corresponde a tu cuenta, sin preguntar el canal (carpeta y accesos directos a elección; la descarga se puede cancelar). Si DevPanel está abierto en la bandeja, lo cierra antes.
 5. Te deja **activar el reconocimiento facial** (opcional) con progreso real de las capturas.
 
 Al abrir la app no hay que repetir nada. Después, la app pide tu rostro o tu código y entras al panel.
@@ -51,6 +58,17 @@ Al abrir la app no hay que repetir nada. Después, la app pide tu rostro o tu c�
 **Login facial:** guarda solo una huella numérica de tu rostro, cifrada con el sistema (DPAPI), nunca fotos.
 Al entrar con el rostro pide un **giro de cabeza** hacia un lado al azar (anti-foto, se puede apagar en Settings).
 Frena fotos y pantallas quietas o movidas sin más; no frena a un atacante con vídeo o un modelo 3D. El código de 4 dígitos es el respaldo.
+
+## Desinstalar
+
+Desde *Configuración de Windows → Aplicaciones → DevPanel → Desinstalar*. El desinstalador pregunta qué hacer con tus datos:
+
+| Opción | Qué borra |
+| --- | --- |
+| **Normal** (No) | La app, sus accesos directos y el arranque con Windows. Conserva `%APPDATA%\DevPanel`, así que al reinstalar mantienes tu PIN, rostro, token y configuración. |
+| **Completa** (Sí) | Todo lo anterior, más `%APPDATA%\DevPanel` (configuración, PIN, huella del rostro, token, notas y modelos), la caché de actualizaciones y los temporales del instalador. No se puede deshacer. |
+
+Las actualizaciones ejecutan el desinstalador en silencio y **nunca** preguntan ni borran datos; una desinstalación silenciosa (`/S`) siempre es la normal. La lógica está en [`build/installer.nsh`](build/installer.nsh).
 
 ## Qué incluye
 

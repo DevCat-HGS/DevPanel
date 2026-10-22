@@ -6,6 +6,7 @@ import { mt } from './i18n-main';
 import { setupClaude, stopAllClaude } from './claude';
 import { setupLocal, stopAllLocal } from './local';
 import { setupFace } from './face';
+import { setupHealth } from './health';
 import { listCommits, listFailing, listItems, listOpenPulls, listRepos, listRuns, lookupUser, rerunFailed } from './github';
 import { setupNotes } from './notes';
 import { setupSoftware, stopAllInstalls } from './software';
@@ -125,6 +126,9 @@ function applyLoginItem(open: boolean): void {
 }
 
 app.whenReady().then(() => {
+  // Re-applied on every start: an uninstall or reinstall removes the Windows entry, and a new install folder
+  // changes the .exe path it must point at. The saved setting is the source of truth.
+  applyLoginItem(loadSettings().openAtLogin);
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('settings:get', () => loadSettings());
   ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
@@ -151,6 +155,7 @@ app.whenReady().then(() => {
   win = createWindow();
   const getWin = () => (win && !win.isDestroyed() ? win : null);
   setupLocal(getWin);
+  setupHealth();
   setupClaude(getWin);
   setupSoftware(getWin);
   setupAlerts(getWin);

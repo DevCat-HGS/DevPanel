@@ -2,6 +2,7 @@ import type { Repo, RepoItem, WorkflowRun } from '../shared/api';
 import { $, ago, copyText, el, friendlyError, toast } from './dom.js';
 import { icon } from './icons.js';
 import { renderPrevNext } from './pager.js';
+import { healthChip, runHealth } from './ui-health.js';
 
 const api = () => window.devpanel;
 
@@ -176,6 +177,14 @@ export function openRepo(repo: Repo): void {
     iconButton('terminal', 'Copiar git clone', () => void copyText(`git clone ${cloneUrl}`)),
     iconButton('link', 'Copiar enlace', () => void copyText(repo.html_url)),
   );
+  const healthBtn = iconButton('gauge', 'Salud del proyecto', () =>
+    void runHealth(() => api().health.repo(repo.name), healthBtn).then((r) => {
+      if (!r || current !== repo) return;
+      actions.querySelector('.health')?.remove();
+      actions.prepend(healthChip(r));
+    }),
+  );
+  actions.append(healthBtn);
 
   // build status arrives separately so the list is never held back by it
   const badge = $('rm-badge');

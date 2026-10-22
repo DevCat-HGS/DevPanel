@@ -48,8 +48,19 @@ try {
   await page.waitForFunction(() => document.getElementById('go-install').textContent === 'Instalar ahora');
   log('the installer switches between Spanish and English');
 
+  // nothing installs before the legal screen is accepted
   await page.click('#go-install');
+  await page.waitForSelector('#s-legal.active');
+  assert.ok(await page.locator('#legal-go').isDisabled(), 'continue stays disabled until the terms are accepted');
+  for (const [tab, text] of [['use', /sin salir/], ['privacy', /telemetría/], ['security', /sandbox|aislada/], ['terms', /MIT/]]) {
+    await page.click(`.legal-tab[data-tab="${tab}"]`);
+    assert.match(await page.textContent('#legal-body'), text);
+  }
+  await page.screenshot({ path: join(shots, 'i1c-legal.png') });
+  await page.click('#legal-accept-row');
+  await page.click('#legal-go');
   await page.waitForSelector('#s-gh.active');
+  log('usage, privacy, security and terms are shown and must be accepted before the first question');
   assert.ok(await page.locator('#gh-next').isDisabled());
   assert.ok(await page.locator('#stepper').isVisible());
   log('first question opens with the step indicator');
@@ -96,13 +107,16 @@ try {
   await page.waitForSelector('#s-progress.active');
   assert.equal(await page.textContent('#pct'), '42%');
   await page.screenshot({ path: join(shots, 'i4-progress.png') });
+  assert.equal(await page.getAttribute('body', 'data-channel'), 'stable');
   log('the physical keyboard works and a non-owner goes straight to installing');
   await app.close();
 
-  // ---------- owner account: channel choice ----------
+  // ---------- authorized account: no channel question, it gets the development build ----------
   ({ app, page: globalThis.page } = await launch());
   const p2 = globalThis.page;
   await p2.click('#go-install');
+  await p2.click('#legal-accept-row');
+  await p2.click('#legal-go');
   await p2.fill('#gh', 'DevCat-HGS');
   await p2.waitForSelector('#id-card:not(.hidden)', { timeout: 15000 });
   await p2.click('#gh-next');
@@ -111,13 +125,11 @@ try {
   assert.ok(await p2.locator('#pin-noted').isVisible());
   await p2.screenshot({ path: join(shots, 'i5-pin-generated.png') });
   await p2.click('#pin-noted');
-  await p2.waitForSelector('#s-channel.active');
-  await p2.click('.choice[data-channel="dev"]');
-  assert.ok(await p2.locator('.choice[data-channel="dev"].selected').isVisible());
-  await p2.screenshot({ path: join(shots, 'i6-channel.png') });
-  await p2.click('#ch-next');
   await p2.waitForSelector('#s-progress.active');
-  log('the owner generates a code and unlocks the development channel choice');
+  assert.equal(await p2.locator('#s-channel').count(), 0, 'nobody chooses a channel');
+  assert.equal(await p2.getAttribute('body', 'data-channel'), 'dev');
+  assert.equal(await p2.textContent('#pct'), '42%');
+  log('an authorized account generates a code and installs without a channel question');
 
   await app.close();
 
@@ -126,6 +138,8 @@ try {
   ({ app, page: globalThis.page } = await launch());
   const p3 = globalThis.page;
   await p3.click('#go-install');
+  await p3.click('#legal-accept-row');
+  await p3.click('#legal-go');
   await p3.fill('#gh', 'octocat');
   await p3.waitForSelector('#id-card:not(.hidden)', { timeout: 15000 });
   await p3.click('#gh-next');
