@@ -68,7 +68,7 @@ function signFiles(files, env = process.env) {
   if (!isBase64(csc) && !existsSync(csc)) throw new Error('CSC_LINK points to a file that does not exist.');
   const signtool = findSigntool();
   if (!signtool) throw new Error('signtool.exe not found: install the Windows SDK (it is on the windows-latest runners).');
-  if (env.GITHUB_ACTIONS && env.CSC_KEY_PASSWORD) console.log(`::add-mask::${env.CSC_KEY_PASSWORD}`);
+  // No ::add-mask:: here: printing it writes the password to stdout, and GitHub already masks every secrets.* value.
   const { pfx, cleanup } = materialize(csc);
   try {
     for (const file of files) {
