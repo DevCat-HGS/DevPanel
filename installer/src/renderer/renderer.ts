@@ -36,8 +36,8 @@ $('lang').onclick = () => {
 };
 
 // ---------- Screen routing ----------
-type Screen = 'welcome' | 'legal' | 'options' | 'gh' | 'pin' | 'channel' | 'progress' | 'face' | 'done' | 'error';
-const STEP_OF: Partial<Record<Screen, number>> = { gh: 0, pin: 1, channel: 2, progress: 2, face: 3 };
+type Screen = 'welcome' | 'legal' | 'options' | 'gh' | 'pin' | 'progress' | 'face' | 'done' | 'error';
+const STEP_OF: Partial<Record<Screen, number>> = { gh: 0, pin: 1, progress: 2, face: 3 };
 
 function show(name: Screen): void {
   updateStepper(name);
@@ -122,6 +122,8 @@ function startInstall(): void {
     channel: chosenChannel,
     account: existing || !linked || !chosenPin ? undefined : { github: linked.login, pin: chosenPin },
   };
+  // Which channel this install uses, for support and for the e2e test (nobody chooses it: see channelFor).
+  document.body.dataset.channel = chosenChannel;
   $('cancel-row').classList.remove('hidden');
   $('confirm-row').classList.add('hidden');
   setProgress(0);
@@ -257,6 +259,9 @@ function updateStepper(name: Screen): void {
 // ---------- Conversational setup ----------
 const isOwner = (login: string) => !!login && devOwners.some((o) => o.toLowerCase() === login.toLowerCase());
 
+/** Nobody picks a channel: the linked account decides. Authorized accounts get development builds, everyone else stable. */
+const channelFor = (login: string): 'stable' | 'dev' => (isOwner(login) ? 'dev' : 'stable');
+
 /** Entry point from "Instalar ahora": a returning user skips the questions. */
 // ---------- Legal: usage, privacy, security and terms are read (and accepted) before anything is installed ----------
 
@@ -327,7 +332,10 @@ $('legal-go').onclick = () => {
 
 function openAccount(): void {
   chosenChannel = 'stable';
-  if (existing) return isOwner(existing.githubUser) ? show('channel') : startInstall();
+  if (existing) {
+    chosenChannel = channelFor(existing.githubUser);
+    return startInstall();
+  }
   show('gh');
   setTimeout(() => $<HTMLInputElement>('gh').focus(), 350);
 }
@@ -457,7 +465,8 @@ function submitPin(): void {
 function pinAccepted(pin: string): void {
   chosenPin = pin;
   $('dots').classList.add('good');
-  setTimeout(() => (linked && isOwner(linked.login) ? show('channel') : startInstall()), 550);
+  chosenChannel = channelFor(linked?.login ?? '');
+  setTimeout(() => startInstall(), 550);
 }
 
 $('keypad').addEventListener('click', (e) => {
@@ -485,19 +494,6 @@ $('pin-gen').onclick = () => {
 };
 $('pin-noted').onclick = () => pinAccepted(pinBuf);
 $('pin-back').onclick = () => show('gh');
-
-// -- step 3 (owner only): channel cards
-document.querySelectorAll<HTMLButtonElement>('.choice').forEach((c) => {
-  c.onclick = () => {
-    document.querySelectorAll('.choice').forEach((n) => {
-      n.classList.toggle('selected', n === c);
-      n.setAttribute('aria-checked', String(n === c));
-    });
-    chosenChannel = c.dataset.channel === 'dev' ? 'dev' : 'stable';
-  };
-});
-$('ch-back').onclick = () => (existing ? show('welcome') : show('pin'));
-$('ch-next').onclick = () => startInstall();
 
 // ---------- Face step ----------
 const FACE_HINTS = [

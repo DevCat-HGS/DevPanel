@@ -54,7 +54,9 @@
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",
-      "sign": "scripts/sign.cjs"
+      "signtoolOptions": {
+        "sign": "scripts/sign.cjs"
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -67,6 +69,7 @@
       "artifactName": "DevPanel-Setup-${version}.${ext}",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh",
       "language": "3082",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
