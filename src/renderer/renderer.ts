@@ -484,13 +484,17 @@ document.querySelectorAll<HTMLButtonElement>('.nav').forEach((b) => {
   };
 });
 
-// "/" focuses the search box
+// "/" jumps to the project search, unless the user is typing somewhere (chat, tools, any field)
+function isTyping(t: EventTarget | null): boolean {
+  const n = t as HTMLElement | null;
+  return !!n && (n.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(n.tagName));
+}
 document.addEventListener('keydown', (e) => {
-  const tag = (e.target as HTMLElement).tagName;
-  if (e.key === '/' && tag !== 'INPUT') {
-    e.preventDefault();
-    $('repo-search').focus();
-  }
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+  if (document.documentElement.classList.contains('locked') || $('app').classList.contains('hidden')) return;
+  e.preventDefault();
+  if ($('view-projects').classList.contains('hidden')) goView('projects');
+  $('repo-search').focus();
 });
 
 function skeletons(n = 6): HTMLElement[] {

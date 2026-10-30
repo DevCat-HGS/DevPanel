@@ -162,6 +162,18 @@ try {
   assert.equal(stored.length, 2);
   assert.deepEqual(stored.map((t) => t.status).sort(), ['done', 'todo']);
   log('Task Pro: add, sort by priority, flag overdue, move across columns, filter, edit and open the project');
+
+  await page.keyboard.press('/');
+  await page.waitForSelector('#view-projects:not(.hidden)');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'repo-search', '"/" jumps to the project search');
+  await page.click('.nav[data-view="tools"]');
+  await page.click('.tab[data-tab="utils"]');
+  await page.click('#tool-input');
+  await page.keyboard.type('a/b');
+  assert.equal(await page.inputValue('#tool-input'), 'a/b', '"/" typed in a text area stays there');
+  assert.ok(await page.locator('#view-tools').isVisible());
+  await page.click('.nav[data-view="home"]');
+  log('"/" opens the project search, but never steals a slash typed in a text area');
   await app.close();
 
   // ---------- all good + API error states (new process = empty caches) ----------
