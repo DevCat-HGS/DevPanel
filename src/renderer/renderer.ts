@@ -162,6 +162,8 @@ async function initLock(): Promise<void> {
   lockPad ??= mountPad($('lock-pad'), (pin) => void onLockPin(pin));
   lockPad.reset();
   $('app').classList.add('hidden');
+  // overlays (palette, file explorer, repo, notifications) live outside #app: this hides them too
+  document.documentElement.classList.add('locked');
   faceBtn.classList.toggle('hidden', !st.enrolled);
   msg.textContent = st.enrolled ? 'Mira a la cámara para entrar' : 'Ingresa tu código para entrar';
   lock.querySelector('.divider')?.classList.toggle('hidden', !st.enrolled);
@@ -229,6 +231,7 @@ const REPOS_PER_PAGE = 9;
 
 async function showApp(): Promise<void> {
   $('app').classList.remove('hidden');
+  document.documentElement.classList.remove('locked');
   if (appShown) return;
   appShown = true;
 
