@@ -126,7 +126,10 @@ export function initFiles(): void {
   $('files-close').onclick = closeFiles;
   $('files-modal').addEventListener('mousedown', (e) => e.target === $('files-modal') && closeFiles());
   document.addEventListener('keydown', (e) => e.key === 'Escape' && closeFiles());
-  $<HTMLInputElement>('files-search').onkeydown = (e) => e.key === 'Enter' && void search();
+  // block body: an on* handler returning false (any key but Enter) would cancel the keystroke
+  $<HTMLInputElement>('files-search').onkeydown = (e) => {
+    if (e.key === 'Enter') void search();
+  };
   $('files-search-go').onclick = () => void search();
   $('files-code').onclick = () => openFile && void api().local.open(project, 'code');
   $('files-copy').onclick = async () => {
