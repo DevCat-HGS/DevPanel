@@ -42,6 +42,7 @@ Frena fotos y pantallas quietas o movidas sin más; no frena a un atacante con v
 
 ## Qué incluye
 
+- **Task Pro:** tablero de tareas por proyecto en Inicio (por hacer, en curso, hecho), con prioridad, fecha límite, avisos de vencidas y filtro por proyecto. El proyecto de una tarea abre su repo o la vista Local sin salir de la app.
 - **Proyectos:** repos, commits, estado de Actions, favoritos, orden y búsqueda. Con un **token de GitHub** opcional (cifrado) ves también tus repos privados y el límite sube de 60 a 5000 consultas/hora.
 - **Recomendaciones:** repos sin descripción, licencia o topics, inactivos o con muchos issues.
 - **Alertas de build:** notificación del sistema cuando falla el último Actions de un repo reciente.

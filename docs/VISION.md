@@ -20,6 +20,7 @@ Todo lo que se añada a DevPanel se mide contra esa frase: si obliga a abrir otr
 - Repos de GitHub: commits, PRs, issues y Actions, con reintento de builds fallidos.
 - Proyectos locales: git (fetch, pull, push, commit, ramas), scripts de npm, recetas de Flutter y Firebase, comparación de idiomas y búsqueda de secretos.
 - Claude Code como chat dentro de la app, ligado a un proyecto registrado.
+- **Task Pro**: tareas por proyecto (por hacer, en curso, hecho) con prioridad y fecha límite, en Inicio.
 - Catálogo e instalador de software, notas, alertas, actualizaciones y login facial.
 - **Project Health**: puntuación 0-100 por proyecto (local o de GitHub) calculada en Python, con un resumen (`brief`) pensado para alimentar a la IA.
 

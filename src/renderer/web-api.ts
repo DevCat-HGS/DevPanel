@@ -1,5 +1,5 @@
 import { CATALOG } from './catalog.js';
-import type { CommitPage, DevPanelApi, FailingRun, PullSummary, Repo, Settings, WorkflowRun } from '../shared/api';
+import type { CommitPage, DevPanelApi, FailingRun, PullSummary, Repo, Settings, Task, WorkflowRun } from '../shared/api';
 
 /**
  * Browser implementation of the DevPanel API, used when the renderer runs on
@@ -7,6 +7,7 @@ import type { CommitPage, DevPanelApi, FailingRun, PullSummary, Repo, Settings, 
  */
 const API = 'https://api.github.com';
 const SETTINGS_KEY = 'devpanel.settings';
+const TASKS_KEY = 'devpanel.tasks';
 const defaults: Settings = {
   githubUser: '',
   onboarded: false,
@@ -189,6 +190,25 @@ export function createWebApi(): DevPanelApi {
       open: async () => {},
       onOutput: () => {},
       onExit: () => {},
+    },
+    // Tasks live in this browser only; the desktop app keeps them in tasks.json.
+    tasks: {
+      list: async () => {
+        try {
+          const list = JSON.parse(localStorage.getItem(TASKS_KEY) ?? '[]') as Task[];
+          return Array.isArray(list) ? list : [];
+        } catch {
+          return [];
+        }
+      },
+      save: async (list) => {
+        try {
+          localStorage.setItem(TASKS_KEY, JSON.stringify(list));
+        } catch {
+          /* storage full or blocked: the list still works until the page reloads */
+        }
+        return list;
+      },
     },
     notes: { get: async () => null },
     // The web build cannot detect or install anything: cards are plain links.
