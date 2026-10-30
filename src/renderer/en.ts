@@ -288,7 +288,7 @@ export const EN: Record<string, string> = {
   'Decodifica un token (no verifica la firma).': "Decodes a token (doesn't verify the signature).",
   'Fecha / Unix': 'Date / Unix',
   'Convierte timestamps y fechas. Escribe "now" para la hora actual.': 'Converts timestamps and dates. Type "now" for the current time.',
-  '1700000000  ó  2024-01-01T00:00:00Z': '1700000000  or  2024-01-01T00:00:00Z',
+  '1700000000 ó 2024-01-01T00:00:00Z': '1700000000 or 2024-01-01T00:00:00Z', // tr() collapses the double spaces of the placeholder
   'Convertir': 'Convert',
   'Primera línea /patrón/flags; el resto es el texto a probar.': 'First line /pattern/flags; the rest is the text to test.',
   'Probar': 'Test',
@@ -458,4 +458,47 @@ export const EN: Record<string, string> = {
   'Canal: Desarrollo (cambios adelantados, solo para tu cuenta).': 'Channel: Development (early changes, for your account only).',
   'Canal: Desarrollo, reservado para DevCat-HGS y GalletasU. Esta cuenta recibirá solo versiones estables.':
     'Channel: Development, reserved for DevCat-HGS and GalletasU. This account will only get stable versions.',
+  // ---- project health checks
+  'Repositorio git': 'Git repository',
+  'Sin cambios pendientes': 'No pending changes',
+  'Al día con el remoto': 'Up to date with the remote',
+  'Sin secretos versionados': 'No committed secrets',
+  'Último build correcto': 'Last build passed',
+  'Issues bajo control': 'Issues under control',
+  'No archivado': 'Not archived',
+  'Documentación': 'Documentation',
+  'Descripción': 'Description',
+  'Licencia': 'License',
+  'Repositorio no encontrado': 'Repository not found',
+  'No se pudo leer el repositorio': 'Could not read the repository',
+  // ---- home
+  'Salud de proyectos': 'Project health',
+  'Ábrelo para calcular la salud de tus proyectos locales.': 'Open it to score the health of your local projects.',
+  // ---- local projects and diagnostics
+  'Salud del proyecto': 'Project health',
+  'Diagnóstico': 'Diagnostics',
+  'Diagnóstico sin problemas': 'Diagnostics found no problems',
+  '{e} errores y {w} avisos en el diagnóstico': '{e} errors and {w} warnings in the diagnostics',
+  'Diagnóstico: gestor, versiones, problemas y soluciones': 'Diagnostics: package manager, versions, problems and fixes',
+  'Cerrar diagnóstico': 'Close diagnostics',
+  'Explorar archivos': 'Browse files',
+  'Problemas detectados': 'Problems found',
+  'Nada que arreglar: dependencias, versiones y archivos clave en orden.': 'Nothing to fix: dependencies, versions and key files are in order.',
+  'Versión de Node compatible': 'Compatible Node version',
+  'Tienes {v}': 'You have {v}',
+  'Tareas de Deno': 'Deno tasks',
+  'Buscar dispositivos y versiones': 'Find devices and versions',
+  'Pregunta a Flutter por dispositivos y emuladores (tarda unos segundos)': 'Asks Flutter for devices and emulators (takes a few seconds)',
+  'Dispositivos conectados': 'Connected devices',
+  // ---- file explorer
+  'Carpeta vacía.': 'Empty folder.',
+  'Elige un archivo del árbol, o busca texto en el proyecto.': 'Pick a file from the tree, or search text in the project.',
+  'Ruta copiada': 'Path copied',
+  // ---- web preview and tools
+  'No disponible en la web': 'Not available on the web',
+  'El código solo está en la app de escritorio': 'The code is only available in the desktop app',
+  'El login facial solo está en la app de escritorio': 'Face login is only available in the desktop app',
+  'El token solo está disponible en la app de escritorio': 'The token is only available in the desktop app',
+  'Claude terminó con código {c}. ¿Está instalado Claude Code? Prueba "claude" en una terminal.':
+    'Claude exited with code {c}. Is Claude Code installed? Try "claude" in a terminal.',
 };
