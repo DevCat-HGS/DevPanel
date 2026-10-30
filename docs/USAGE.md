@@ -4,7 +4,7 @@ DevPanel es un panel para que los desarrolladores trabajen y automaticen tareas 
 
 | Sección | Para qué sirve |
 | --- | --- |
-| **Inicio** | Paneles plegables: builds fallando, pull requests, cambios locales, salud de proyectos y actividad reciente |
+| **Inicio** | **Task Pro** (tareas por proyecto con prioridad y fecha límite) y paneles plegables: builds fallando (abre Actions), pull requests (abre la pestaña del repo), cambios locales, salud de proyectos y actividad reciente |
 | **Projects** | Tus repos de GitHub: commits, PRs, issues y Actions (con reintento de builds fallidos) y su puntaje de salud |
 | **Local** | Carpetas de tu equipo: git (fetch, pull, push, commit, ramas), diagnóstico, scripts, salud, búsqueda de secretos y explorador de archivos |
 | **Tools** | Catálogo de software, utilidades de desarrollo, notas y el chat de Claude Code |

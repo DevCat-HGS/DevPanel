@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import http from 'node:http';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron as electron } from 'playwright-core';
@@ -118,6 +118,50 @@ try {
   await page.waitForTimeout(800);
   assert.ok(notModified >= 1, `the repo list is requested with If-None-Match and answered 304 (${notModified})`);
   log('refreshing reuses cached answers (HTTP 304 does not count against the GitHub rate limit)');
+
+  // ---------- Task Pro ----------
+  const col = (s) => page.locator(`.tp-col-${s} .tp-card`);
+  const addTask = async (title, project, priority = 'normal', due = '') => {
+    await page.fill('#tp-new', title);
+    await page.fill('#tp-project', project);
+    await page.selectOption('#tp-priority', priority);
+    await page.fill('#tp-due', due);
+    await page.press('#tp-new', 'Enter');
+  };
+  assert.equal(await page.locator('.tp-col').count(), 3, 'to do, in progress and done columns');
+  await page.click('#tp-form button[type="submit"]'); // empty title: nothing is added
+  assert.equal(await page.locator('.tp-card').count(), 0);
+  await addTask('Revisar login', 'web-app', 'low');
+  await addTask('Arreglar build', 'api-service', 'high', '2000-01-01');
+  await page.waitForFunction(() => document.querySelectorAll('.tp-col-todo .tp-card').length === 2);
+  assert.equal(await col('todo').first().locator('.tp-title').textContent(), 'Arreglar build', 'high priority goes first');
+  assert.ok(await col('todo').first().evaluate((n) => n.classList.contains('tp-late')), 'a past due date is flagged');
+  assert.match(await page.textContent('#tp-summary'), /2 pendientes · 1 vencida$/);
+  assert.equal(await page.locator('.tp-filter').count(), 3, 'All + one chip per project');
+
+  await col('todo').first().locator('.tp-lead').click();
+  await page.waitForFunction(() => document.querySelectorAll('.tp-col-doing .tp-card').length === 1);
+  await col('doing').first().locator('.tp-lead').click();
+  await page.waitForFunction(() => document.querySelectorAll('.tp-col-done .tp-card').length === 1);
+  assert.match(await page.textContent('#tp-summary'), /^1 pendiente$/, 'a done task is no longer overdue');
+
+  await page.locator('.tp-filter', { hasText: 'web-app' }).click();
+  assert.equal(await page.locator('.tp-card').count(), 1, 'the filter shows one project');
+  await page.locator('.tp-card .tp-title').dblclick();
+  await page.fill('.tp-edit', 'Revisar login con 2FA');
+  await page.press('.tp-edit', 'Enter');
+  await page.waitForSelector('.tp-card .tp-title:text("Revisar login con 2FA")');
+  await page.locator('.tp-card button.tp-proj').click();
+  await page.waitForSelector('#repo-modal:not(.hidden)');
+  assert.equal(await page.textContent('#rm-name'), 'web-app', 'the project chip opens the repo in the app');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
+  await page.locator('.tp-filter').first().click();
+  await shot(page, 'h1b-tasks');
+  const stored = JSON.parse(readFileSync(join(userData, 'tasks.json'), 'utf8'));
+  assert.equal(stored.length, 2);
+  assert.deepEqual(stored.map((t) => t.status).sort(), ['done', 'todo']);
+  log('Task Pro: add, sort by priority, flag overdue, move across columns, filter, edit and open the project');
   await app.close();
 
   // ---------- all good + API error states (new process = empty caches) ----------
@@ -134,6 +178,15 @@ try {
   assert.match(await widget(page, 'pulls').locator('.hw-ok').getAttribute('title'), /Límite de la API/);
   await shot(page, 'h2-home-states');
   log('an all-good widget is a green check and a rate-limited one is a red cross with the reason as tooltip');
+
+  await page.waitForFunction(() => document.querySelectorAll('.tp-card').length === 2);
+  assert.equal(await page.textContent('.tp-col-todo .tp-title'), 'Revisar login con 2FA');
+  await page.locator('.tp-col-done .tp-col-head .tp-btn').click(); // clear the done ones
+  await page.waitForFunction(() => document.querySelectorAll('.tp-card').length === 1);
+  await page.locator('.tp-card .tp-btn.danger').click();
+  await page.waitForSelector('.tp-col-todo .tp-empty');
+  assert.deepEqual(JSON.parse(readFileSync(join(userData, 'tasks.json'), 'utf8')), []);
+  log('tasks survive a restart and can be deleted one by one or all the done ones at once');
 
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {

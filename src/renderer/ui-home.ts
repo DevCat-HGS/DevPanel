@@ -3,6 +3,7 @@ import { $, ago, el } from './dom.js';
 import { icon } from './icons.js';
 import { checkLabel } from './ui-health.js';
 import type { Tab } from './ui-repo.js';
+import { initTasks, refreshTasks } from './ui-tasks.js';
 
 const api = () => window.devpanel;
 
@@ -179,6 +180,7 @@ export async function refreshHome(): Promise<void> {
   else if (isOpen('health')) void loadHealth(mine);
   else idleHealth();
   renderRecent();
+  void refreshTasks();
 
   const settle = async <T,>(id: string, run: () => Promise<T>, render: (v: T) => void) => {
     try {
@@ -236,6 +238,7 @@ function failedLocal(): void {
 
 export function initHome(context: HomeContext): void {
   ctx = context;
+  initTasks(context);
   $('home-grid').replaceChildren(...WIDGETS.map(widget));
   $('home-refresh').onclick = () => void refreshHome();
 }

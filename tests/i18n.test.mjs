@@ -13,6 +13,8 @@ test('English translations: static text, patterns, nesting and multi-line output
   assert.equal(tr('✔ JSON válido: objeto (2 claves)'), '✔ Valid JSON: object (2 keys)');
   assert.equal(tr('  Guardar  '), '  Save  ', 'surrounding whitespace is kept');
   assert.equal(tr('1 coincidencia(s):\nSin coincidencias'), '1 match(es):\nNo matches');
+  assert.equal(tr('web-app · hace 3 d'), 'web-app · 3 d ago', 'each side of a "·" is translated');
+  assert.equal(tr('3 pendientes · 1 vencida'), '3 open · 1 overdue');
   assert.equal(tr('Texto que el usuario escribió'), 'Texto que el usuario escribió', 'unknown text is untouched');
   assert.equal(tr('Token guardado (cuenta @octo). Se usan tus repos privados y el límite alto de la API.'),
     'Token saved (account @octo). Your private repos and the high API limit are used.');
@@ -36,7 +38,7 @@ test('every pattern keeps its placeholders in the translation', () => {
 const NEUTRAL = new Set([
   'DevPanel', 'Projects', 'Local', 'Tools', 'Settings', 'Terminal', 'GitHub', 'Español', 'English', 'JSON', 'Base64',
   'URL', 'Hash', 'UUID', 'JWT', 'Regex', 'Ctrl', 'Alt', 'D', 'Fetch', 'Pull', 'VS Code', 'Actions', 'Git', 'npm',
-  '▾', '✓', '⌫', '/', '◆', 'ES', 'EN', 'Commits', 'Issues', 'Actions',
+  '▾', '✓', '⌫', '/', '◆', 'ES', 'EN', 'Commits', 'Issues', 'Actions', 'Task Pro',
 ]);
 
 test('index.html has an English version for every Spanish text and attribute', () => {
