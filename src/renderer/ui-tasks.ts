@@ -104,6 +104,47 @@ function editTitle(t: Task, span: HTMLElement): void {
   input.select();
 }
 
+/** Full editor in place of the card: title, project, priority and due date. Enter saves, Escape cancels. */
+function editTask(t: Task, li: HTMLElement): void {
+  const form = el('form', 'tp-editor') as HTMLFormElement;
+  form.setAttribute('aria-label', 'Editar tarea');
+  const title = Object.assign(el('input', 'tp-edit') as HTMLInputElement, { value: t.title, maxLength: 200, required: true });
+  title.setAttribute('aria-label', 'Título');
+  title.dataset.noI18n = '';
+  const project = Object.assign(el('input', 'tp-edit') as HTMLInputElement, { value: t.project, maxLength: 60, placeholder: 'Proyecto' });
+  project.setAttribute('list', 'tp-projects');
+  project.setAttribute('aria-label', 'Proyecto');
+  const priority = el('select', 'tp-edit') as HTMLSelectElement;
+  priority.setAttribute('aria-label', 'Prioridad');
+  (['high', 'normal', 'low'] as TaskPriority[]).forEach((p) =>
+    priority.append(Object.assign(document.createElement('option'), { value: p, textContent: { high: 'Alta', normal: 'Normal', low: 'Baja' }[p], selected: p === t.priority })),
+  );
+  const due = Object.assign(el('input', 'tp-edit') as HTMLInputElement, { type: 'date', value: t.due ?? '' });
+  due.setAttribute('aria-label', 'Fecha límite');
+  const save = Object.assign(el('button', 'btn primary small', 'Guardar') as HTMLButtonElement, { type: 'submit' });
+  const cancel = Object.assign(el('button', 'btn small', 'Cancelar') as HTMLButtonElement, { type: 'button', onclick: () => render() });
+  const row = el('div', 'tp-editor-row');
+  row.append(project, priority, due);
+  const btns = el('div', 'tp-editor-row tp-editor-btns');
+  btns.append(cancel, save);
+  form.append(title, row, btns);
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const text = title.value.replace(/\s+/g, ' ').trim();
+    if (!text) return title.focus();
+    update(t.id, { title: text, project: project.value.replace(/\s+/g, ' ').trim(), priority: priority.value as TaskPriority, due: due.value || null });
+  };
+  form.onkeydown = (e) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation(); // keep other Escape handlers (modals) out of it
+    render();
+  };
+  li.classList.add('editing');
+  li.replaceChildren(form);
+  title.focus();
+  title.select();
+}
+
 function card(t: Task, now: string): HTMLElement {
   const due = dueState(t, now);
   const li = el('li', `tp-card tp-p-${t.priority}${due ? ` tp-${due}` : ''}`);
@@ -135,7 +176,7 @@ function card(t: Task, now: string): HTMLElement {
   const acts = el('div', 'tp-acts');
   if (t.status === 'doing') acts.append(iconBtn('chevl', BACK.doing, () => update(t.id, { status: prevStatus(t.status) })));
   acts.append(
-    iconBtn('edit', 'Editar tarea', () => editTitle(t, title)),
+    iconBtn('edit', 'Editar tarea', () => editTask(t, li)),
     iconBtn('trash', 'Borrar tarea', () => void commit(tasks.filter((x) => x.id !== t.id)), 'danger'),
   );
   li.append(lead, main, acts);
@@ -208,7 +249,13 @@ function fillSuggestions(): void {
   list.replaceChildren(...names.map((n) => Object.assign(document.createElement('option'), { value: n })));
 }
 
-export async function refreshTasks(): Promise<void> {
+let loading: Promise<void> = Promise.resolve();
+
+export function refreshTasks(): Promise<void> {
+  return (loading = load());
+}
+
+async function load(): Promise<void> {
   await saving; // reading while a save is in flight would bring back the old list
   const mine = version;
   try {
@@ -255,4 +302,33 @@ export function initTasks(context: TasksContext): void {
     title.focus();
   };
   void refreshTasks();
+}
+
+/** Open tasks for the command palette. */
+export function openTasks(): Task[] {
+  return sortTasks(tasks.filter((t) => t.status !== 'done'));
+}
+
+/** Focuses the quick-add field (Home must be visible). */
+export function focusNewTask(): void {
+  $('tasks').scrollIntoView({ block: 'nearest' });
+  $<HTMLInputElement>('tp-new').focus();
+}
+
+/** Shows a task on the board: clears a filter that hides it, scrolls to it and flashes it. */
+export async function revealTask(id: string): Promise<void> {
+  await loading; // opening Home reloads the board, which would wipe the highlight
+  const t = tasks.find((x) => x.id === id);
+  if (!t) return;
+  if (filter !== null && filter !== t.project) {
+    filter = null;
+    render();
+  }
+  const li = document.querySelector<HTMLElement>(`.tp-card[data-id="${CSS.escape(id)}"]`);
+  if (!li) return;
+  li.scrollIntoView({ block: 'center' });
+  li.classList.remove('flash');
+  void li.offsetWidth; // restart the animation
+  li.classList.add('flash');
+  li.querySelector<HTMLButtonElement>('.tp-lead')?.focus();
 }
