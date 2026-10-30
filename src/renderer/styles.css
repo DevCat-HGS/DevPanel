@@ -1090,3 +1090,6 @@ button.tp-proj { cursor: pointer; } button.tp-proj:hover { color: var(--text); b
 .tp-btn:focus-visible, .tp-filter:focus-visible, button.tp-proj:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .tp-empty { padding: 10px 6px; font-size: 12px; text-align: center; }
 @media (max-width: 900px) { .tp-board { grid-template-columns: 1fr; } .tp-list { max-height: none; } }
+
+/* ---------- Locked: nothing that lives outside #app may show over the lock screen ---------- */
+html.locked .palette, html.locked .repo-modal, html.locked .files-modal { display: none !important; }
