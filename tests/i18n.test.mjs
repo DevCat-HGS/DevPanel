@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { EN } from '../dist/renderer/en.js';
 import { setLangPref, tr } from '../dist/renderer/i18n.js';
 
@@ -57,4 +57,34 @@ test('installer: every Spanish text in its HTML has an English version', async (
   const neutral = new Set(['DevPanel', 'Dev', 'Panel', 'EN', 'Language / Idioma', 'ES']);
   const missing = [...found].filter((x) => x && !neutral.has(x) && !(x in INST));
   assert.deepEqual(missing, [], 'untranslated strings in the installer HTML');
+});
+
+// Strings built in code (toasts, tooltips, empty states) never pass through index.html, so the test above
+// misses them. Every Spanish literal in the renderer sources must translate; template expressions are
+// replaced by "1" so "{n}" patterns in EN are checked too.
+test('renderer sources: every Spanish string has an English version', async () => {
+  const { default: ts } = await import('typescript');
+  setLangPref('en');
+  // left in Spanish on purpose or built from nested templates the check cannot rebuild
+  const SKIP = new Set([
+    'onboarding.ts:@1 vinculado · código creado · rostro 1.', // nested template, each variant is in EN
+    'ui-local.ts:\n[proceso terminó con código 1]\n', // terminal output (#term-out is never translated)
+  ]);
+  const missing = [];
+  for (const f of readdirSync('src/renderer').filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts') && f !== 'en.ts')) {
+    const sf = ts.createSourceFile(f, readFileSync(`src/renderer/${f}`, 'utf8'), ts.ScriptTarget.Latest, true);
+    const visit = (n) => {
+      let text = null;
+      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) text = n.text;
+      else if (ts.isTemplateExpression(n)) text = n.head.text + n.templateSpans.map((s) => `1${s.literal.text}`).join('');
+      if (text !== null && /[áéíóúñ¿¡]/i.test(text) && !ts.isImportDeclaration(n.parent) && tr(text) === text && !SKIP.has(`${f}:${text}`)) {
+        missing.push(`${f}:${sf.getLineAndCharacterOfPosition(n.getStart()).line + 1} ${JSON.stringify(text)}`);
+      }
+      if (ts.isTemplateExpression(n)) n.templateSpans.forEach((s) => visit(s.expression));
+      else ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  setLangPref('es');
+  assert.deepEqual(missing, [], 'Spanish strings in src/renderer without an English version in en.ts');
 });
