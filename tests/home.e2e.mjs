@@ -86,9 +86,10 @@ try {
   assert.equal(await widget(page, 'failing').locator('.hw-row .hw-sub').textContent(), 'main');
   assert.equal(await widget(page, 'failing').locator('.hw-row').count(), 1, 'only repos pushed recently are checked');
   await page.waitForFunction(() => document.querySelector('.hw[data-id="pulls"] .hw-count')?.textContent === '2');
-  const pulls = widget(page, 'pulls').locator('a.hw-row');
+  // both PRs are on the user's own repos, so they open inside DevPanel instead of the browser
+  const pulls = widget(page, 'pulls').locator('button.hw-row');
   assert.equal(await pulls.count(), 2);
-  assert.equal(await pulls.first().getAttribute('href'), 'https://github.com/octocat/web-app/pull/7');
+  assert.equal(await widget(page, 'pulls').locator('a.hw-row').count(), 0);
   assert.match(await pulls.first().locator('.hw-sub').textContent(), /web-app/);
   await page.waitForFunction(() => document.querySelector('.hw[data-id="local"] .hw-count')?.textContent === '1');
   assert.match(await widget(page, 'local').locator('.hw-chip').first().getAttribute('title'), /sin commitear/);
@@ -99,12 +100,19 @@ try {
   await widget(page, 'failing').locator('.hw-row').click();
   await page.waitForSelector('#repo-modal:not(.hidden)');
   assert.equal(await page.textContent('#rm-name'), 'api-service');
+  assert.equal(await page.getAttribute('.rm-tab.active', 'data-tab'), 'runs', 'a failing build opens on Actions');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
+  await widget(page, 'pulls').locator('.hw-row').first().click();
+  await page.waitForSelector('#repo-modal:not(.hidden)');
+  assert.equal(await page.textContent('#rm-name'), 'web-app');
+  assert.equal(await page.getAttribute('.rm-tab.active', 'data-tab'), 'pulls', 'a pull request opens on its tab');
   await page.keyboard.press('Escape');
   await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
   await widget(page, 'local').locator('.hw-row').click();
   await page.waitForSelector('#view-local:not(.hidden)');
   await page.click('.nav[data-view="home"]');
-  log('clicking a failing build opens its folder and a local change jumps to the Local view');
+  log('a failing build opens on Actions, a pull request on its tab, and a local change jumps to the Local view');
 
   await page.click('#home-refresh');
   await page.waitForTimeout(800);
