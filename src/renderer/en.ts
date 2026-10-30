@@ -501,4 +501,5 @@ export const EN: Record<string, string> = {
   'El token solo está disponible en la app de escritorio': 'The token is only available in the desktop app',
   'Claude terminó con código {c}. ¿Está instalado Claude Code? Prueba "claude" en una terminal.':
     'Claude exited with code {c}. Is Claude Code installed? Try "claude" in a terminal.',
+  'No se pudo calcular la salud': 'Could not compute the health',
 };
