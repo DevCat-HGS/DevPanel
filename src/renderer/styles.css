@@ -1089,6 +1089,17 @@ button.tp-proj { cursor: pointer; } button.tp-proj:hover { color: var(--text); b
 .tp-lead.on { color: var(--ok); }
 .tp-btn:focus-visible, .tp-filter:focus-visible, button.tp-proj:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .tp-empty { padding: 10px 6px; font-size: 12px; text-align: center; }
+
+.tp-card.editing { border-left-color: var(--accent); }
+.tp-editor { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.tp-editor-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tp-editor-row .tp-edit { flex: 1 1 90px; height: 30px; padding: 0 8px; }
+.tp-editor select.tp-edit { border-radius: 6px; font-size: 13px; }
+.tp-editor-btns { justify-content: flex-end; }
+.tp-editor-btns .btn { padding: 4px 10px; font-size: 12px; }
+.tp-card.flash { animation: tp-flash 1.2s var(--ease); }
+@keyframes tp-flash { 0%, 40% { box-shadow: 0 0 0 2px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .tp-card.flash { animation: none; outline: 2px solid var(--accent); } }
 @media (max-width: 900px) { .tp-board { grid-template-columns: 1fr; } .tp-list { max-height: none; } }
 
 /* ---------- Locked: nothing that lives outside #app may show over the lock screen ---------- */

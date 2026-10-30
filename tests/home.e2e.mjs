@@ -174,6 +174,38 @@ try {
   assert.ok(await page.locator('#view-tools').isVisible());
   await page.click('.nav[data-view="home"]');
   log('"/" opens the project search, but never steals a slash typed in a text area');
+
+  // full editor: project, priority and due date, Escape cancels
+  const card = page.locator('.tp-col-todo .tp-card').first();
+  await card.locator('.tp-btn[aria-label="Editar tarea"]').click();
+  await page.waitForSelector('.tp-editor');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tp-editor', { state: 'detached' });
+  await card.locator('.tp-btn[aria-label="Editar tarea"]').click();
+  await page.fill('.tp-editor .tp-edit[aria-label="Proyecto"]', 'api-service');
+  await page.selectOption('.tp-editor select', 'high');
+  await page.fill('.tp-editor input[type="date"]', '2000-01-02');
+  await shot(page, 'h1c-task-editor');
+  await page.click('.tp-editor button[type="submit"]');
+  await page.waitForSelector('.tp-editor', { state: 'detached' });
+  const edited = JSON.parse(readFileSync(join(userData, 'tasks.json'), 'utf8')).find((t) => t.status === 'todo');
+  assert.deepEqual([edited.title, edited.project, edited.priority, edited.due], ['Revisar login con 2FA', 'api-service', 'high', '2000-01-02']);
+  assert.ok(await page.locator('.tp-col-todo .tp-card.tp-late').count(), 'the new due date is applied');
+  log('the task editor changes project, priority and due date; Escape cancels');
+
+  // command palette: new task and jump to a task
+  await page.click('.nav[data-view="tools"]');
+  await page.keyboard.press('Control+k');
+  await page.fill('#pal-input', 'nueva tarea');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#view-home:not(.hidden)');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'tp-new', 'Ctrl+K → Nueva tarea focuses the form');
+  await page.keyboard.press('Control+k');
+  await page.fill('#pal-input', '2FA');
+  assert.match(await page.textContent('#pal-list li'), /Tarea: Revisar login con 2FA/);
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.tp-card.flash');
+  log('Ctrl+K creates a task or jumps to an open one');
   await app.close();
 
   // ---------- all good + API error states (new process = empty caches) ----------

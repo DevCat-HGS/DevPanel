@@ -8,6 +8,7 @@ import { setLangPref, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { renderPager } from './pager.js';
 import { initHome, refreshHome } from './ui-home.js';
+import { focusNewTask, openTasks, revealTask } from './ui-tasks.js';
 import { initNotices, pushNotice } from './notifications.js';
 import { getLocalProjects, initLocal, runScriptFrom } from './ui-local.js';
 import { initFiles } from './ui-files.js';
@@ -402,9 +403,21 @@ function goView(name: string): void {
 
 function paletteItems() {
   return [
+    { label: 'Ir a Inicio', hint: 'vista', run: () => goView('home') },
+    { label: 'Nueva tarea', hint: 'Task Pro', run: () => (goView('home'), focusNewTask()) },
+    ...openTasks().map((t) => ({
+      label: `Tarea: ${t.title}`,
+      hint: t.project || 'Task Pro',
+      run: () => (goView('home'), void revealTask(t.id)),
+    })),
     { label: 'Ir a Projects', hint: 'vista', run: () => goView('projects') },
     { label: 'Ir a Herramientas', hint: 'vista', run: () => goView('tools') },
-    ...(api.platform === 'web' ? [] : [{ label: 'Ir a Proyectos locales', hint: 'vista', run: () => goView('local') }]),
+    ...(api.platform === 'web'
+      ? []
+      : [
+          { label: 'Ir a Proyectos locales', hint: 'vista', run: () => goView('local') },
+          { label: 'Ir a Claude Code', hint: 'vista', run: () => goView('claude') },
+        ]),
     { label: 'Ir a Settings', hint: 'vista', run: () => goView('settings') },
     { label: 'Cambiar tema claro / oscuro', hint: 'acción', run: () => $('theme-toggle').click() },
     { label: 'Recargar proyectos', hint: 'acción', run: () => void loadRepos() },
