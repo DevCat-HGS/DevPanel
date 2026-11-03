@@ -353,9 +353,20 @@ async function install(opts: InstallOptions): Promise<void> {
     phase = 'install';
     send({ phase: 'install' });
     await closeRunningApp();
-    const code = await runSetup(file, opts.dir);
-    if (code !== 0)
-      throw new Error(`El instalador terminó con código ${code}. Cierra DevPanel si está abierto e inténtalo de nuevo.`);
+    let code = await runSetup(file, opts.dir);
+    if (code !== 0) {
+      // Updating runs the old version's uninstaller first. When the setup dies after that step (seen as
+      // 0xC0000005), the old version is already gone and a second run is a plain fresh install, which works.
+      await new Promise((res) => setTimeout(res, 1500));
+      await closeRunningApp();
+      code = await runSetup(file, opts.dir);
+    }
+    if (code !== 0) {
+      const hex = `0x${(code >>> 0).toString(16).toUpperCase()}`;
+      throw new Error(
+        `El instalador de DevPanel falló dos veces (código ${hex}). Cierra DevPanel desde la bandeja e inténtalo de nuevo. Si vuelve a pasar, instala DevPanel-Setup desde la última versión en GitHub.`,
+      );
+    }
 
     installedDir = opts.dir;
     if (!opts.desktopShortcut) rmSync(join(app.getPath('desktop'), 'DevPanel.lnk'), { force: true });
