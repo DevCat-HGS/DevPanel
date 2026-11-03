@@ -1,4 +1,7 @@
-# DevPanel
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="readme/banner-dark.svg">
+  <img alt="DevPanel: lo que un desarrollador abre todos los días, en un solo panel" src="readme/banner-light.svg" width="100%">
+</picture>
 
 **Lo que un desarrollador abre todos los días, en un solo panel.** Tus repos de GitHub, tus proyectos locales, herramientas de desarrollo y Claude Code en una app de Windows que se abre con tu rostro.
 
@@ -41,6 +44,11 @@ Al entrar con el rostro pide un **giro de cabeza** hacia un lado al azar (anti-f
 Frena fotos y pantallas quietas o movidas sin más; no frena a un atacante con vídeo o un modelo 3D. El código de 4 dígitos es el respaldo.
 
 ## Qué incluye
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="readme/features-dark.svg">
+  <img alt="Task Pro, proyectos de GitHub, proyectos locales, herramientas, paleta de comandos y login facial" src="readme/features-light.svg" width="100%">
+</picture>
 
 - **Task Pro:** tablero de tareas por proyecto en Inicio (por hacer, en curso, hecho), con prioridad, fecha límite, avisos de vencidas y filtro por proyecto. El proyecto de una tarea abre su repo o la vista Local sin salir de la app.
 - **Proyectos:** repos, commits, estado de Actions, favoritos, orden y búsqueda. Con un **token de GitHub** opcional (cifrado) ves también tus repos privados y el límite sube de 60 a 5000 consultas/hora.
@@ -133,6 +141,7 @@ scripts/         copia de estáticos, arranque y generador de notas de versión
 tests/           unit + i18n + e2e
 docs/            guías (firma de código)
 docker/          nginx para la imagen web
+readme/          banner e imágenes del README (SVG generados: node readme/build.mjs)
 ```
 
 ## Workflows
