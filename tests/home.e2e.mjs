@@ -76,7 +76,8 @@ try {
   await page.setViewportSize({ width: 1100, height: 760 });
   await page.waitForSelector('#view-home:not(.hidden)');
   assert.equal(await page.locator('.hw').count(), 5);
-  assert.equal(await page.locator('.hw[open]').count(), 0, 'panels start collapsed to save space');
+  assert.equal(await page.locator('.hw[open]').count(), 4, 'panels start open, except health (it runs the Python scorer)');
+  assert.equal(await page.locator('.kpi').count(), 4, 'summary tiles on top');
   const openPanels = () => page.evaluate(() => document.querySelectorAll('.hw:not([data-id="health"])').forEach((d) => (d.open = true)));
   await openPanels();
   await page.waitForFunction(() => document.querySelector('.hw[data-id="failing"] .hw-count')?.textContent === '1', null, { timeout: 20000 });

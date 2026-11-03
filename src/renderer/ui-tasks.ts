@@ -205,9 +205,17 @@ function renderFilters(): void {
   box.classList.toggle('hidden', !counts.length);
 }
 
+let summaryListener: ((open: number, late: number) => void) | null = null;
+
+/** Home's summary tiles follow the board without reading it. */
+export function onTaskSummary(cb: (open: number, late: number) => void): void {
+  summaryListener = cb;
+}
+
 function renderSummary(now: string): void {
   const open = tasks.filter((t) => t.status !== 'done');
   const late = open.filter((t) => dueState(t, now) === 'late').length;
+  summaryListener?.(open.length, late);
   const parts = [open.length === 0 ? 'Sin pendientes' : open.length === 1 ? '1 pendiente' : `${open.length} pendientes`];
   if (late) parts.push(late === 1 ? '1 vencida' : `${late} vencidas`);
   $('tp-summary').textContent = parts.join(' · ');
