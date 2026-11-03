@@ -15,6 +15,17 @@ app.setPath('userData', process.env.DEVPANEL_USER_DATA ?? join(app.getPath('appD
 const userData = () => app.getPath('userData');
 const defaultDir = () => join(process.env.LOCALAPPDATA ?? app.getPath('home'), 'Programs', 'DevPanel');
 
+// Opening the installer again while it is open brings the first window forward. Two copies would otherwise
+// download into the same temp file, and Windows would not let the second one write to it.
+const firstInstance = app.requestSingleInstanceLock();
+if (!firstInstance) app.quit();
+app.on('second-instance', () => {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+});
+
 let win: BrowserWindow;
 let abort: AbortController | null = null;
 let setupProc: ChildProcess | null = null;
@@ -328,7 +339,9 @@ async function install(opts: InstallOptions): Promise<void> {
 
   const tmp = join(app.getPath('temp'), 'devpanel-installer');
   mkdirSync(tmp, { recursive: true });
-  const file = join(tmp, 'DevPanel-Setup.exe');
+  // A name of its own per attempt: a setup left running or locked by a past attempt (or an antivirus scan)
+  // cannot block this download.
+  const file = join(tmp, `DevPanel-Setup-${randomBytes(4).toString('hex')}.exe`);
   abort = new AbortController();
 
   try {
@@ -372,6 +385,7 @@ function launch(dir: string): void {
 }
 
 app.whenReady().then(() => {
+  if (!firstInstance) return;
   win = new BrowserWindow({
     width: 860,
     height: 620,
