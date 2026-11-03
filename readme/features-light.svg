@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="352" viewBox="0 0 1280 352" role="img" aria-labelledby="title desc" font-family="'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif">
+  <title id="title">Qué incluye DevPanel</title>
+  <desc id="desc">Task Pro: Tablero de tareas por proyecto, con prioridad y vencimientos. Proyectos de GitHub: Repos, commits, Actions y PR, con alertas cuando falla un build. Proyectos locales: Rama, cambios, fetch, pull y scripts de npm en una terminal. Herramientas: JSON, Base64, JWT, hash, UUID, regex y fechas. Todo local. Paleta de comandos: Ctrl + K para ir a cualquier vista, herramienta o proyecto. Login facial: Huella cifrada con DPAPI, nunca fotos. Código de 4 dígitos.</desc>
+  <rect width="1280" height="352" rx="18" fill="#f4f5f7"/>
+  <g transform="translate(40 32)">
+    <rect width="384" height="132" rx="14" fill="#ffffff" stroke="rgba(20,30,50,0.12)"/>
+    <rect x="24" y="24" width="44" height="44" rx="11" fill="#2f6fe0" fill-opacity="0.13"/>
+    <g transform="translate(34 34)" fill="none" stroke="#2f6fe0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h3M4 12h3M4 18h3M10 6h10M10 12h10M10 18h6" transform="scale(1)"/></g>
+    <text x="84" y="53" font-size="19" font-weight="650" fill="#1a2230">Task Pro</text>
+    <text x="24" y="96" font-size="14.5" fill="#5b6678">Tablero de tareas por proyecto,</text>
+    <text x="24" y="116" font-size="14.5" fill="#5b6678">con prioridad y vencimientos.</text>
+  </g>
+  <g transform="translate(448 32)">
+    <rect width="384" height="132" rx="14" fill="#ffffff" stroke="rgba(20,30,50,0.12)"/>
+    <rect x="24" y="24" width="44" height="44" rx="11" fill="#c8642c" fill-opacity="0.13"/>
+    <g transform="translate(34 34)" fill="none" stroke="#c8642c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a1 1 0 0 1 1 1v16l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1zM9 8h6M9 12h4" transform="scale(1)"/></g>
+    <text x="84" y="53" font-size="19" font-weight="650" fill="#1a2230">Proyectos de GitHub</text>
+    <text x="24" y="96" font-size="14.5" fill="#5b6678">Repos, commits, Actions y PR,</text>
+    <text x="24" y="116" font-size="14.5" fill="#5b6678">con alertas cuando falla un build.</text>
+  </g>
+  <g transform="translate(856 32)">
+    <rect width="384" height="132" rx="14" fill="#ffffff" stroke="rgba(20,30,50,0.12)"/>
+    <rect x="24" y="24" width="44" height="44" rx="11" fill="#2f6fe0" fill-opacity="0.13"/>
+    <g transform="translate(34 34)" fill="none" stroke="#2f6fe0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM8 13l2 2-2 2M13 17h3" transform="scale(1)"/></g>
+    <text x="84" y="53" font-size="19" font-weight="650" fill="#1a2230">Proyectos locales</text>
+    <text x="24" y="96" font-size="14.5" fill="#5b6678">Rama, cambios, fetch, pull y</text>
+    <text x="24" y="116" font-size="14.5" fill="#5b6678">scripts de npm en una terminal.</text>
+  </g>
+  <g transform="translate(40 188)">
+    <rect width="384" height="132" rx="14" fill="#ffffff" stroke="rgba(20,30,50,0.12)"/>
+    <rect x="24" y="24" width="44" height="44" rx="11" fill="#c8642c" fill-opacity="0.13"/>
+    <g transform="translate(34 34)" fill="none" stroke="#c8642c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" transform="scale(1)"/></g>
+    <text x="84" y="53" font-size="19" font-weight="650" fill="#1a2230">Herramientas</text>
+    <text x="24" y="96" font-size="14.5" fill="#5b6678">JSON, Base64, JWT, hash, UUID,</text>
+    <text x="24" y="116" font-size="14.5" fill="#5b6678">regex y fechas. Todo local.</text>
+  </g>
+  <g transform="translate(448 188)">
+    <rect width="384" height="132" rx="14" fill="#ffffff" stroke="rgba(20,30,50,0.12)"/>
+    <rect x="24" y="24" width="44" height="44" rx="11" fill="#2f6fe0" fill-opacity="0.13"/>
+    <g transform="translate(34 34)" fill="none" stroke="#2f6fe0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4zM8 10l2 2-2 2M12 14h4" transform="scale(1)"/></g>
+    <text x="84" y="53" font-size="19" font-weight="650" fill="#1a2230">Paleta de comandos</text>
+    <text x="24" y="96" font-size="14.5" fill="#5b6678">Ctrl + K para ir a cualquier</text>
+    <text x="24" y="116" font-size="14.5" fill="#5b6678">vista, herramienta o proyecto.</text>
+  </g>
+  <g transform="translate(856 188)">
+    <rect width="384" height="132" rx="14" fill="#ffffff" stroke="rgba(20,30,50,0.12)"/>
+    <rect x="24" y="24" width="44" height="44" rx="11" fill="#c8642c" fill-opacity="0.13"/>
+    <g transform="translate(34 34)" fill="none" stroke="#c8642c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3M9 10v1M15 10v1M9.5 15.5a3.5 3.5 0 0 0 5 0" transform="scale(1)"/></g>
+    <text x="84" y="53" font-size="19" font-weight="650" fill="#1a2230">Login facial</text>
+    <text x="24" y="96" font-size="14.5" fill="#5b6678">Huella cifrada con DPAPI, nunca</text>
+    <text x="24" y="116" font-size="14.5" fill="#5b6678">fotos. Código de 4 dígitos.</text>
+  </g>
+</svg>
