@@ -3,7 +3,7 @@ import { $, ago, el } from './dom.js';
 import { icon } from './icons.js';
 import { checkLabel } from './ui-health.js';
 import type { Tab } from './ui-repo.js';
-import { initTasks, refreshTasks } from './ui-tasks.js';
+import { initTasks, onTaskSummary, refreshTasks } from './ui-tasks.js';
 
 const api = () => window.devpanel;
 
@@ -23,23 +23,60 @@ const WIDGETS: { id: string; icon: string; title: string; tone: Tone }[] = [
   { id: 'recent', icon: 'clock', title: 'Actividad reciente', tone: 'muted' },
 ];
 
-const OPEN_KEY = 'devpanel.home.open';
-const openSet = (): Set<string> => {
+/** The summary tiles at the top: one per panel, plus the open tasks. */
+const KPIS: { id: string; icon: string; label: string; tone: Tone | 'ok' }[] = [
+  { id: 'failing', icon: 'xcircle', label: 'Builds fallando', tone: 'bad' },
+  { id: 'pulls', icon: 'branch', label: 'Pull requests', tone: 'accent' },
+  { id: 'local', icon: 'folder', label: 'Cambios locales', tone: 'warn' },
+  { id: 'tasks', icon: 'tasks', label: 'Tareas pendientes', tone: 'ok' },
+];
+
+// Panels start open, so Home shows its content at a glance; the one you close stays closed. Health starts
+// closed because opening it runs the Python scorer over every local project.
+const OPEN_KEY = 'devpanel.home.panels';
+const CLOSED_BY_DEFAULT = new Set(['health']);
+const prefs = (): Record<string, boolean> => {
   try {
-    return new Set<string>(JSON.parse(localStorage.getItem(OPEN_KEY) ?? '[]'));
+    return JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}');
   } catch {
-    return new Set();
+    return {};
   }
 };
+const startsOpen = (id: string): boolean => prefs()[id] ?? !CLOSED_BY_DEFAULT.has(id);
 const saveOpen = (id: string, open: boolean): void => {
   try {
-    const s = openSet();
-    open ? s.add(id) : s.delete(id);
-    localStorage.setItem(OPEN_KEY, JSON.stringify([...s]));
+    localStorage.setItem(OPEN_KEY, JSON.stringify({ ...prefs(), [id]: open }));
   } catch {
-    /* storage unavailable: the panel just starts closed next time */
+    /* storage unavailable: the panel just starts with its default next time */
   }
 };
+
+function kpi(k: (typeof KPIS)[number]): HTMLElement {
+  const b = el('button', `kpi kpi-${k.tone} idle`) as HTMLButtonElement;
+  b.type = 'button';
+  b.dataset.kpi = k.id;
+  const ico = el('span', 'kpi-ico');
+  ico.append(icon(k.icon));
+  b.append(ico, el('span', 'kpi-n', '—'), el('span', 'kpi-label', k.label));
+  b.onclick = () => {
+    if (k.id === 'tasks') return $('tasks').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const box = document.querySelector<HTMLDetailsElement>(`.hw[data-id="${k.id}"]`);
+    if (!box) return;
+    box.open = true;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    box.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true });
+  };
+  return b;
+}
+
+/** null = still loading or unknown. */
+function setKpi(id: string, n: number | null): void {
+  const b = document.querySelector<HTMLElement>(`.kpi[data-kpi="${id}"]`);
+  if (!b) return;
+  b.querySelector('.kpi-n')!.textContent = n === null ? '—' : String(n);
+  b.classList.toggle('idle', n === null);
+  b.classList.toggle('has-items', !!n);
+}
 
 let ctx: HomeContext;
 let ticket = 0;
@@ -48,7 +85,7 @@ let ticket = 0;
 function widget(w: (typeof WIDGETS)[number]): HTMLElement {
   const box = el('details', `hw hw-${w.tone}`) as HTMLDetailsElement;
   box.dataset.id = w.id;
-  box.open = openSet().has(w.id);
+  box.open = startsOpen(w.id);
   const head = el('summary', 'hw-head');
   head.append(icon(w.icon), el('h3', undefined, w.title), el('span', 'chip hw-count hidden'), icon('chevr'));
   head.lastElementChild!.classList.add('hw-chev');
@@ -68,6 +105,7 @@ function setCount(id: string, n: number | null): void {
   const c = document.querySelector<HTMLElement>(`.hw[data-id="${id}"] .hw-count`)!;
   c.textContent = n === null ? '' : String(n);
   c.classList.toggle('hidden', !n); // no chip when there is nothing to show
+  setKpi(id, n);
   document.querySelector(`.hw[data-id="${id}"]`)!.classList.toggle('has-items', !!n);
 }
 
@@ -76,13 +114,11 @@ function loading(id: string): void {
   body(id).replaceChildren(el('div', 'skeleton row'), el('div', 'skeleton row'));
 }
 
-/** Everything fine / nothing to show: just a green check, the tooltip says what it means. */
+/** Everything fine / nothing to show: a green check and a short line saying what it means. */
 function allGood(id: string, tip = 'Todo en orden'): void {
   const ok = el('div', 'hw-ok');
   ok.title = tip;
-  ok.setAttribute('role', 'img');
-  ok.setAttribute('aria-label', tip);
-  ok.append(icon('checkcircle'));
+  ok.append(icon('checkcircle'), el('span', undefined, tip));
   setCount(id, 0);
   body(id).replaceChildren(ok);
 }
@@ -118,7 +154,7 @@ const chipIcon = (name: string, n: number, tip: string): HTMLElement => {
 };
 
 function renderFailing(list: FailingRun[]): void {
-  if (!list.length) return allGood('failing');
+  if (!list.length) return allGood('failing', 'Ningún build fallando');
   setCount('failing', list.length);
   body('failing').replaceChildren(
     ...list.map((f) =>
@@ -133,7 +169,7 @@ function renderFailing(list: FailingRun[]): void {
 }
 
 function renderPulls(list: PullSummary[]): void {
-  if (!list.length) return allGood('pulls');
+  if (!list.length) return allGood('pulls', 'Sin pull requests abiertos');
   setCount('pulls', list.length);
   body('pulls').replaceChildren(
     ...list.map((p) => {
@@ -239,6 +275,8 @@ function failedLocal(): void {
 export function initHome(context: HomeContext): void {
   ctx = context;
   initTasks(context);
+  $('home-kpis').replaceChildren(...KPIS.map(kpi));
   $('home-grid').replaceChildren(...WIDGETS.map(widget));
+  onTaskSummary((open) => setKpi('tasks', open));
   $('home-refresh').onclick = () => void refreshHome();
 }

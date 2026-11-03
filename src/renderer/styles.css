@@ -948,6 +948,8 @@ p, .desc, .muted { text-wrap: pretty; }
 .icon-btn:active:not(:disabled) { transform: scale(0.92); }
 .icon-btn.mini { position: relative; }
 .icon-btn.mini::after { content: ''; position: absolute; inset: -8px; }
+/* the rule above would pull the sidebar toggle back into the flow, on top of the logo: keep it on the menu edge */
+.sidebar > .side-toggle { position: absolute; }
 .chip.health { font-weight: 600; letter-spacing: 0.02em; }
 .chip.health svg { width: 13px; height: 13px; }
 button:disabled, select:disabled, input:disabled { cursor: not-allowed; }
@@ -957,7 +959,22 @@ button:disabled, select:disabled, input:disabled { cursor: not-allowed; }
 .bg-glow::after { display: none; }
 
 /* ---------- Home: compact, collapsible panels ---------- */
-.home-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
+/* masonry-like columns: a short or closed panel leaves no hole next to a long one */
+.home-grid { column-width: 380px; column-gap: 12px; }
+.home-grid > .hw { break-inside: avoid; margin-bottom: 12px; }
+/* Home summary: one tile per panel, always visible, so the screen says something before anything is opened */
+.home-kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 14px; }
+.kpi { --c: var(--muted); display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 14px 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--border); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color .2s, background .2s, transform .15s var(--ease); }
+.kpi:hover, .kpi:focus-visible { background: var(--panel-hover); border-color: color-mix(in srgb, var(--c) 45%, var(--border)); }
+.kpi:active { transform: scale(0.98); }
+.kpi-bad { --c: var(--bad); } .kpi-accent { --c: var(--accent); } .kpi-warn { --c: var(--warn); } .kpi-ok { --c: var(--ok); }
+.kpi-ico { grid-row: span 2; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.kpi-ico svg { width: 19px; height: 19px; }
+.kpi-n { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.kpi-label { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi.has-items { border-color: color-mix(in srgb, var(--c) 40%, var(--border)); }
+.kpi.has-items .kpi-n { color: var(--c); }
+.kpi.idle .kpi-n { color: var(--muted); }
 .hw { --c: var(--muted); border-radius: 12px; background: var(--panel); border: 1px solid var(--border); transition: border-color .2s; }
 .hw-bad { --c: var(--bad); } .hw-accent { --c: var(--accent); } .hw-warn { --c: var(--warn); } .hw-muted { --c: var(--muted); }
 .hw[open] { border-color: color-mix(in srgb, var(--c) 35%, var(--border)); }
