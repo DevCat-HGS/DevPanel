@@ -14,18 +14,18 @@
     "dist": "npm run build && electron-builder --win --publish never",
     "release": "npm run build && electron-builder --win --publish always",
     "test": "npm run build && npm --prefix installer run build && node --test tests/unit.test.mjs tests/i18n.test.mjs",
-    "test:e2e": "npm run build && node tests/e2e.mjs && node tests/token.e2e.mjs && node tests/pager.e2e.mjs && node tests/home.e2e.mjs && node tests/local-tools.e2e.mjs && node tests/claude.e2e.mjs && node tests/face-worker.e2e.mjs",
+    "test:e2e": "npm run build && node tests/e2e.mjs && node tests/token.e2e.mjs && node tests/pager.e2e.mjs && node tests/home.e2e.mjs && node tests/lock.e2e.mjs && node tests/local-tools.e2e.mjs && node tests/claude.e2e.mjs && node tests/face-worker.e2e.mjs",
     "test:installer": "npm --prefix installer run build && node tests/installer.e2e.mjs"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "playwright-core": "^1.64.1",
-    "simple-icons": "^16.35.0",
+    "simple-icons": "^16.36.0",
     "typescript": "^5.7.2"
   },
   "build": {

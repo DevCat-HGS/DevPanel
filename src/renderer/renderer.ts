@@ -8,6 +8,7 @@ import { setLangPref, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { renderPager } from './pager.js';
 import { initHome, refreshHome } from './ui-home.js';
+import { focusNewTask, openTasks, revealTask } from './ui-tasks.js';
 import { initNotices, pushNotice } from './notifications.js';
 import { getLocalProjects, initLocal, runScriptFrom } from './ui-local.js';
 import { initFiles } from './ui-files.js';
@@ -162,6 +163,8 @@ async function initLock(): Promise<void> {
   lockPad ??= mountPad($('lock-pad'), (pin) => void onLockPin(pin));
   lockPad.reset();
   $('app').classList.add('hidden');
+  // overlays (palette, file explorer, repo, notifications) live outside #app: this hides them too
+  document.documentElement.classList.add('locked');
   faceBtn.classList.toggle('hidden', !st.enrolled);
   msg.textContent = st.enrolled ? 'Mira a la cámara para entrar' : 'Ingresa tu código para entrar';
   lock.querySelector('.divider')?.classList.toggle('hidden', !st.enrolled);
@@ -229,6 +232,7 @@ const REPOS_PER_PAGE = 9;
 
 async function showApp(): Promise<void> {
   $('app').classList.remove('hidden');
+  document.documentElement.classList.remove('locked');
   if (appShown) return;
   appShown = true;
 
@@ -399,9 +403,21 @@ function goView(name: string): void {
 
 function paletteItems() {
   return [
+    { label: 'Ir a Inicio', hint: 'vista', run: () => goView('home') },
+    { label: 'Nueva tarea', hint: 'Task Pro', run: () => (goView('home'), focusNewTask()) },
+    ...openTasks().map((t) => ({
+      label: `Tarea: ${t.title}`,
+      hint: t.project || 'Task Pro',
+      run: () => (goView('home'), void revealTask(t.id)),
+    })),
     { label: 'Ir a Projects', hint: 'vista', run: () => goView('projects') },
     { label: 'Ir a Herramientas', hint: 'vista', run: () => goView('tools') },
-    ...(api.platform === 'web' ? [] : [{ label: 'Ir a Proyectos locales', hint: 'vista', run: () => goView('local') }]),
+    ...(api.platform === 'web'
+      ? []
+      : [
+          { label: 'Ir a Proyectos locales', hint: 'vista', run: () => goView('local') },
+          { label: 'Ir a Claude Code', hint: 'vista', run: () => goView('claude') },
+        ]),
     { label: 'Ir a Settings', hint: 'vista', run: () => goView('settings') },
     { label: 'Cambiar tema claro / oscuro', hint: 'acción', run: () => $('theme-toggle').click() },
     { label: 'Recargar proyectos', hint: 'acción', run: () => void loadRepos() },
@@ -481,13 +497,17 @@ document.querySelectorAll<HTMLButtonElement>('.nav').forEach((b) => {
   };
 });
 
-// "/" focuses the search box
+// "/" jumps to the project search, unless the user is typing somewhere (chat, tools, any field)
+function isTyping(t: EventTarget | null): boolean {
+  const n = t as HTMLElement | null;
+  return !!n && (n.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(n.tagName));
+}
 document.addEventListener('keydown', (e) => {
-  const tag = (e.target as HTMLElement).tagName;
-  if (e.key === '/' && tag !== 'INPUT') {
-    e.preventDefault();
-    $('repo-search').focus();
-  }
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+  if (document.documentElement.classList.contains('locked') || $('app').classList.contains('hidden')) return;
+  e.preventDefault();
+  if ($('view-projects').classList.contains('hidden')) goView('projects');
+  $('repo-search').focus();
 });
 
 function skeletons(n = 6): HTMLElement[] {

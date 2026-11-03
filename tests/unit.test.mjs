@@ -412,3 +412,43 @@ test('signing: signtool arguments use SHA-256 and a timestamp, and a missing cer
   assert.ok(!signer.isBase64('C:\certs\me.pfx'));
   assert.ok(signer.isBase64('A'.repeat(400)));
 });
+
+test('tasks: whatever is sent is cleaned into a valid, capped list', async () => {
+  const { cleanTasks, cleanDue, MAX_TASKS } = await import('../dist/main/tasks-core.js');
+  const now = '2026-01-02T03:04:05.000Z';
+  assert.deepEqual(cleanTasks('nope'), []);
+  const [t] = cleanTasks([{ id: 'a1', title: '  Fix\n  the   build ', project: ' web ', status: 'weird', priority: 'urgent', due: '2026-02-30', extra: 1 }], now);
+  assert.deepEqual(t, { id: 'a1', title: 'Fix the build', project: 'web', status: 'todo', priority: 'normal', due: null, created: now, updated: now });
+  const list = cleanTasks([
+    { id: 'x', title: 'one', status: 'done', priority: 'high', due: '2026-03-01' },
+    { id: 'x', title: 'duplicate id' },
+    { id: 'bad id!', title: 'bad id' },
+    { id: 'y', title: '   ' },
+    null,
+  ], now);
+  assert.deepEqual(list.map((t) => [t.id, t.status, t.priority, t.due]), [['x', 'done', 'high', '2026-03-01']]);
+  assert.equal(cleanTasks([{ id: 'l', title: 'x'.repeat(500) }])[0].title.length, 200);
+  assert.equal(cleanTasks(Array.from({ length: MAX_TASKS + 5 }, (_, i) => ({ id: `t${i}`, title: 't' }))).length, MAX_TASKS);
+  assert.equal(cleanDue('2024-02-29'), '2024-02-29');
+  assert.equal(cleanDue('2023-02-29'), null);
+});
+
+test('task board: urgency, order, status flow and project counts', async () => {
+  const b = await import('../dist/renderer/task-board.js');
+  assert.equal(b.today(new Date(2026, 0, 5)), '2026-01-05');
+  const now = '2026-05-10';
+  assert.equal(b.dueState({ due: '2026-05-09', status: 'todo' }, now), 'late');
+  assert.equal(b.dueState({ due: '2026-05-10', status: 'doing' }, now), 'today');
+  assert.equal(b.dueState({ due: '2026-05-13', status: 'todo' }, now), 'soon');
+  assert.equal(b.dueState({ due: '2026-05-20', status: 'todo' }, now), null);
+  assert.equal(b.dueState({ due: '2026-05-01', status: 'done' }, now), null, 'done work is never late');
+  const t = (id, priority, due, created, status = 'todo', project = '') => ({ id, title: id, project, status, priority, due, created, updated: created });
+  const sorted = b.sortTasks([t('low', 'low', null, '1'), t('late', 'normal', '2026-01-01', '3'), t('nodue', 'normal', null, '2'), t('high', 'high', null, '4')]);
+  assert.deepEqual(sorted.map((x) => x.id), ['high', 'late', 'nodue', 'low']);
+  assert.deepEqual(b.STATUSES.map(b.nextStatus), ['doing', 'done', 'done']);
+  assert.deepEqual(b.STATUSES.map(b.prevStatus), ['todo', 'todo', 'doing']);
+  const counts = b.projectCounts([t('a', 'normal', null, '1', 'todo', 'web'), t('b', 'normal', null, '1', 'done', 'web'), t('c', 'normal', null, '1', 'todo', 'api'), t('d', 'normal', null, '1', 'doing', 'api'), t('e', 'normal', null, '1')]);
+  assert.deepEqual(counts, [['api', 2], ['web', 1]]);
+  assert.notEqual(b.newTaskId(), b.newTaskId());
+  assert.match(b.newTaskId(), /^[\w-]{1,40}$/, 'ids pass the main-process check');
+});

@@ -84,7 +84,8 @@ try {
   await card(page).locator('button[title="Fetch"]').click(); // refresh the status
   await page.waitForSelector('.chip.dirty');
   await card(page).locator('button[title="Hacer commit"]').click();
-  await page.fill('.commit-row input', 'añade nuevo.txt');
+  await page.click('.commit-row input');
+  await page.keyboard.type('añade nuevo.txt'); // real keystrokes: fill() bypasses keydown handlers
   await page.press('.commit-row input', 'Enter');
   await page.waitForSelector('.toast.ok:has-text("Commit hecho")');
   assert.equal(run(proj, 'log', '-1', '--format=%s').trim(), 'añade nuevo.txt');
@@ -167,7 +168,8 @@ try {
   await page.locator('.ft-row', { hasText: 'pubspec.yaml' }).click();
   await page.waitForSelector('.code-line');
   assert.match(await page.textContent('#files-view'), /name: migozz_app/);
-  await page.fill('#files-search', 'Hola');
+  await page.click('#files-search');
+  await page.keyboard.type('Hola');
   await page.press('#files-search', 'Enter');
   await page.waitForSelector('.hit-row');
   assert.match(await page.textContent('.hit-row'), /es\.json:1/);

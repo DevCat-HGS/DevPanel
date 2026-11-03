@@ -11,6 +11,7 @@ import { listCommits, listFailing, listItems, listOpenPulls, listRepos, listRuns
 import { setupNotes } from './notes';
 import { setupSoftware, stopAllInstalls } from './software';
 import { loadSettings, saveSettings } from './settings';
+import { setupTasks } from './tasks';
 import { setupToken } from './token';
 import { setupUpdater } from './updater';
 
@@ -152,6 +153,7 @@ app.whenReady().then(() => {
   setupFace();
   setupToken();
   setupNotes();
+  setupTasks();
   win = createWindow();
   const getWin = () => (win && !win.isDestroyed() ? win : null);
   setupLocal(getWin);

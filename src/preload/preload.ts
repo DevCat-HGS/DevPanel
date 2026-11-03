@@ -75,6 +75,10 @@ const api: DevPanelApi = {
     onOutput: (cb) => ipcRenderer.on('local:output', (_e, m) => cb(m)),
     onExit: (cb) => ipcRenderer.on('local:exit', (_e, m) => cb(m)),
   },
+  tasks: {
+    list: () => ipcRenderer.invoke('tasks:list'),
+    save: (t) => ipcRenderer.invoke('tasks:save', t),
+  },
   notes: { get: (v) => ipcRenderer.invoke('notes:get', v) },
   software: {
     detect: () => ipcRenderer.invoke('software:detect'),

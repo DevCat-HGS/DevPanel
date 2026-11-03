@@ -67,6 +67,7 @@ export function initPalette(getItems: () => PaletteItem[]): void {
   root.addEventListener('mousedown', (e) => e.target === root && close());
 
   document.addEventListener('keydown', (e) => {
+    if (document.documentElement.classList.contains('locked')) return close(); // never over the lock screen
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       root.classList.contains('hidden') ? open() : close();

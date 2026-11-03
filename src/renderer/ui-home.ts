@@ -1,13 +1,15 @@
-import type { FailingRun, LocalProject, PullSummary, Repo } from '../shared/api';
+import type { FailingRun, HealthResult, LocalProject, PullSummary, Repo } from '../shared/api';
 import { $, ago, el } from './dom.js';
 import { icon } from './icons.js';
 import { checkLabel } from './ui-health.js';
+import type { Tab } from './ui-repo.js';
+import { initTasks, refreshTasks } from './ui-tasks.js';
 
 const api = () => window.devpanel;
 
 export interface HomeContext {
   repos: () => Repo[];
-  openRepo: (repo: Repo) => void;
+  openRepo: (repo: Repo, tab?: Tab) => void;
   goLocal: () => void;
 }
 
@@ -123,7 +125,7 @@ function renderFailing(list: FailingRun[]): void {
       row('xcircle', f.repo, f.branch ?? '', {
         click: () => {
           const repo = ctx.repos().find((r) => r.name === f.repo);
-          if (repo) ctx.openRepo(repo);
+          if (repo) ctx.openRepo(repo, 'runs'); // straight to Actions, where the re-run button is
         },
       }),
     ),
@@ -135,8 +137,9 @@ function renderPulls(list: PullSummary[]): void {
   setCount('pulls', list.length);
   body('pulls').replaceChildren(
     ...list.map((p) => {
-      const r = row(p.draft ? 'edit' : 'branch', p.title, `${p.repo} · ${ago(p.updated)}`, { href: p.url });
-      return r;
+      // your own repos open inside DevPanel; a PR on someone else's repo can only be seen on GitHub
+      const repo = ctx.repos().find((r) => r.name === p.repo);
+      return row(p.draft ? 'edit' : 'branch', p.title, `${p.repo} · ${ago(p.updated)}`, repo ? { click: () => ctx.openRepo(repo, 'pulls') } : { href: p.url });
     }),
   );
 }
@@ -177,6 +180,7 @@ export async function refreshHome(): Promise<void> {
   else if (isOpen('health')) void loadHealth(mine);
   else idleHealth();
   renderRecent();
+  void refreshTasks();
 
   const settle = async <T,>(id: string, run: () => Promise<T>, render: (v: T) => void) => {
     try {
@@ -204,9 +208,16 @@ function idleHealth(): void {
 async function loadHealth(mine: number): Promise<void> {
   const box = body('health');
   box.replaceChildren(el('div', 'skeleton row'));
-  const projects = (await api().local.list()).filter((p) => p.exists);
-  if (!projects.length) return allGood('health', 'Aún no agregaste carpetas.');
-  const results = await Promise.all(projects.map((p) => api().health.local(p.path)));
+  let projects: LocalProject[];
+  let results: HealthResult[];
+  try {
+    projects = (await api().local.list()).filter((p) => p.exists);
+    if (!projects.length) return allGood('health', 'Aún no agregaste carpetas.');
+    results = await Promise.all(projects.map((p) => api().health.local(p.path)));
+  } catch {
+    if (mine === ticket) failed('health', 'No se pudo calcular la salud');
+    return;
+  }
   if (mine !== ticket) return;
   const rows: HTMLElement[] = [];
   let weak = 0;
@@ -227,6 +238,7 @@ function failedLocal(): void {
 
 export function initHome(context: HomeContext): void {
   ctx = context;
+  initTasks(context);
   $('home-grid').replaceChildren(...WIDGETS.map(widget));
   $('home-refresh').onclick = () => void refreshHome();
 }

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import http from 'node:http';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron as electron } from 'playwright-core';
@@ -86,9 +86,10 @@ try {
   assert.equal(await widget(page, 'failing').locator('.hw-row .hw-sub').textContent(), 'main');
   assert.equal(await widget(page, 'failing').locator('.hw-row').count(), 1, 'only repos pushed recently are checked');
   await page.waitForFunction(() => document.querySelector('.hw[data-id="pulls"] .hw-count')?.textContent === '2');
-  const pulls = widget(page, 'pulls').locator('a.hw-row');
+  // both PRs are on the user's own repos, so they open inside DevPanel instead of the browser
+  const pulls = widget(page, 'pulls').locator('button.hw-row');
   assert.equal(await pulls.count(), 2);
-  assert.equal(await pulls.first().getAttribute('href'), 'https://github.com/octocat/web-app/pull/7');
+  assert.equal(await widget(page, 'pulls').locator('a.hw-row').count(), 0);
   assert.match(await pulls.first().locator('.hw-sub').textContent(), /web-app/);
   await page.waitForFunction(() => document.querySelector('.hw[data-id="local"] .hw-count')?.textContent === '1');
   assert.match(await widget(page, 'local').locator('.hw-chip').first().getAttribute('title'), /sin commitear/);
@@ -99,17 +100,112 @@ try {
   await widget(page, 'failing').locator('.hw-row').click();
   await page.waitForSelector('#repo-modal:not(.hidden)');
   assert.equal(await page.textContent('#rm-name'), 'api-service');
+  assert.equal(await page.getAttribute('.rm-tab.active', 'data-tab'), 'runs', 'a failing build opens on Actions');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
+  await widget(page, 'pulls').locator('.hw-row').first().click();
+  await page.waitForSelector('#repo-modal:not(.hidden)');
+  assert.equal(await page.textContent('#rm-name'), 'web-app');
+  assert.equal(await page.getAttribute('.rm-tab.active', 'data-tab'), 'pulls', 'a pull request opens on its tab');
   await page.keyboard.press('Escape');
   await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
   await widget(page, 'local').locator('.hw-row').click();
   await page.waitForSelector('#view-local:not(.hidden)');
   await page.click('.nav[data-view="home"]');
-  log('clicking a failing build opens its folder and a local change jumps to the Local view');
+  log('a failing build opens on Actions, a pull request on its tab, and a local change jumps to the Local view');
 
   await page.click('#home-refresh');
   await page.waitForTimeout(800);
   assert.ok(notModified >= 1, `the repo list is requested with If-None-Match and answered 304 (${notModified})`);
   log('refreshing reuses cached answers (HTTP 304 does not count against the GitHub rate limit)');
+
+  // ---------- Task Pro ----------
+  const col = (s) => page.locator(`.tp-col-${s} .tp-card`);
+  const addTask = async (title, project, priority = 'normal', due = '') => {
+    await page.fill('#tp-new', title);
+    await page.fill('#tp-project', project);
+    await page.selectOption('#tp-priority', priority);
+    await page.fill('#tp-due', due);
+    await page.press('#tp-new', 'Enter');
+  };
+  assert.equal(await page.locator('.tp-col').count(), 3, 'to do, in progress and done columns');
+  await page.click('#tp-form button[type="submit"]'); // empty title: nothing is added
+  assert.equal(await page.locator('.tp-card').count(), 0);
+  await addTask('Revisar login', 'web-app', 'low');
+  await addTask('Arreglar build', 'api-service', 'high', '2000-01-01');
+  await page.waitForFunction(() => document.querySelectorAll('.tp-col-todo .tp-card').length === 2);
+  assert.equal(await col('todo').first().locator('.tp-title').textContent(), 'Arreglar build', 'high priority goes first');
+  assert.ok(await col('todo').first().evaluate((n) => n.classList.contains('tp-late')), 'a past due date is flagged');
+  assert.match(await page.textContent('#tp-summary'), /2 pendientes · 1 vencida$/);
+  assert.equal(await page.locator('.tp-filter').count(), 3, 'All + one chip per project');
+
+  await col('todo').first().locator('.tp-lead').click();
+  await page.waitForFunction(() => document.querySelectorAll('.tp-col-doing .tp-card').length === 1);
+  await col('doing').first().locator('.tp-lead').click();
+  await page.waitForFunction(() => document.querySelectorAll('.tp-col-done .tp-card').length === 1);
+  assert.match(await page.textContent('#tp-summary'), /^1 pendiente$/, 'a done task is no longer overdue');
+
+  await page.locator('.tp-filter', { hasText: 'web-app' }).click();
+  assert.equal(await page.locator('.tp-card').count(), 1, 'the filter shows one project');
+  await page.locator('.tp-card .tp-title').dblclick();
+  await page.fill('.tp-edit', 'Revisar login con 2FA');
+  await page.press('.tp-edit', 'Enter');
+  await page.waitForSelector('.tp-card .tp-title:text("Revisar login con 2FA")');
+  await page.locator('.tp-card button.tp-proj').click();
+  await page.waitForSelector('#repo-modal:not(.hidden)');
+  assert.equal(await page.textContent('#rm-name'), 'web-app', 'the project chip opens the repo in the app');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
+  await page.locator('.tp-filter').first().click();
+  await shot(page, 'h1b-tasks');
+  const stored = JSON.parse(readFileSync(join(userData, 'tasks.json'), 'utf8'));
+  assert.equal(stored.length, 2);
+  assert.deepEqual(stored.map((t) => t.status).sort(), ['done', 'todo']);
+  log('Task Pro: add, sort by priority, flag overdue, move across columns, filter, edit and open the project');
+
+  await page.keyboard.press('/');
+  await page.waitForSelector('#view-projects:not(.hidden)');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'repo-search', '"/" jumps to the project search');
+  await page.click('.nav[data-view="tools"]');
+  await page.click('.tab[data-tab="utils"]');
+  await page.click('#tool-input');
+  await page.keyboard.type('a/b');
+  assert.equal(await page.inputValue('#tool-input'), 'a/b', '"/" typed in a text area stays there');
+  assert.ok(await page.locator('#view-tools').isVisible());
+  await page.click('.nav[data-view="home"]');
+  log('"/" opens the project search, but never steals a slash typed in a text area');
+
+  // full editor: project, priority and due date, Escape cancels
+  const card = page.locator('.tp-col-todo .tp-card').first();
+  await card.locator('.tp-btn[aria-label="Editar tarea"]').click();
+  await page.waitForSelector('.tp-editor');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tp-editor', { state: 'detached' });
+  await card.locator('.tp-btn[aria-label="Editar tarea"]').click();
+  await page.fill('.tp-editor .tp-edit[aria-label="Proyecto"]', 'api-service');
+  await page.selectOption('.tp-editor select', 'high');
+  await page.fill('.tp-editor input[type="date"]', '2000-01-02');
+  await shot(page, 'h1c-task-editor');
+  await page.click('.tp-editor button[type="submit"]');
+  await page.waitForSelector('.tp-editor', { state: 'detached' });
+  const edited = JSON.parse(readFileSync(join(userData, 'tasks.json'), 'utf8')).find((t) => t.status === 'todo');
+  assert.deepEqual([edited.title, edited.project, edited.priority, edited.due], ['Revisar login con 2FA', 'api-service', 'high', '2000-01-02']);
+  assert.ok(await page.locator('.tp-col-todo .tp-card.tp-late').count(), 'the new due date is applied');
+  log('the task editor changes project, priority and due date; Escape cancels');
+
+  // command palette: new task and jump to a task
+  await page.click('.nav[data-view="tools"]');
+  await page.keyboard.press('Control+k');
+  await page.fill('#pal-input', 'nueva tarea');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#view-home:not(.hidden)');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'tp-new', 'Ctrl+K → Nueva tarea focuses the form');
+  await page.keyboard.press('Control+k');
+  await page.fill('#pal-input', '2FA');
+  assert.match(await page.textContent('#pal-list li'), /Tarea: Revisar login con 2FA/);
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.tp-card.flash');
+  log('Ctrl+K creates a task or jumps to an open one');
   await app.close();
 
   // ---------- all good + API error states (new process = empty caches) ----------
@@ -126,6 +222,15 @@ try {
   assert.match(await widget(page, 'pulls').locator('.hw-ok').getAttribute('title'), /Límite de la API/);
   await shot(page, 'h2-home-states');
   log('an all-good widget is a green check and a rate-limited one is a red cross with the reason as tooltip');
+
+  await page.waitForFunction(() => document.querySelectorAll('.tp-card').length === 2);
+  assert.equal(await page.textContent('.tp-col-todo .tp-title'), 'Revisar login con 2FA');
+  await page.locator('.tp-col-done .tp-col-head .tp-btn').click(); // clear the done ones
+  await page.waitForFunction(() => document.querySelectorAll('.tp-card').length === 1);
+  await page.locator('.tp-card .tp-btn.danger').click();
+  await page.waitForSelector('.tp-col-todo .tp-empty');
+  assert.deepEqual(JSON.parse(readFileSync(join(userData, 'tasks.json'), 'utf8')), []);
+  log('tasks survive a restart and can be deleted one by one or all the done ones at once');
 
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {

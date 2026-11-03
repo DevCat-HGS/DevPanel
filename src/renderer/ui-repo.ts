@@ -6,7 +6,7 @@ import { healthChip, runHealth } from './ui-health.js';
 
 const api = () => window.devpanel;
 
-type Tab = 'commits' | 'pulls' | 'issues' | 'runs';
+export type Tab = 'commits' | 'pulls' | 'issues' | 'runs';
 const EMPTY: Record<Tab, string> = {
   commits: 'Sin commits.',
   pulls: 'Sin pull requests abiertos.',
@@ -160,7 +160,7 @@ export function closeRepo(): void {
 }
 
 /** Opens the repository in a folder-styled dialog (X, Escape or a click outside closes it). */
-export function openRepo(repo: Repo): void {
+export function openRepo(repo: Repo, startTab: Tab = 'commits'): void {
   const modal = $('repo-modal');
   returnFocus = document.activeElement as HTMLElement | null;
   current = repo;
@@ -203,8 +203,8 @@ export function openRepo(repo: Repo): void {
   document.documentElement.classList.add('modal-open');
   $('rm-close').focus();
   $('rm-body').scrollTop = 0;
-  selectTab('commits');
-  void loadTab(repo, 'commits', 1);
+  selectTab(startTab);
+  void loadTab(repo, startTab, 1);
 }
 
 export function initRepoModal(): void {

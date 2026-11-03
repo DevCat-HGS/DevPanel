@@ -94,6 +94,24 @@ export interface SecretFinding {
   rule: string;
 }
 
+export type TaskStatus = 'todo' | 'doing' | 'done';
+export type TaskPriority = 'low' | 'normal' | 'high';
+
+/** One Task Pro item. Stored in userData/tasks.json (localStorage on the web). */
+export interface Task {
+  id: string;
+  title: string;
+  /** free text, usually a local project or repo name; '' = no project */
+  project: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  /** YYYY-MM-DD or null */
+  due: string | null;
+  /** ISO timestamps */
+  created: string;
+  updated: string;
+}
+
 /** Output of python/project_health.py. */
 export type HealthResult =
   | { ok: false; error: string }
@@ -362,6 +380,11 @@ export interface DevPanelApi {
     /** Raw stderr / unparsed output. */
     onOutput(cb: (m: { id: number; stream: 'out' | 'err'; text: string }) => void): void;
     onExit(cb: (m: { id: number; code: number }) => void): void;
+  };
+  tasks: {
+    list(): Promise<Task[]>;
+    /** Replaces the whole list; returns it as stored (cleaned and capped). */
+    save(tasks: Task[]): Promise<Task[]>;
   };
   notes: {
     /** Release notes (markdown) of a version, or of the running one; null if none. */

@@ -183,7 +183,10 @@ function commitRow(p: LocalProject): HTMLElement {
     void refresh();
   };
   const go = ib('check', 'Confirmar', () => void send(), 'primary');
-  input.onkeydown = (e) => e.key === 'Enter' && void send();
+  // block body: an on* handler returning false (any key but Enter) would cancel the keystroke
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') void send();
+  };
   row.append(input, go);
   return row;
 }

@@ -136,6 +136,30 @@
             </div>
             <button id="home-refresh" class="icon-btn" title="Actualizar" aria-label="Actualizar"><span data-icon="refresh"></span></button>
           </header>
+          <section id="tasks" class="tp" aria-labelledby="tp-heading">
+            <header class="tp-head">
+              <span class="tp-logo" data-icon="tasks" aria-hidden="true"></span>
+              <div>
+                <h3 id="tp-heading">Task Pro</h3>
+                <p class="muted">Tareas por proyecto, sin salir de DevPanel</p>
+              </div>
+              <span id="tp-summary" class="tp-summary" role="status"></span>
+            </header>
+            <form id="tp-form" class="tp-form" autocomplete="off">
+              <input id="tp-new" class="tp-new" maxlength="200" placeholder="Nueva tarea…" aria-label="Nueva tarea" />
+              <input id="tp-project" class="tp-field" list="tp-projects" maxlength="60" placeholder="Proyecto" aria-label="Proyecto" />
+              <datalist id="tp-projects"></datalist>
+              <select id="tp-priority" class="tp-field" aria-label="Prioridad" title="Prioridad">
+                <option value="high">Alta</option>
+                <option value="normal" selected>Normal</option>
+                <option value="low">Baja</option>
+              </select>
+              <input id="tp-due" class="tp-field" type="date" aria-label="Fecha límite" title="Fecha límite" />
+              <button type="submit" class="btn primary small">Agregar</button>
+            </form>
+            <div id="tp-filters" class="tp-filters hidden" role="toolbar" aria-label="Filtrar por proyecto"></div>
+            <div id="tp-board" class="tp-board"></div>
+          </section>
           <div id="home-grid" class="home-grid"></div>
         </section>
 
