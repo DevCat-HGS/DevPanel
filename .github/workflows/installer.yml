@@ -44,3 +44,6 @@ jobs:
             gh release create installer --prerelease --title "DevPanel Installer" \
               --notes "Descarga **DevPanel-Installer.exe** para instalar DevPanel. Siempre instala la última versión."
           gh release upload installer release/DevPanel-Installer.exe --clobber
+          # Point the tag at the commit this .exe was built from; otherwise the release page keeps showing the
+          # first build's commit and "N commits since this release" grows with every push.
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/installer" -f sha="$GITHUB_SHA" -F force=true
