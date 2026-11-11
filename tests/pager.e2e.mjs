@@ -18,6 +18,10 @@ const repos = Array.from({ length: N }, (_, i) => ({
 }));
 const COMMITS_TOTAL = 19; // pages of 8, 8 and 3
 
+const REPO_PAGE = 10; // repos per response
+const ISSUES_TOTAL = 11; // pages of 8 and 3
+const repoPages = [];
+const issueQueries = [];
 const rerunAuth = [];
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -25,7 +29,23 @@ const server = http.createServer((req, res) => {
     res.writeHead(code, { 'Content-Type': 'application/json', ...headers });
     res.end(JSON.stringify(body));
   };
-  if (url.pathname === '/users/octocat/repos') return send(200, repos);
+  if (url.pathname === '/users/octocat/repos') {
+    // like GitHub, the mock caps the page size: the 23 repos only arrive by following rel="next"
+    const pg = Number(url.searchParams.get('page') ?? 1);
+    repoPages.push(pg);
+    const from = (pg - 1) * REPO_PAGE;
+    return send(200, repos.slice(from, from + REPO_PAGE), from + REPO_PAGE < N ? { Link: `<http://x/repos?page=${pg + 1}>; rel="next"` } : {});
+  }
+  if (url.pathname === '/search/issues' && /type:issue/.test(url.searchParams.get('q') ?? '')) {
+    issueQueries.push(url.searchParams.get('q'));
+    const pg = Number(url.searchParams.get('page') ?? 1);
+    const from = (pg - 1) * 8;
+    const items = Array.from({ length: Math.max(0, Math.min(8, ISSUES_TOTAL - from)) }, (_, i) => ({
+      id: 2000 + from + i, number: 100 + from + i, title: `Issue ${from + i + 1}`, html_url: `https://github.com/octocat/x/issues/${100 + from + i}`,
+      updated_at: new Date().toISOString(), user: { login: 'mona' },
+    }));
+    return send(200, { total_count: ISSUES_TOTAL, items }, from + 8 < ISSUES_TOTAL ? { Link: '<http://x/search/issues?page=2>; rel="next"' } : {});
+  }
   const commits = url.pathname.match(/^\/repos\/octocat\/[^/]+\/commits$/);
   if (commits) {
     const page = Number(url.searchParams.get('page') ?? 1);
@@ -55,8 +75,11 @@ const server = http.createServer((req, res) => {
     return send(200, items, from + 8 < 10 ? { Link: '<http://x/pulls?page=2>; rel="next"' } : {});
   }
   if (/^\/repos\/octocat\/[^/]+\/issues$/.test(url.pathname)) {
-    const mk = (n, extra = {}) => ({ id: 2000 + n, number: n, title: `Issue ${n}`, html_url: `https://github.com/octocat/x/issues/${n}`, updated_at: new Date().toISOString(), user: { login: 'mona' }, ...extra });
-    return send(200, [mk(1), mk(2), mk(3), mk(4, { title: 'esto es un PR', pull_request: {} })]);
+    // what made the tab say "no open issues": the newest 8 entries of this endpoint are all pull requests
+    return send(200, Array.from({ length: 8 }, (_, i) => ({
+      id: 3000 + i, number: i + 1, title: 'esto es un PR', html_url: `https://github.com/octocat/x/pull/${i + 1}`,
+      updated_at: new Date().toISOString(), user: { login: 'mona' }, pull_request: {},
+    })), { Link: '<http://x/issues?page=2>; rel="next"' });
   }
   if (/^\/repos\/octocat\/[^/]+\/actions\/runs$/.test(url.pathname)) {
     const now = new Date().toISOString();
@@ -105,6 +128,9 @@ try {
   await page.waitForTimeout(450);
   await shot(page, 'p0-folder-cards');
   log('the projects grid is paginated (9 per page), starts at the newest and every project is drawn as a folder');
+  for (const pg of [1, 2, 3]) assert.ok(repoPages.includes(pg), `page ${pg} of the repo list was requested`);
+  assert.ok(!repoPages.includes(4), 'and nothing past the last page');
+  log('the repo list follows rel="next": all 23 repos arrive although each response holds 10');
 
   await page.click('#repo-pager .pg-num:has-text("2")');
   await page.waitForFunction(() => document.querySelector('#repo-pager .pg-num.cur')?.textContent === '2');
@@ -222,8 +248,14 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 2);
   assert.ok(await page.locator('#rm-pager .pg-btn[aria-label="Siguiente"]').isDisabled());
   await page.click('.rm-tab[data-tab="issues"]');
+  await page.waitForFunction(() => document.querySelector('#rm-commits .commit.item .sha')?.textContent === '#100');
+  assert.equal(await page.locator('#rm-commits .commit.item').count(), 8, 'a full page of issues although the newest 8 entries of the repo are pull requests');
+  assert.ok(!(await page.textContent('#rm-commits')).includes('esto es un PR'), 'pull requests stay out of the issues tab');
+  assert.equal(issueQueries[0], 'repo:octocat/repo-06 type:issue state:open');
+  await page.click('#rm-pager .pg-btn[aria-label="Siguiente"]');
   await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 3);
-  assert.ok(!(await page.textContent('#rm-commits')).includes('esto es un PR'), 'pull requests are filtered out of the issues tab');
+  assert.equal(await page.textContent('#rm-commits .commit.item .sha'), '#108');
+  assert.ok(await page.locator('#rm-pager .pg-btn[aria-label="Siguiente"]').isDisabled(), 'the last page of issues has no next');
   await page.click('.rm-tab[data-tab="runs"]');
   await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 3);
   assert.equal(await page.locator('#rm-commits .run-i.st-ok').count(), 1);
