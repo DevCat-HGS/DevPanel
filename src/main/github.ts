@@ -33,11 +33,34 @@ async function gh<T>(path: string): Promise<T> {
   return (await (await ghFetch(path)).json()) as T;
 }
 
-export function listRepos(user: string): Promise<Repo[]> {
-  if (!user) return Promise.reject(new Error('Vincula tu usuario de GitHub en Settings'));
+const hasNext = (res: Response): boolean => /rel="next"/.test(res.headers.get('link') ?? '');
+
+/** 100 repos per page: up to 1000 repos, which keeps a huge account from spending the whole rate limit. */
+export const MAX_REPO_PAGES = 10;
+
+/**
+ * The user's repos, most recently pushed first. GitHub gives at most 100 per request, so the rest is read
+ * by following `rel="next"`. `maxPages: 1` is enough for callers that only want the newest ones.
+ */
+export async function listRepos(user: string, maxPages = MAX_REPO_PAGES): Promise<Repo[]> {
+  if (!user) throw new Error('Vincula tu usuario de GitHub en Settings');
   // with the owner's token the private repos are included too
-  if (tokenOwns(user)) return gh<Repo[]>('/user/repos?sort=pushed&per_page=100&affiliation=owner');
-  return gh<Repo[]>(`/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=100`);
+  const base = tokenOwns(user)
+    ? '/user/repos?sort=pushed&per_page=100&affiliation=owner'
+    : `/users/${encodeURIComponent(user)}/repos?sort=pushed&per_page=100`;
+  const first = await ghFetch(base);
+  const repos = (await first.json()) as Repo[];
+  let more = hasNext(first);
+  for (let page = 2; more && page <= maxPages; page++) {
+    try {
+      const res = await ghFetch(`${base}&page=${page}`);
+      repos.push(...((await res.json()) as Repo[]));
+      more = hasNext(res);
+    } catch {
+      break; // a later page failed (rate limit, network): the repos already read are better than none
+    }
+  }
+  return repos;
 }
 
 export const COMMITS_PER_PAGE = 8;
@@ -124,7 +147,7 @@ const FAILED = new Set(['failure', 'timed_out', 'startup_failure']);
 /** Recently pushed repos whose latest run failed. */
 export async function listFailing(user: string): Promise<FailingRun[]> {
   const since = Date.now() - RECENT_DAYS * 86_400_000;
-  const repos = (await listRepos(user))
+  const repos = (await listRepos(user, 1)) // sorted by push date: the recent ones are all on the first page
     .filter((r) => !r.archived && new Date(r.pushed_at).getTime() > since)
     .slice(0, 8);
   const runs = await Promise.all(repos.map((r) => latestRun(user, r.name)));
@@ -167,16 +190,25 @@ export async function listItems(user: string, repo: string, kind: RepoListKind, 
     };
   }
 
-  const res = await ghFetch(`${base}/${kind === 'pulls' ? 'pulls' : 'issues'}?state=open&${paging}`);
-  const raw = (await res.json()) as any[];
-  return {
-    // the issues endpoint also returns pull requests: they have their own tab
-    items: raw
-      .filter((i) => kind === 'pulls' || !i.pull_request)
-      .map((i) => ({ id: i.id, number: i.number, title: i.title, url: i.html_url, author: i.user?.login, date: i.updated_at, draft: !!i.draft })),
-    hasMore: /rel="next"/.test(res.headers.get('link') ?? ''),
-  };
+  const toItem = (i: any) => ({ id: i.id, number: i.number, title: i.title, url: i.html_url, author: i.user?.login, date: i.updated_at, draft: !!i.draft });
+
+  if (kind === 'issues') {
+    // `/repos/{u}/{r}/issues` mixes pull requests in, so a page of it can hold few issues or none at all.
+    // The search pages over issues only, which keeps every page full and "no open issues" true.
+    const res = await ghFetch(`/search/issues?q=${issuesQuery(user, repo)}&sort=created&order=desc&${paging}`);
+    const raw = (await res.json()) as { total_count?: number; items?: any[] };
+    return {
+      items: (raw.items ?? []).filter((i) => !i.pull_request).map(toItem),
+      hasMore: hasNext(res) || p * ITEMS_PER_PAGE < (raw.total_count ?? 0),
+    };
+  }
+
+  const res = await ghFetch(`${base}/pulls?state=open&${paging}`);
+  return { items: ((await res.json()) as any[]).map(toItem), hasMore: hasNext(res) };
 }
+
+/** Search query (already URL-encoded) for the open issues of one repo, pull requests excluded. */
+export const issuesQuery = (user: string, repo: string): string => encodeURIComponent(`repo:${user}/${repo} type:issue state:open`);
 
 /** Re-runs the failed jobs of a workflow run. Needs a token that can write Actions. */
 export async function rerunFailed(user: string, repo: string, runId: number): Promise<{ ok: boolean; error?: string }> {
