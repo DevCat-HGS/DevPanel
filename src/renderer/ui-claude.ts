@@ -47,7 +47,7 @@ function renderMarkdown(into: HTMLElement, src: string): void {
       copy.type = 'button';
       copy.title = 'Copiar';
       copy.append(icon('copy'));
-      copy.onclick = () => void copyText(b.text).then(() => toast('Copiado', 'ok'));
+      copy.onclick = () => void copyText(b.text); // copyText shows the right toast, success or failure
       bar.append(el('span', 'muted', b.lang || 'código'), copy);
       pre.append(bar, el('pre', undefined, b.text));
       into.append(pre);

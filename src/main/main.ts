@@ -1,6 +1,5 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, shell, Tray } from 'electron';
 import { join } from 'node:path';
-import type { Settings } from '../shared/api';
 import { setupAlerts } from './alerts';
 import { mt } from './i18n-main';
 import { setupClaude, stopAllClaude } from './claude';
@@ -11,6 +10,7 @@ import { listCommits, listFailing, listItems, listOpenPulls, listRepos, listRuns
 import { setupNotes } from './notes';
 import { setupSoftware, stopAllInstalls } from './software';
 import { loadSettings, saveSettings } from './settings';
+import { rendererPatch } from './settings-core';
 import { setupTasks } from './tasks';
 import { setupToken } from './token';
 import { setupUpdater } from './updater';
@@ -137,7 +137,9 @@ app.whenReady().then(() => {
   applyLoginItem(loadSettings().openAtLogin);
   ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('settings:get', () => loadSettings());
-  ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => {
+  ipcMain.handle('settings:set', (_e, raw: unknown) => {
+    // only the keys a view may change, each with a valid value: local folders come from the folder dialog alone
+    const patch = rendererPatch(raw);
     const next = saveSettings(patch);
     if (typeof patch.openAtLogin === 'boolean') applyLoginItem(next.openAtLogin);
     if (patch.language) tray?.setContextMenu(buildTrayMenu());

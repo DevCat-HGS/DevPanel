@@ -352,6 +352,8 @@ export const EN: Record<string, string> = {
   'Escribe un comando o proyecto…': 'Type a command or project…',
   'Buscar comando': 'Search command',
   'Sin resultados': 'No results',
+  'Ya se está instalando un perfil': 'A profile is already being installed',
+  'No se pudo leer la carpeta.': 'The folder could not be read.',
   'vista': 'view',
   'acción': 'action',
   'proyecto': 'project',

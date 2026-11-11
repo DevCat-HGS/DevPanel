@@ -486,3 +486,44 @@ test('lock: malformed attempt and code files never lock the user out', () => {
   const ok = { salt: 'a'.repeat(32), hash: 'b'.repeat(64) };
   assert.deepEqual(parsePinFile(ok), ok);
 });
+
+import { rendererPatch, sanitizeStored } from '../dist/main/settings-core.js';
+import { findOnPath, projectShellEnv, vscodeFolderUrl } from '../dist/main/local-core.js';
+
+/** Windows path written with forward slashes (keeps the backslashes out of the test source). */
+const w = (s) => s.replace(/\//g, '\\');
+
+test('settings: the renderer can only write known keys with valid values, and never the local folders', () => {
+  assert.deepEqual(rendererPatch({ language: 'en', alertsEnabled: false, githubUser: 'octo-cat' }), { language: 'en', alertsEnabled: false, githubUser: 'octo-cat' });
+  assert.deepEqual(rendererPatch({ localProjects: [w('C:/')] }), {}, 'folders only come from the folder dialog');
+  assert.deepEqual(rendererPatch({ language: 'xx', closeToTray: 'yes', githubUser: 'a b', lastSeenVersion: 'v'.repeat(65), extra: 1 }), {});
+  assert.deepEqual(rendererPatch({ constructor: true, __proto__: { onboarded: true } }), {});
+  for (const bad of [null, 'x', 42, [1]]) assert.deepEqual(rendererPatch(bad), {});
+});
+
+test('settings: a broken file falls back per key instead of breaking the app', () => {
+  const defaults = { githubUser: '', onboarded: false, alertsEnabled: true, closeToTray: true, openAtLogin: false, localProjects: [], lastSeenVersion: '', language: 'auto', faceLiveness: true };
+  const s = sanitizeStored({ localProjects: w('C:/x'), language: 'klingon', githubUser: 'mona', onboarded: true }, defaults);
+  assert.deepEqual(s.localProjects, [], 'a non-array list becomes empty, so Local still loads');
+  assert.equal(s.language, 'auto');
+  assert.equal(s.githubUser, 'mona');
+  assert.equal(s.onboarded, true);
+  assert.deepEqual(sanitizeStored({ localProjects: [w('C:/a'), 3, ''] }, defaults).localProjects, [w('C:/a')]);
+  assert.deepEqual(sanitizeStored(null, defaults), defaults);
+});
+
+test('programs are found on PATH by absolute path, never in the current or a relative folder', () => {
+  const files = new Set([w('C:/Git/cmd/git.exe'), w('C:/Tools/git.cmd'), '/usr/bin/git']);
+  const exists = (p) => files.has(p);
+  assert.equal(findOnPath('git', w('.;bin;C:/Tools;"C:/Git/cmd/"'), { win: true, pathExt: '.EXE', exists }), w('C:/Git/cmd/git.exe'), 'relative entries and non-.exe shims are skipped');
+  assert.equal(findOnPath('git', w('C:/Tools'), { win: true, pathExt: '.COM;.EXE;.BAT;.CMD', exists }), w('C:/Tools/git.cmd'));
+  assert.equal(findOnPath('git', '.:/usr/bin', { win: false, exists }), '/usr/bin/git');
+  assert.equal(findOnPath('git', '', { win: true, exists }), null);
+});
+
+test('project commands skip the current folder and VS Code opens through a URL', () => {
+  assert.equal(projectShellEnv({ PATH: 'x' }).NoDefaultCurrentDirectoryInExePath, '1');
+  assert.equal(projectShellEnv({ PATH: 'x' }).PATH, 'x');
+  assert.equal(vscodeFolderUrl(w('C:/Users/Juan Perez/a&calc')),'vscode://file/C:/Users/Juan%20Perez/a%26calc');
+  assert.equal(vscodeFolderUrl('/home/me/app #1'), 'vscode://file//home/me/app%20%231');
+});
