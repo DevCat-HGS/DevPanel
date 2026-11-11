@@ -1,9 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { join } from 'node:path';
+import { win32 } from 'node:path';
 
-/** taskkill by absolute path: never a `taskkill.exe` found in the current folder. */
+/** taskkill by absolute path: never a `taskkill.exe` found in the current folder. A Windows path on any OS. */
 export const taskkillPath = (env: NodeJS.ProcessEnv = process.env): string =>
-  join(env.SystemRoot ?? env.windir ?? 'C:\\Windows', 'System32', 'taskkill.exe');
+  win32.join(env.SystemRoot ?? env.windir ?? 'C:\\Windows', 'System32', 'taskkill.exe');
 
 /**
  * Stops a process and everything it started. On Windows `child.kill()` only stops the process itself: a PyInstaller
