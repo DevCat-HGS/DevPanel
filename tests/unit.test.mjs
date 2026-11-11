@@ -463,3 +463,26 @@ test('task board: urgency, order, status flow and project counts', async () => {
   assert.notEqual(b.newTaskId(), b.newTaskId());
   assert.match(b.newTaskId(), /^[\w-]{1,40}$/, 'ids pass the main-process check');
 });
+
+import { afterAttempt, FREE_ATTEMPTS, lockoutMs, parseAttempts, parsePinFile, waitSeconds } from '../dist/main/lock-core.js';
+
+test('lock: a few wrong codes are free, then the wait doubles up to 15 minutes', () => {
+  for (let f = 0; f < FREE_ATTEMPTS; f++) assert.equal(lockoutMs(f), 0);
+  assert.equal(lockoutMs(FREE_ATTEMPTS), 30_000);
+  assert.equal(lockoutMs(FREE_ATTEMPTS + 1), 60_000);
+  assert.equal(lockoutMs(FREE_ATTEMPTS + 20), 15 * 60_000);
+  let a = parseAttempts(null);
+  for (let i = 0; i < FREE_ATTEMPTS; i++) a = afterAttempt(a, false, 1000);
+  assert.equal(waitSeconds(a, 1000), 30, 'the fifth wrong code starts a 30 s wait');
+  assert.equal(waitSeconds(a, 31_000), 0);
+  assert.deepEqual(afterAttempt(a, true, 2000), { fails: 0, until: 0 }, 'the right code clears the count');
+});
+
+test('lock: malformed attempt and code files never lock the user out', () => {
+  assert.deepEqual(parseAttempts({ fails: -3, until: 'x' }), { fails: 0, until: 0 });
+  assert.deepEqual(parseAttempts('garbage'), { fails: 0, until: 0 });
+  assert.equal(parsePinFile({ salt: 'zz', hash: 'aa' }), null);
+  assert.equal(parsePinFile(null), null);
+  const ok = { salt: 'a'.repeat(32), hash: 'b'.repeat(64) };
+  assert.deepEqual(parsePinFile(ok), ok);
+});

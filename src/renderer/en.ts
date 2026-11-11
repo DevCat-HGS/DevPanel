@@ -435,6 +435,13 @@ export const EN: Record<string, string> = {
   'No hay rostro registrado': 'No face registered',
   'No hay PIN configurado': 'No code configured',
   'PIN incorrecto': 'Wrong code',
+  'Demasiados intentos. Espera {s} s.': 'Too many attempts. Wait {s} s.',
+  'Desbloquea DevPanel primero': 'Unlock DevPanel first',
+  'No se pudo leer tu rostro registrado. Entra con tu código y vuelve a registrarlo.': "Your registered face could not be read. Sign in with your code and register it again.",
+  'No se pudo usar el reconocimiento facial. Entra con tu código.': 'Face recognition is not available. Sign in with your code.',
+  'No se pudo comprobar el código. Intenta de nuevo.': 'The code could not be checked. Try again.',
+  '¿Eliminar tu rostro registrado? Seguirás entrando con tu código.': 'Delete your registered face? You will keep signing in with your code.',
+  'Rostro eliminado. Tu código sigue protegiendo DevPanel.': 'Face deleted. Your code still protects DevPanel.',
   'Respuesta inválida del módulo facial': 'Invalid response from the face module',
   'No se pudo ejecutar Python. Instálalo y corre: pip install -r python/requirements.txt':
     'Could not run Python. Install it and run: pip install -r python/requirements.txt',

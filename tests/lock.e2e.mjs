@@ -26,6 +26,16 @@ try {
   app = await electron.launch({ args: ['.'], env });
   page = await app.firstWindow();
   await page.waitForSelector('#lock:not(.hidden)');
+  // the renderer is not trusted with the lock: while locked, the main process refuses to change the code or the token
+  const whileLocked = await page.evaluate(async () => ({
+    pin: await window.devpanel.face.setPin('0000'),
+    token: await window.devpanel.token.set('ghp_' + 'x'.repeat(36)),
+    enroll: await window.devpanel.face.enroll('0000'),
+  }));
+  assert.deepEqual(whileLocked.pin, { ok: false, error: 'Desbloquea DevPanel primero' });
+  assert.equal(whileLocked.token.ok, false);
+  assert.equal(whileLocked.enroll.ok, false);
+  log('while locked, changing the code, the token or the face is refused by the main process');
   await page.keyboard.press('Control+k');
   assert.ok(await page.locator('#palette').isHidden(), 'no palette before the first unlock');
   for (const d of '1234') await page.keyboard.press(d);
@@ -57,6 +67,34 @@ try {
   await page.keyboard.press('Control+k');
   await page.waitForSelector('#palette:not(.hidden)');
   log('unlocking again brings Ctrl+K back');
+
+  // re-locked by hiding: the main process forgets the unlock as well
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0];
+    w.hide();
+    setTimeout(() => w.show(), 600);
+  });
+  await page.waitForSelector('#lock:not(.hidden)', { timeout: 10000 });
+  assert.equal((await page.evaluate(() => window.devpanel.face.setPin('0000'))).ok, false, 'hiding locks the main process too');
+
+  // wrong codes: the first ones are just wrong, then even the right code has to wait
+  const tries = await page.evaluate(async () => {
+    const out = [];
+    for (let i = 0; i < 6; i++) out.push((await window.devpanel.face.unlockWithPin('9999')).error);
+    out.push((await window.devpanel.face.unlockWithPin('1234')).error ?? 'ok');
+    return out;
+  });
+  assert.deepEqual(tries.slice(0, 4), Array(4).fill('PIN incorrecto'));
+  assert.equal(tries[4], 'Demasiados intentos. Espera 30 s.', 'the fifth wrong code starts the wait');
+  assert.match(tries[5], /^Demasiados intentos/);
+  assert.match(tries[6], /^Demasiados intentos/, 'during the wait not even the right code is checked');
+  for (const d of '1234') await page.keyboard.press(d);
+  await page.waitForFunction(() => /Demasiados intentos/.test(document.getElementById('lock-msg').textContent));
+  await page.waitForTimeout(900);
+  assert.ok(await page.locator('#app').isHidden(), 'still locked');
+  await page.keyboard.press('1');
+  assert.equal(await page.locator('#lock-pad .dots i.on').count(), 1, 'the pad takes digits again after the refusal');
+  log('after five wrong codes the lock asks to wait (30 s, then longer), even for the right code, and the pad keeps working');
 
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {

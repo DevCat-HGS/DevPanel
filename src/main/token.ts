@@ -1,6 +1,7 @@
 import { app, ipcMain, safeStorage } from 'electron';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isUnlocked, LOCKED_ERROR } from './face';
 import { loadSettings } from './settings';
 
 // DEVPANEL_GITHUB_API lets automated tests talk to a local mock instead of api.github.com.
@@ -51,6 +52,7 @@ export function setupToken(): void {
   });
 
   ipcMain.handle('token:set', async (_e, token: string) => {
+    if (!isUnlocked()) return { ok: false, error: LOCKED_ERROR };
     const t = String(token ?? '').trim();
     if (!/^[A-Za-z0-9_]{20,255}$/.test(t)) return { ok: false, error: 'El token no tiene un formato válido' };
     if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'El cifrado del sistema no está disponible' };
@@ -73,6 +75,7 @@ export function setupToken(): void {
   });
 
   ipcMain.handle('token:clear', () => {
+    if (!isUnlocked()) return;
     rmSync(binFile(), { force: true });
     rmSync(metaFile(), { force: true });
   });
