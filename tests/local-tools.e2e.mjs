@@ -2,7 +2,7 @@
 // secret scan and the fixed recipes. Everything runs on throwaway repos; no real flutter/firebase is started.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron as electron } from 'playwright-core';
@@ -34,6 +34,8 @@ writeFileSync(join(userData, 'settings.json'), JSON.stringify({ language: 'es', 
 const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t.t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t.t', DEVPANEL_USER_DATA: userData, DEVPANEL_TEST_PICK_DIR: proj, DEVPANEL_GITHUB_API: 'http://127.0.0.1:9' };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.GITHUB_TOKEN; // CI exports one: these tests control the token themselves
+// Some machines already set this globally, which would hide a planted npm.cmd: the app has to set it itself.
+for (const k of Object.keys(env)) if (/^NoDefaultCurrentDirectoryInExePath$/i.test(k)) delete env[k];
 
 let step = 0;
 const log = (m) => console.log(`✔ ${++step}. ${m}`);
@@ -231,6 +233,32 @@ try {
   await page.keyboard.press('Escape');
   assert.ok(await page.locator('#files-modal').isHidden());
   log('the explorer lists files, shows code with line numbers, finds text and jumps to the line; paths outside the project are refused');
+
+  // ---------- the renderer cannot register folders behind the dialog's back ----------
+  const tampered = await page.evaluate((r) => window.devpanel.settings.set({ localProjects: [r], language: 'klingon', githubUser: 'octocat' }), root);
+  assert.equal(tampered.localProjects.length, 1, 'settings.set cannot add a folder');
+  assert.ok(!tampered.localProjects.includes(root));
+  assert.equal(tampered.language, 'es', 'an invalid value is dropped');
+  const outsideRead = await page.evaluate((r) => window.devpanel.local.read(r, 'remote.git/HEAD'), root);
+  assert.equal(outsideRead.ok, false, 'so files outside the registered project stay unreadable');
+  log('settings.set from the renderer cannot register a folder nor store invalid values');
+
+  // ---------- programs planted in the project folder never run ----------
+  if (process.platform === 'win32') {
+    writeFileSync(join(proj, 'npm.cmd'), '@echo PLANTADO-NPM\r\n');
+    copyFileSync(process.execPath, join(proj, 'git.exe')); // node.exe: if it ran instead of git, every git call would fail
+    const exits = await page.evaluate(() => (document.getElementById('term-out').textContent.match(/proceso terminó/g) ?? []).length);
+    await card(page).locator('.script-btn', { hasText: 'build' }).click();
+    await page.waitForFunction((n) => (document.getElementById('term-out').textContent.match(/proceso terminó/g) ?? []).length > n, exits, { timeout: 60000 });
+    const out = await term(page);
+    assert.ok(!out.includes('PLANTADO-NPM'), 'the npm.cmd in the project folder did not run');
+    assert.match(out, /código 0/, 'the real npm ran the script');
+    const branches = await page.evaluate((p) => window.devpanel.local.branches(p), proj);
+    assert.equal(branches.current, 'feature', 'git calls still reach the real git');
+    rmSync(join(proj, 'npm.cmd'));
+    rmSync(join(proj, 'git.exe'));
+    log('an npm.cmd or git.exe dropped in the project root is ignored: scripts and git use the real programs');
+  }
 
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {

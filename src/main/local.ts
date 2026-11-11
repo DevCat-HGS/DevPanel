@@ -5,17 +5,28 @@ import { basename, join, resolve, sep } from 'node:path';
 import type { FileEntry, FileRead, InspectResult, L10nResult, LocalProject, SecretFinding } from '../shared/api';
 import { arbKeys, compareLocales, flattenKeys, L10N_DIRS, langOf, type LocaleFile } from './l10n-core';
 import {
-  buildAction, changedPaths, findRecipe, isSafeRel, MAX_READ_BYTES, parseGrep, SKIP_DIRS, isSafeBranch, isSafeCommitMessage, isSafeScriptName, parseGitStatus,
+  buildAction, changedPaths, findOnPath, findRecipe, projectShellEnv, vscodeFolderUrl, isSafeRel, MAX_READ_BYTES, parseGrep, SKIP_DIRS, isSafeBranch, isSafeCommitMessage, isSafeScriptName, parseGitStatus,
   recipeCommand, recipesFor, stripAnsi,
 } from './local-core';
 import { isBinary, MAX_SCAN_BYTES, MAX_SCAN_FILES, scanName, scanText } from './secrets-core';
 import { loadSettings, saveSettings } from './settings';
 import { runSidecar } from './sidecar';
 
+/** git from PATH by absolute path, looked up once: never a `git.exe` sitting in the project folder (see findOnPath). */
+let gitPath: string | null | undefined;
+const gitBin = (): string | null =>
+  gitPath !== undefined
+    ? gitPath
+    : (gitPath = process.platform === 'win32'
+        ? findOnPath('git', process.env.PATH ?? '', { win: true, pathExt: '.EXE', exists: existsSync })
+        : findOnPath('git', process.env.PATH ?? '', { win: false, exists: existsSync }));
+
 const git = (cwd: string, args: string[]): Promise<{ ok: boolean; out: string }> =>
   new Promise((res) => {
+    const bin = gitBin();
+    if (!bin) return res({ ok: false, out: 'No se encontró git en el PATH' });
     execFile(
-      'git',
+      bin,
       args,
       { cwd, timeout: 60_000, windowsHide: true, maxBuffer: 4_000_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
       (err, stdout, stderr) => res({ ok: !err, out: String(stdout) + String(stderr) }),
@@ -131,7 +142,7 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
   /** Runs a command line made only of constants and validated names, streaming its output to the terminal. */
   const runShell = (dir: string, commandLine: string): { id: number } => {
     const id = nextId++;
-    const child = spawn(commandLine, { cwd: dir, shell: true, windowsHide: true, env: { ...process.env, FORCE_COLOR: '0' } });
+    const child = spawn(commandLine, { cwd: dir, shell: true, windowsHide: true, env: projectShellEnv(process.env) });
     running.set(id, child);
     const emit = (stream: 'out' | 'err') => (d: Buffer) =>
       send('local:output', { id, stream, text: stripAnsi(d.toString()).slice(0, 20_000) });
@@ -336,7 +347,8 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('local:open', async (_e, path: string, how: 'folder' | 'code') => {
     const dir = known(path);
     if (!dir) return;
-    if (how === 'code') spawn('code', [dir], { shell: true, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    // through VS Code's URL handler: no shell, so spaces or `&` in the path are just part of the path
+    if (how === 'code') await shell.openExternal(vscodeFolderUrl(dir));
     else await shell.openPath(dir);
   });
 }
