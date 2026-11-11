@@ -1,5 +1,6 @@
 import type { HealthResult } from '../shared/api';
 import { el, toast } from './dom.js';
+import { tr } from './i18n.js';
 import { icon } from './icons.js';
 
 type Ok = Extract<HealthResult, { ok: true }>;
@@ -19,7 +20,7 @@ const tone = (score: number): 'ok' | 'warn' | 'bad' => (score >= 75 ? 'ok' : sco
 export function healthChip(r: Ok): HTMLElement {
   const failing = r.checks.filter((c) => !c.ok).sort((a, b) => b.weight - a.weight);
   const tip = failing.length
-    ? `Salud ${r.score}/100. Por mejorar: ${failing.slice(0, 4).map((c) => `${checkLabel(c.id)} (${c.detail})`).join(', ')}`
+    ? `Salud ${r.score}/100. Por mejorar: ${failing.slice(0, 4).map((c) => `${tr(checkLabel(c.id))} (${c.detail})`).join(', ')}`
     : `Salud ${r.score}/100. Todo en orden`;
   const c = el('span', `chip lc health ${tone(r.score)}`);
   c.title = tip;

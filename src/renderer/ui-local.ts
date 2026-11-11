@@ -214,7 +214,9 @@ function card(p: LocalProject): HTMLElement {
   const c = el('div', 'local-card');
   c.dataset.path = p.path;
   const head = el('div', 'local-head');
-  head.append(el('b', undefined, p.name), el('span', 'muted path', p.path));
+  const name = el('b', undefined, p.name);
+  name.setAttribute('data-no-i18n', ''); // a folder called "Ajustes" is not "Settings"
+  head.append(name, el('span', 'muted path', p.path));
   c.append(head);
 
   const chips = el('div', 'chips');
@@ -238,7 +240,14 @@ function card(p: LocalProject): HTMLElement {
     const sec = secretCount.get(p.path);
     if (sec !== undefined) chips.append(chip(sec ? 'shield' : 'checkcircle', sec ? String(sec) : '', sec ? 'Posibles secretos' : 'Sin secretos a la vista', sec ? 'bad secrets' : 'ok secrets'));
     if (p.manager) chips.append(el('span', 'chip branch', p.manager));
-    if (p.lastCommit) chips.append(el('span', 'muted', `${p.lastCommit.subject} · ${p.lastCommit.when}`));
+    if (p.lastCommit) {
+      // the subject is the user's text; only "hace 3 d" is DevPanel's
+      const subject = el('span', undefined, p.lastCommit.subject);
+      subject.setAttribute('data-no-i18n', '');
+      const last = el('span', 'muted');
+      last.append(subject, ' · ', el('span', undefined, p.lastCommit.when));
+      chips.append(last);
+    }
   }
   c.append(chips);
 

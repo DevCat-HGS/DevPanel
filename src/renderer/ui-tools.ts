@@ -1,4 +1,5 @@
 import { $, copyText, el } from './dom.js';
+import { tr } from './i18n.js';
 import * as T from './tools.js';
 
 interface Tool {
@@ -74,10 +75,11 @@ export function initTools(): void {
         const b = el('button', 'btn small', a.label);
         b.onclick = async () => {
           try {
-            output.textContent = await a.run(input.value);
+            // #tool-output is not auto-translated (it holds the user's data): only DevPanel's own lines are
+            output.textContent = T.localizeToolOutput(await a.run(input.value), tr);
             output.classList.remove('err');
           } catch (e) {
-            output.textContent = (e as Error).message;
+            output.textContent = tr((e as Error).message);
             output.classList.add('err');
           }
         };

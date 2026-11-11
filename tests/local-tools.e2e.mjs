@@ -232,6 +232,30 @@ try {
   assert.ok(await page.locator('#files-modal').isHidden());
   log('the explorer lists files, shows code with line numbers, finds text and jumps to the line; paths outside the project are refused');
 
+  // ---------- in English, the user's text stays as written ----------
+  writeFileSync(join(proj, 'NOTAS.md'), 'Instalar Flutter\nGuardar\n');
+  run(proj, 'add', 'NOTAS.md');
+  run(proj, 'commit', '-q', '-m', 'Guardar');
+  await page.click('.nav[data-view="settings"]');
+  await page.click('#lang-seg [data-lang="en"]');
+  await page.waitForFunction(() => document.querySelector('.set-card:has(#lang-seg) h3')?.textContent === 'Language');
+  await page.click('.nav[data-view="local"]');
+  await card(page).locator('button[title="Fetch"]').click(); // refresh: the card now shows the "Guardar" commit
+  await page.waitForFunction(() => /Guardar ·/.test(document.querySelector('.local-card .chips')?.textContent ?? ''));
+  assert.match(await card(page).locator(':scope > .chips').textContent(), /Guardar · .*ago/, 'the commit subject stays, "hace…" is translated');
+  await card(page).locator('button[title="Browse files"]').click();
+  await page.waitForSelector('#files-modal:not(.hidden) .ft-row');
+  assert.match(await page.textContent('#files-view'), /Pick a file/, "DevPanel's own text is translated");
+  await page.locator('.ft-row', { hasText: 'NOTAS.md' }).click();
+  await page.waitForSelector('.code-line');
+  assert.deepEqual(await page.locator('.code-line .lt').allTextContents(), ['Instalar Flutter', 'Guardar', ' ']);
+  await page.fill('#files-search', 'Guardar');
+  await page.press('#files-search', 'Enter');
+  await page.waitForSelector('.hit-row');
+  assert.match(await page.textContent('.hit-row'), /NOTAS\.md:2\s*Guardar/);
+  await page.keyboard.press('Escape');
+  log('in English the explorer, the search results and the commit subject keep the file text as written');
+
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {
   console.error('\n✘ Local tools test failed:', e.message);

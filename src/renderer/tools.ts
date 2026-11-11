@@ -36,6 +36,17 @@ export function base64Decode(text: string): string {
 export const urlEncode = (t: string) => encodeURIComponent(t);
 export const urlDecode = (t: string) => decodeURIComponent(t.trim());
 
+/**
+ * Lines of a tool result that DevPanel wrote (status, labels, errors), as opposed to the user's own data.
+ * Only these are translated: decoding "Guardar" in Base64 must show "Guardar", in any language.
+ */
+export const isToolMessage = (line: string): boolean =>
+  /^(?:✔ |✘ |\/\/ (?:exp:|la firma)|Sin coincidencias$|\d+ coincidencia\(s\):$|\d+\. ".*" @\d+ {2}grupos: )/s.test(line);
+
+/** A tool result ready to show: messages translated with `t`, data left exactly as produced. */
+export const localizeToolOutput = (text: string, t: (s: string) => string): string =>
+  text.split('\n').map((l) => (isToolMessage(l) ? t(l) : l)).join('\n');
+
 export async function hashHex(algo: 'SHA-1' | 'SHA-256' | 'SHA-512', text: string): Promise<string> {
   const buf = await crypto.subtle.digest(algo, enc.encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
