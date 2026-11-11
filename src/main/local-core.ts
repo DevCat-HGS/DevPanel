@@ -74,11 +74,24 @@ export const isSafeBranch = (name: string): boolean => /^[A-Za-z0-9._/-]{1,100}$
 export const isSafeCommitMessage = (msg: string): boolean =>
   typeof msg === 'string' && msg.trim().length > 0 && msg.length <= 200 && !/[\u0000-\u001f\u007f]/.test(msg);
 
-/** Paths from `git status --porcelain=v1 -uall` ("XY path" or "XY old -> new"). */
+/**
+ * True when `git add -A` will record this porcelain entry ("XY") as a deletion, so the commit gets no content from it.
+ * Unmerged entries with a side still present (DU, UD) are not deletions: staging them adds the surviving file.
+ */
+const isDeletion = (xy: string): boolean => {
+  const [x, y] = xy;
+  return y === 'D' ? x !== 'U' : x === 'D' && y === ' ';
+};
+
+/**
+ * Paths from `git status --porcelain=v1 -uall` ("XY path" or "XY old -> new") that bring content into the commit.
+ * Deletions are left out: there is nothing of theirs to scan, and un-tracking a secret (`git rm --cached .env`)
+ * must stay committable. If that file is still on disk and not ignored, git lists it again as "??" and it is scanned.
+ */
 export function changedPaths(porcelain: string): string[] {
   return porcelain
     .split(/\r?\n/)
-    .filter((l) => l.length > 3 && !l.startsWith('## '))
+    .filter((l) => l.length > 3 && !l.startsWith('## ') && !isDeletion(l.slice(0, 2)))
     .map((l) => l.slice(3).replace(/^.* -> /, '').replace(/^"(.*)"$/, '$1'));
 }
 

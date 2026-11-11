@@ -200,8 +200,8 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
     if (!dir) return { ok: false, output: 'Proyecto no registrado' };
     if (!isSafeCommitMessage(message)) return { ok: false, output: 'El mensaje del commit no es válido (1 a 200 caracteres, una línea)' };
     const st = await git(dir, ['-c', 'core.quotepath=off', 'status', '--porcelain=v1', '-uall']);
-    const paths = changedPaths(st.out);
-    if (!paths.length) return { ok: false, output: 'No hay cambios para guardar' };
+    if (!st.out.split(/\r?\n/).some((l) => l && !l.startsWith('## '))) return { ok: false, output: 'No hay cambios para guardar' };
+    const paths = changedPaths(st.out); // deletions are not here: a commit that only removes files is still a commit
     // never commit something that looks like a secret
     const findings = paths.flatMap((p) => scanFile(dir, p));
     if (findings.length) return { ok: false, output: 'Posibles secretos en los cambios: no se hizo el commit', findings };
