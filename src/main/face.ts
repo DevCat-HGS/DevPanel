@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import type { FaceResult, FaceStatus } from '../shared/api';
 import { afterAttempt, parseAttempts, parsePinFile, waitSeconds, type Attempts } from './lock-core';
+import { killTree } from './proc';
 import { loadSettings } from './settings';
 
 const faceFile = () => join(app.getPath('userData'), 'face.bin');
@@ -78,11 +79,17 @@ const packagedExe = () => (app.isPackaged ? join(process.resourcesPath, 'python'
 // `serve` process is kept alive with the models loaded; a login only pays for the camera and the match.
 const IDLE_MS = 10 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 90_000;
+/** Python + OpenCV + (the first time) the model download; each network step already gives up after 30 s. */
+const READY_TIMEOUT_MS = Number(process.env.DEVPANEL_FACE_READY_MS) || 60_000;
+/** The one-shot process does all of it at once: start, models, camera, match. */
+const ONE_SHOT_TIMEOUT_MS = READY_TIMEOUT_MS + REQUEST_TIMEOUT_MS;
 
 interface Worker {
   child: ChildProcess;
   ready: Promise<boolean>;
   pending: { id: number; resolve: (r: PyResult) => void; onLine?: (line: string) => void } | null;
+  /** Set when DevPanel gave up on this worker: whoever else was waiting gets the same answer, not a second long wait. */
+  failed?: string;
 }
 let worker: Worker | null = null;
 let nextReq = 1;
@@ -100,7 +107,7 @@ function stopWorker(): void {
   worker = null;
   if (!w) return;
   w.pending?.resolve({ ok: false, error: 'El módulo facial se detuvo' });
-  w.child.kill();
+  killTree(w.child); // the packaged .exe is a launcher: its Python child (camera open) must go too
 }
 
 function startWorker(): Worker {
@@ -160,7 +167,19 @@ export function prewarmFace(): void {
 async function viaWorker(payload: object, onLine?: (line: string) => void): Promise<PyResult | null> {
   if (process.env.DEVPANEL_NO_FACE_WORKER) return null;
   const w = startWorker();
-  if (!(await w.ready)) return null;
+  // a first start downloads the models: a hung network must end in a message, not in "Mirando…" forever
+  let readyTimer: NodeJS.Timeout | undefined;
+  const ready = await Promise.race([
+    w.ready,
+    new Promise<'timeout'>((r) => (readyTimer = setTimeout(() => r('timeout'), READY_TIMEOUT_MS))),
+  ]);
+  clearTimeout(readyTimer);
+  if (ready === 'timeout' || w.failed) {
+    w.failed = 'El módulo facial tardó demasiado en arrancar';
+    if (worker === w) stopWorker();
+    return { ok: false, error: w.failed };
+  }
+  if (!ready) return null;
   if (w.pending) return null; // one camera, one request at a time
   clearTimeout(idleTimer);
   const id = nextReq++;
@@ -182,8 +201,20 @@ function runPython(mode: 'enroll' | 'verify', stdin?: string, onLine?: (line: st
   const extra = mode === 'verify' && loadSettings().faceLiveness ? ['--liveness'] : [];
   const { cmd, args } = pyCommand([mode, '--models-dir', modelsDir(), ...extra]);
 
-  return new Promise((resolve) => {
+  return new Promise((settle) => {
+    let done = false;
+    const resolve = (r: PyResult) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      settle(r);
+    };
     const py = spawn(cmd, args, { windowsHide: true });
+    const timer = setTimeout(() => {
+      killTree(py);
+      resolve({ ok: false, error: 'El módulo facial tardó demasiado' });
+    }, ONE_SHOT_TIMEOUT_MS);
+    py.stdin.on('error', () => {});
     let out = '';
     let buf = '';
     py.stdout.on('data', (d) => {

@@ -13,6 +13,7 @@ Protocol: progress is not streamed; the LAST line of stdout is a JSON result.
 No images are ever written to disk; only embeddings leave this process.
 """
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -24,11 +25,23 @@ import numpy as np
 
 from liveness import HeadTurnChallenge, yaw_ratio
 
-ZOO = "https://github.com/opencv/opencv_zoo/raw/main/models"
+# Pinned to one opencv_zoo commit and checked by SHA-256: MATCH_THRESHOLD is tuned for these exact files, and a
+# truncated or swapped download must never be loaded.
+ZOO = "https://github.com/opencv/opencv_zoo/raw/48b10fa505aeb51fbd127fc60a5c660040e823b7/models"
 MODELS = {
-    "detector": ("face_detection_yunet_2023mar.onnx", f"{ZOO}/face_detection_yunet/face_detection_yunet_2023mar.onnx"),
-    "recognizer": ("face_recognition_sface_2021dec.onnx", f"{ZOO}/face_recognition_sface/face_recognition_sface_2021dec.onnx"),
+    "detector": (
+        "face_detection_yunet_2023mar.onnx",
+        f"{ZOO}/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+        "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+    ),
+    "recognizer": (
+        "face_recognition_sface_2021dec.onnx",
+        f"{ZOO}/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+        "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+    ),
 }
+DOWNLOAD_TIMEOUT_S = 30  # per network operation: a hung proxy fails instead of waiting forever
+MAX_MODEL_BYTES = 64 * 1024 * 1024
 
 DET_WIDTH = 320  # faces are detected on a downscaled copy (several times faster), then mapped back
 CAM_WIDTH, CAM_HEIGHT = 640, 480
@@ -61,13 +74,42 @@ def finish(payload: dict) -> None:
     sys.exit(0)
 
 
-def ensure_models(models_dir: Path) -> tuple[str, str]:
+def sha256_of(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def download(url: str, dest: Path, sha256: str, timeout: float = DOWNLOAD_TIMEOUT_S) -> None:
+    """Downloads to a temporary file and moves it into place only when its SHA-256 matches."""
+    tmp = dest.with_name(dest.name + ".part")
+    h = hashlib.sha256()
+    size = 0
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r, tmp.open("wb") as f:
+            for chunk in iter(lambda: r.read(1 << 20), b""):
+                size += len(chunk)
+                if size > MAX_MODEL_BYTES:
+                    raise ValueError("el archivo es demasiado grande")
+                h.update(chunk)
+                f.write(chunk)
+        if h.hexdigest() != sha256:
+            raise ValueError(f"{dest.name} no coincide con el archivo esperado")
+        tmp.replace(dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def ensure_models(models_dir: Path, fetch=download) -> tuple[str, str]:
+    """Paths of both models, downloading any that is missing or does not match its SHA-256 (e.g. truncated)."""
     models_dir.mkdir(parents=True, exist_ok=True)
     paths = []
-    for filename, url in MODELS.values():
+    for filename, url, sha256 in MODELS.values():
         p = models_dir / filename
-        if not p.exists() or p.stat().st_size < 100_000:
-            urllib.request.urlretrieve(url, p)
+        if not p.exists() or sha256_of(p) != sha256:
+            fetch(url, p, sha256)
         paths.append(str(p))
     return paths[0], paths[1]
 

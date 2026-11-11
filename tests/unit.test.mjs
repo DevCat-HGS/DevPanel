@@ -527,3 +527,10 @@ test('project commands skip the current folder and VS Code opens through a URL',
   assert.equal(vscodeFolderUrl(w('C:/Users/Juan Perez/a&calc')),'vscode://file/C:/Users/Juan%20Perez/a%26calc');
   assert.equal(vscodeFolderUrl('/home/me/app #1'), 'vscode://file//home/me/app%20%231');
 });
+
+import { taskkillPath } from '../dist/main/proc.js';
+
+test('processes are stopped with the system taskkill, never one found in the current folder', () => {
+  assert.equal(taskkillPath({ SystemRoot: w('D:/Win') }), w('D:/Win/System32/taskkill.exe'));
+  assert.equal(taskkillPath({}), w('C:/Windows/System32/taskkill.exe'));
+});

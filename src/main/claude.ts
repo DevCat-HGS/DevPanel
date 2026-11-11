@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { isSessionId, parseStreamLine, splitLines } from './claude-core';
 import { projectBrief } from './health';
 import { projectShellEnv, stripAnsi } from './local-core';
+import { killTree } from './proc';
 import { loadSettings } from './settings';
 
 export const MAX_PROMPT = 8000;
@@ -21,12 +22,8 @@ export const isValidPrompt = (p: unknown): p is string =>
 let nextId = 1;
 const running = new Map<number, ChildProcess>();
 
-const kill = (child: ChildProcess): void => {
-  if (!child.pid) return;
-  // `claude` may be a .cmd shim started through a shell: kill the whole tree
-  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-  else child.kill('SIGTERM');
-};
+// `claude` may be a .cmd shim started through a shell: kill the whole tree
+const kill = (child: ChildProcess): void => killTree(child);
 
 /** Only folders the user registered in Local can host a session. */
 function known(path: string): string | null {

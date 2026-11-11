@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { killTree } from './proc';
 
 /** The packaged app ships project_health.exe (PyInstaller): no Python needed. Dev falls back to python + the script. */
 const exePath = () => (app.isPackaged ? join(process.resourcesPath, 'python', 'project_health.exe') : '');
@@ -16,7 +17,8 @@ export function runSidecar<T extends { ok: boolean }>(args: string[], stdin?: st
   return new Promise((done) => {
     const py = spawn(cmd, [...(useExe ? [] : [scriptPath()]), ...args], { windowsHide: true });
     let out = '';
-    const timer = setTimeout(() => py.kill(), timeoutMs);
+    // the whole tree: the packaged .exe is a PyInstaller launcher, and its Python child would outlive a plain kill()
+    const timer = setTimeout(() => killTree(py), timeoutMs);
     py.stdout.on('data', (d) => (out += d));
     py.on('error', () => {
       clearTimeout(timer);
