@@ -6,6 +6,9 @@ export const L10N_DIRS = [
   'lib/l10n', 'lib/localization', 'lib/i18n', 'src/locales', 'src/i18n', 'locales', 'i18n',
 ];
 
+/** JSON and ARB files are the language files we compare. */
+export const isLocaleFile = (name: string): boolean => /\.(json|arb)$/i.test(name);
+
 export interface LocaleFile {
   lang: string;
   file: string;

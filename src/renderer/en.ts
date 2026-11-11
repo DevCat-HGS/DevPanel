@@ -214,6 +214,8 @@ export const EN: Record<string, string> = {
   'Sin commits.': 'No commits.',
   'Recomendaciones ({n})': 'Recommendations ({n})',
   'Límite de la API de GitHub alcanzado (60/hora sin token). Intenta más tarde.': 'GitHub API limit reached (60/hour without a token). Try again later.',
+  'GitHub limitó las consultas hasta las {t}': 'GitHub is rate-limiting requests until {t}',
+  'GitHub no respondió a tiempo': 'GitHub did not respond in time',
   'Usuario o repositorio no encontrado.': 'User or repository not found.',
   'No se pudo cargar GitHub: {m}': 'Could not load GitHub: {m}',
   'Vincula tu usuario de GitHub en Settings': 'Link your GitHub user in Settings',

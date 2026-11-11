@@ -1,5 +1,5 @@
 import type { FailingRun, HealthResult, LocalProject, PullSummary, Repo } from '../shared/api';
-import { $, ago, el } from './dom.js';
+import { $, ago, el, homeError } from './dom.js';
 import { icon } from './icons.js';
 import { checkLabel } from './ui-health.js';
 import type { Tab } from './ui-repo.js';
@@ -224,7 +224,7 @@ export async function refreshHome(force = false): Promise<void> {
       const v = await run();
       if (mine === ticket) render(v);
     } catch (e) {
-      if (mine === ticket) failed(id, (e as Error).message.includes('403') ? 'Límite de la API de GitHub alcanzado (60/hora sin token). Intenta más tarde.' : 'No se pudo cargar GitHub');
+      if (mine === ticket) failed(id, homeError(e));
     }
   };
   await Promise.all([

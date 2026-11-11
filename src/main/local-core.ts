@@ -1,4 +1,6 @@
 // Pure helpers for local projects (no Electron imports, unit-testable).
+import { open } from 'node:fs/promises';
+
 export interface GitStatus {
   branch: string;
   upstream: string | null;
@@ -163,6 +165,43 @@ export function buildAction(id: string, f: ActionFacts): string | null {
 
 // ---------- read-only file explorer ----------
 export const MAX_READ_BYTES = 512 * 1024;
+
+/**
+ * The first `max` bytes of a file plus its real size. Only those bytes are read, so opening a 2 GB log
+ * costs the same as a small file (reading it whole and slicing could freeze the app or run out of memory).
+ */
+export async function readHead(path: string, max: number): Promise<{ buf: Buffer; size: number; isFile: boolean }> {
+  const fh = await open(path, 'r');
+  try {
+    const st = await fh.stat();
+    if (!st.isFile()) return { buf: Buffer.alloc(0), size: st.size, isFile: false };
+    const buf = Buffer.alloc(Math.min(st.size, max));
+    let got = 0;
+    // read() may return fewer bytes than asked: loop until the buffer is full or the file ends
+    while (got < buf.length) {
+      const { bytesRead } = await fh.read(buf, got, buf.length - got, got);
+      if (!bytesRead) break;
+      got += bytesRead;
+    }
+    return { buf: buf.subarray(0, got), size: st.size, isFile: true };
+  } finally {
+    await fh.close();
+  }
+}
+
+/** Like Promise.all over `items`, but with at most `limit` calls running at once (keeps the disk and the event loop responsive). */
+export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return out;
+}
 export const SKIP_DIRS = new Set(['.git', 'node_modules', '.dart_tool', 'build', 'dist', '.gradle', 'Pods', '.next', '.idea', '__pycache__', '.venv', 'venv', 'release']);
 
 /** A path relative to the project root: no absolute paths, no "..", no NUL. */

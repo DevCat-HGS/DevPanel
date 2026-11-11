@@ -1,4 +1,5 @@
 import { app, ipcMain } from 'electron';
+import { GITHUB_TIMEOUT_MS } from './github-core';
 import { getToken } from './token';
 
 /** Release notes (the GitHub release body) for a version; null when there is no release/notes. */
@@ -11,6 +12,7 @@ export async function fetchNotes(version: string): Promise<string | null> {
         'User-Agent': 'DevPanel',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
+      signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const body = ((await res.json()).body as string | null)?.trim();

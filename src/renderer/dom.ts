@@ -35,7 +35,20 @@ export function ago(iso: string): string {
 
 export function friendlyError(e: unknown): string {
   const m = (e as Error).message ?? String(e);
+  const known = knownGithubError(m);
+  if (known) return known;
   if (m.includes('403')) return 'Límite de la API de GitHub alcanzado (60/hora sin token). Intenta más tarde.';
   if (m.includes('404')) return 'Usuario o repositorio no encontrado.';
   return `No se pudo cargar GitHub: ${m}`;
+}
+
+/** Rate limit and timeout are already worded by the main process; IPC prefixes "Error invoking remote method ...: Error: ". */
+function knownGithubError(m: string): string | null {
+  return m.match(/GitHub limitó las consultas hasta las \d{2}:\d{2}|GitHub no respondió a tiempo/)?.[0] ?? null;
+}
+
+/** Short reason for a Home widget that could not load. */
+export function homeError(e: unknown): string {
+  const m = (e as Error).message ?? String(e);
+  return knownGithubError(m) ?? (m.includes('403') ? 'Límite de la API de GitHub alcanzado (60/hora sin token). Intenta más tarde.' : 'No se pudo cargar GitHub');
 }

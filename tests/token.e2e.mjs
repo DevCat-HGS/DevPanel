@@ -20,15 +20,22 @@ const repo = (name, priv) => ({
 });
 
 const seenAuth = [];
+const userReposInm = []; // If-None-Match sent on each /user/repos request
 const server = http.createServer((req, res) => {
   const auth = req.headers.authorization ?? '';
-  const send = (code, body) => {
-    res.writeHead(code, { 'Content-Type': 'application/json' });
+  const send = (code, body, headers = {}) => {
+    res.writeHead(code, { 'Content-Type': 'application/json', ...headers });
     res.end(JSON.stringify(body));
   };
   if (req.url.startsWith('/user/repos')) {
     seenAuth.push(auth);
-    return auth === `Bearer ${GOOD}` ? send(200, [repo('secreto-privado', true), repo('publico', false)]) : send(401, {});
+    userReposInm.push(req.headers['if-none-match'] ?? null);
+    if (auth !== `Bearer ${GOOD}`) return send(401, {});
+    if (req.headers['if-none-match'] === '"ur-1"') {
+      res.writeHead(304);
+      return res.end();
+    }
+    return send(200, [repo('secreto-privado', true), repo('publico', false)], { ETag: '"ur-1"' });
   }
   if (req.url === '/user') {
     if (auth === `Bearer ${GOOD}`) return send(200, { login: 'octocat' });
@@ -124,6 +131,18 @@ try {
   await again.click('.nav[data-view="projects"]');
   await again.waitForFunction(() => ![...document.querySelectorAll('.repo .name')].some((n) => n.textContent === 'secreto-privado'));
   log('removing the token goes back to public repos only');
+
+  // the response cache is emptied on token:set / token:clear: nothing fetched with the old token is revalidated
+  const before = userReposInm.length;
+  await again.click('.nav[data-view="settings"]');
+  await again.fill('#token-input', GOOD);
+  await again.click('#token-save');
+  await again.waitForSelector('#token-state[data-state="ok"]');
+  await again.click('.nav[data-view="projects"]');
+  await again.waitForFunction(() => [...document.querySelectorAll('.repo .name')].some((n) => n.textContent === 'secreto-privado'));
+  assert.ok(userReposInm.length > before, 'the private repos were fetched again');
+  assert.equal(userReposInm[before], null, 'no If-None-Match from a cache entry made before the token changed');
+  log('changing the token empties the GitHub response cache');
 
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {
