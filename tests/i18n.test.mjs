@@ -3,6 +3,35 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { EN } from '../dist/renderer/en.js';
 import { setLangPref, tr } from '../dist/renderer/i18n.js';
+import { localizeToolOutput } from '../dist/renderer/tools.js';
+
+test('tool results: only DevPanel lines are translated, the data stays exactly as produced', () => {
+  setLangPref('en');
+  assert.equal(localizeToolOutput('Guardar', tr), 'Guardar', 'decoded Base64 is data');
+  assert.equal(localizeToolOutput('{\n  "a": "Hola"\n}', tr), '{\n  "a": "Hola"\n}');
+  assert.equal(localizeToolOutput('✔ JSON válido: objeto (2 claves)', tr), '✔ Valid JSON: object (2 keys)');
+  assert.equal(localizeToolOutput('2 coincidencia(s):\n1. "Hola" @0\n2. "x" @5', tr), '2 match(es):\n1. "Hola" @0\n2. "x" @5');
+  assert.equal(localizeToolOutput('Sin coincidencias', tr), 'No matches');
+  assert.equal(localizeToolOutput('// header\n{}\n\n// la firma NO se verifica aquí', tr), '// header\n{}\n\n// the signature is NOT verified here');
+  setLangPref('es');
+});
+
+test('messages built in code that carry no accent are translated too', () => {
+  setLangPref('en');
+  for (const [es, en] of [
+    ['Salud 80/100. Todo en orden', 'Health 80/100. All good'],
+    ['Salud de web: B (80/100)', 'Health of web: B (80/100)'],
+    ['2 errores, 1 avisos', '2 errors, 1 warnings'],
+    ['Emuladores', 'Emulators'],
+    ['Acciones', 'Actions'],
+    ['Ejecutar: Instalar con npm', 'Run: Install with npm'],
+    ['Iniciar Pixel 7', 'Start Pixel 7'],
+    ['Node pedido: >=18', 'Node required: >=18'],
+    ['flutter no está instalado', 'flutter is not installed'],
+    ['Se muestran los primeros 512 KB de 900 KB.', 'Showing the first 512 KB of 900 KB.'],
+  ]) assert.equal(tr(es), en, es);
+  setLangPref('es');
+});
 
 test('English translations: static text, patterns, nesting and multi-line output', () => {
   setLangPref('en');

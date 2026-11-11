@@ -70,6 +70,7 @@ async function showFile(rel: string, line?: number): Promise<void> {
   if (!r.ok) return view.replaceChildren(el('p', 'empty', r.error));
   const lines = r.text.split('\n');
   const code = el('div', 'code');
+  code.setAttribute('data-no-i18n', ''); // the file's own text: a README line "Instalar Flutter" stays as written
   const frag = document.createDocumentFragment();
   lines.forEach((text, i) => {
     const row = el('div', `code-line${line === i + 1 ? ' hit' : ''}`);
@@ -92,6 +93,7 @@ function renderHits(hits: SearchHit[], query: string): void {
     ...hits.map((h) => {
       const b = el('button', 'hit-row') as HTMLButtonElement;
       b.type = 'button';
+      b.setAttribute('data-no-i18n', ''); // file names and matched text are the user's
       b.append(el('span', 'hit-file', `${h.file}:${h.line}`), el('span', 'hit-text', h.text));
       b.onclick = () => void showFile(h.file, h.line);
       return b;
