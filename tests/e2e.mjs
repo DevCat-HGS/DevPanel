@@ -132,11 +132,21 @@ try {
 
   assert.equal(await page.locator('#sw-presets .preset-btn').count(), 3);
   assert.match(await page.getAttribute('#sw-presets [data-preset="ai"]', 'title'), /Claude Code/);
-  await page.click('#sw-presets [data-preset="ai"]');
+  const presetBusy = await page.evaluate(() => {
+    const b = document.querySelector('#sw-presets [data-preset="ai"]');
+    b.click();
+    const disabled = [...document.querySelectorAll('#sw-presets .preset-btn')].every((x) => x.disabled);
+    b.click(); // a double click must not start a second queue
+    const queues = [...document.querySelectorAll('.toast')].filter((t) => t.textContent.includes('por instalar')).length;
+    return { disabled, queues };
+  });
+  assert.ok(presetBusy.disabled, 'every profile button is disabled while one profile installs');
+  assert.equal(presetBusy.queues, 1, 'one queue, not two');
   await page.waitForSelector('.sw-card[data-id="claudecode"][data-state="installed"]', { timeout: 20000 });
   await page.waitForSelector('.sw-card[data-id="cursor"][data-state="installed"]', { timeout: 20000 });
   await page.waitForSelector('.toast.ok:has-text("listo")');
-  log('a one-click profile installs what is missing, one after another');
+  assert.ok(await page.locator('#sw-presets [data-preset="ai"]').isEnabled(), 'the profiles are usable again once it ends');
+  log('a one-click profile installs what is missing, one after another, and a double click starts a single queue');
 
   const refused = await page.evaluate(async () => window.devpanel.software.install('github'));
   assert.equal(refused.ok, false, 'web services cannot be "installed"');

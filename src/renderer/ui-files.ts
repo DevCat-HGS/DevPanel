@@ -1,5 +1,5 @@
 import type { FileEntry, SearchHit } from '../shared/api';
-import { $, el, toast } from './dom.js';
+import { $, copyText, el } from './dom.js';
 import { icon } from './icons.js';
 
 const api = () => window.devpanel;
@@ -8,6 +8,8 @@ let project = '';
 let openFile = '';
 let returnFocus: HTMLElement | null = null;
 let searchTicket = 0;
+/** Bumped every time the explorer opens: a tree that arrives for an earlier opening is dropped. */
+let openTicket = 0;
 
 const join = (dir: string, name: string): string => (dir ? `${dir}/${name}` : name);
 
@@ -31,7 +33,14 @@ function treeNode(entry: FileEntry, dir: string, depth: number): HTMLElement {
       row.classList.toggle('open', open);
       if (open && !loaded) {
         loaded = true;
-        kids.replaceChildren(...(await api().local.tree(project, rel)).map((e) => treeNode(e, rel, depth + 1)));
+        const mine = openTicket;
+        const entries = await api().local.tree(project, rel).catch(() => null);
+        if (mine !== openTicket) return;
+        if (!entries) {
+          loaded = false; // let a second click try again
+          return void kids.replaceChildren(el('p', 'empty', 'No se pudo leer la carpeta.'));
+        }
+        kids.replaceChildren(...entries.map((e) => treeNode(e, rel, depth + 1)));
       }
     };
   } else row.onclick = () => void showFile(rel);
@@ -41,7 +50,10 @@ function treeNode(entry: FileEntry, dir: string, depth: number): HTMLElement {
 async function loadRoot(): Promise<void> {
   const tree = $('files-tree');
   tree.replaceChildren(el('div', 'skeleton row'), el('div', 'skeleton row'));
-  const entries = await api().local.tree(project, '');
+  const mine = openTicket;
+  const entries = await api().local.tree(project, '').catch(() => null);
+  if (mine !== openTicket) return; // another project was opened meanwhile: its tree is the one that counts
+  if (!entries) return void tree.replaceChildren(el('p', 'empty', 'No se pudo leer la carpeta.'));
   tree.replaceChildren(...(entries.length ? entries.map((e) => treeNode(e, '', 0)) : [el('p', 'empty', 'Carpeta vacía.')]));
 }
 
@@ -110,6 +122,7 @@ export function closeFiles(): void {
 
 /** Opens the read-only explorer for a registered project. */
 export function openFiles(path: string, name: string): void {
+  openTicket++;
   project = path;
   openFile = '';
   returnFocus = document.activeElement as HTMLElement | null;
@@ -136,7 +149,6 @@ export function initFiles(): void {
   $('files-code').onclick = () => openFile && void api().local.open(project, 'code');
   $('files-copy').onclick = async () => {
     if (!openFile) return;
-    await navigator.clipboard?.writeText(openFile).catch(() => {});
-    toast('Ruta copiada', 'ok');
+    await copyText(openFile); // its own toast says whether it worked
   };
 }

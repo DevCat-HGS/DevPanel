@@ -365,6 +365,8 @@ export const EN: Record<string, string> = {
   'Iniciar {x}': 'Start {x}',
   'Emuladores': 'Emulators',
   'Acciones': 'Actions',
+  'Ya se está instalando un perfil': 'A profile is already being installed',
+  'No se pudo leer la carpeta.': 'The folder could not be read.',
   'vista': 'view',
   'acción': 'action',
   'proyecto': 'project',
