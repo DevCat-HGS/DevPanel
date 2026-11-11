@@ -94,6 +94,13 @@ try {
   await page.waitForSelector('.chip.clean');
   log('commit stages the changes and records the message; the dirty chip turns into a green check');
 
+  // keyboard users keep their place: the redraw after a git action gives the focus back to the same button
+  await card(page).locator('button[title="Fetch"]').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.toast.ok:has-text("git fetch listo")');
+  await page.waitForFunction(() => document.activeElement?.getAttribute('title') === 'Fetch', null, { timeout: 5000 });
+  log('after a git action run from the keyboard the focus is back on the same button of the redrawn card');
+
   await card(page).locator('button[title="Push"]').click();
   await page.waitForSelector('.toast.ok:has-text("git push listo")');
   assert.equal(run(remote, 'log', '-1', '--format=%s', 'feature').trim(), 'añade nuevo.txt');
@@ -217,6 +224,11 @@ try {
   assert.match(await page.textContent('.hit-row'), /es\.json:1/);
   await page.locator('.hit-row').first().click();
   await page.waitForSelector('.code-line.hit');
+  await page.click('#files-copy');
+  await page.waitForSelector('.toast:has-text("Copiado al portapapeles")');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('.toast:has-text("Ruta copiada")').count(), 0, 'no second, unconditional "copied" toast');
+  assert.equal(await page.locator('.toast:has-text("Copiado")').count(), 1, 'copying the path shows exactly one toast');
   const outside = await page.evaluate(async (p) => ({
     up: await window.devpanel.local.read(p, '../remote.git/HEAD'),
     abs: await window.devpanel.local.read(p, 'C:/Windows/win.ini'),

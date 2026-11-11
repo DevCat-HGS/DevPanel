@@ -105,24 +105,39 @@ async function install(item: CatalogItem, mode: 'install' | 'upgrade' = 'install
   }
 }
 
+/** True while a profile queue runs: a second click (or another profile) would install the same programs twice. */
+let presetRunning = false;
+const setPresetsBusy = (busy: boolean): void =>
+  document.querySelectorAll<HTMLButtonElement>('#sw-presets .preset-btn').forEach((b) => (b.disabled = busy));
+
 /** One-click profile: installs what is missing, one program after another (cancelling one stops the queue). */
 async function runPreset(id: string): Promise<void> {
   const preset = CATALOG.presets.find((p) => p.id === id);
   if (!preset || cards.get(preset.items[0]) === undefined) return;
+  if (presetRunning) return void toast('Ya se está instalando un perfil', 'info');
   const missing = preset.items
     .map((i) => items.get(i))
     .filter((i): i is CatalogItem => !!i && ['missing', 'error'].includes(cards.get(i.id)?.dataset.state ?? ''));
   const auto = missing.filter((i) => i.winget);
   const manual = missing.filter((i) => !i.winget);
   if (!missing.length) return void toast('Ya tienes todo el perfil', 'ok');
+  presetRunning = true;
+  setPresetsBusy(true);
   queueAbort = false;
-  toast(`Perfil ${preset.name}: ${auto.length} por instalar`, 'info');
-  for (const it of auto) {
-    if (queueAbort) return;
-    await install(it);
+  try {
+    toast(`Perfil ${preset.name}: ${auto.length} por instalar`, 'info');
+    for (const it of auto) {
+      if (queueAbort) return;
+      // installed meanwhile (by hand, or by its own button): skip it instead of running winget again
+      if (!['missing', 'error'].includes(cards.get(it.id)?.dataset.state ?? '')) continue;
+      await install(it);
+    }
+    if (manual.length) toast(`Falta instalar a mano: ${manual.map((m) => m.name).join(', ')}`, 'info');
+    else if (!queueAbort) toast(`Perfil ${preset.name} listo`, 'ok');
+  } finally {
+    presetRunning = false;
+    setPresetsBusy(false);
   }
-  if (manual.length) toast(`Falta instalar a mano: ${manual.map((m) => m.name).join(', ')}`, 'info');
-  else if (!queueAbort) toast(`Perfil ${preset.name} listo`, 'ok');
 }
 
 function onAction(item: CatalogItem): void {

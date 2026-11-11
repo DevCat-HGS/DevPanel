@@ -67,8 +67,13 @@ async function runWith(label: string, start: () => Promise<{ id: number } | { er
   }
 }
 
+/** Where the focus should land after the next redraw (a disabled button loses it before the redraw happens). */
+let focusAfterDraw: { path: string; act: string } | null = null;
+
 /** git result -> terminal + toast + refresh */
 async function gitStep(label: string, call: () => Promise<{ ok: boolean; output: string }>, btn?: HTMLButtonElement): Promise<boolean> {
+  const path = btn?.closest<HTMLElement>('.local-card')?.dataset.path;
+  if (btn && path && btn.dataset.act && document.activeElement === btn) focusAfterDraw = { path, act: btn.dataset.act };
   if (btn) btn.disabled = true;
   term(`\n$ git ${label}\n`, 'cmd');
   const r = await call();
@@ -82,6 +87,7 @@ async function gitStep(label: string, call: () => Promise<{ ok: boolean; output:
 function ib(name: string, tip: string, onClick: (b: HTMLButtonElement) => void, cls = ''): HTMLButtonElement {
   const b = el('button', `icon-btn mini ${cls}`.trim()) as HTMLButtonElement;
   b.type = 'button';
+  b.dataset.act = tip; // stable key (the title gets translated): lets a redraw give the focus back to this button
   b.title = tip;
   b.setAttribute('aria-label', tip);
   b.append(icon(name));
@@ -157,20 +163,37 @@ async function scanSecrets(p: LocalProject): Promise<void> {
   void refresh();
 }
 
+/** Branch lists per project: every redraw used to run `git branch` once per card. */
+const BRANCH_TTL_MS = 60_000;
+const branchCache = new Map<string, { at: number; list: Promise<{ current: string; all: string[] }> }>();
+function branchesOf(path: string, current: string): Promise<{ current: string; all: string[] }> {
+  const hit = branchCache.get(path);
+  if (hit && Date.now() - hit.at < BRANCH_TTL_MS) {
+    // a branch created or switched outside DevPanel shows up as a current branch the cached list does not have
+    return hit.list.then((b) => (b.all.includes(current) ? b : refetch()));
+  }
+  return refetch();
+  function refetch() {
+    const list = api().local.branches(path);
+    branchCache.set(path, { at: Date.now(), list });
+    return list;
+  }
+}
+
 function branchSelect(p: LocalProject): HTMLSelectElement {
   const sel = el('select', 'branch-select') as HTMLSelectElement;
   sel.title = 'Cambiar de rama';
   sel.setAttribute('aria-label', 'Cambiar de rama');
+  sel.dataset.act = 'branch';
   const current = p.git?.branch ?? '';
   sel.append(new Option(current, current, true, true));
-  void api()
-    .local.branches(p.path)
-    .then((b) => {
-      if (!b.all.length) return;
-      sel.replaceChildren(...b.all.map((n) => new Option(n, n, false, n === b.current)));
-      sel.value = b.current;
-    });
+  void branchesOf(p.path, current).then((b) => {
+    if (!b.all.length) return;
+    sel.replaceChildren(...b.all.map((n) => new Option(n, n, false, n === current)));
+    sel.value = current;
+  });
   sel.onchange = async () => {
+    branchCache.delete(p.path);
     const ok = await gitStep(`checkout ${sel.value}`, () => api().local.checkout(p.path, sel.value));
     if (!ok) void refresh();
   };
@@ -298,7 +321,28 @@ function card(p: LocalProject): HTMLElement {
   return c;
 }
 
-export async function refresh(): Promise<void> {
+let refreshing: Promise<void> | null = null;
+let refreshAgain = false;
+
+/**
+ * Redraws the Local cards. Calls that arrive while one is running are merged into a single extra pass:
+ * the end of a process used to trigger one full redraw per open diagnosis, plus one more.
+ */
+export function refresh(): Promise<void> {
+  if (refreshing) {
+    refreshAgain = true;
+    return refreshing;
+  }
+  refreshing = (async () => {
+    do {
+      refreshAgain = false;
+      await draw();
+    } while (refreshAgain);
+  })().finally(() => (refreshing = null));
+  return refreshing;
+}
+
+async function draw(): Promise<void> {
   const box = $('local-list');
   const projects = await api().local.list();
   lastProjects = projects;
@@ -309,6 +353,11 @@ export async function refresh(): Promise<void> {
     const v = c.querySelector<HTMLInputElement>('.commit-row input')?.value;
     if (v) typed.set(c.dataset.path!, v);
   });
+  // the focused control is about to be replaced: remember which card and which control it was
+  const active = document.activeElement as HTMLElement | null;
+  const focusCard = active?.closest<HTMLElement>('.local-card')?.dataset.path ?? focusAfterDraw?.path;
+  const focusAct = active?.dataset.act ?? focusAfterDraw?.act;
+  focusAfterDraw = null;
   box.replaceChildren(
     ...(projects.length
       ? projects.map(card)
@@ -321,6 +370,10 @@ export async function refresh(): Promise<void> {
       c.querySelector<HTMLInputElement>('.commit-row input')!.value = v;
     }
   });
+  if (focusCard && focusAct) {
+    const again = [...box.querySelectorAll<HTMLElement>('.local-card')].find((c) => c.dataset.path === focusCard);
+    [...(again?.querySelectorAll<HTMLElement>('[data-act]') ?? [])].find((x) => x.dataset.act === focusAct)?.focus();
+  }
   syncRunButtons();
 }
 

@@ -208,12 +208,13 @@ function renderRecent(): void {
   );
 }
 
-export async function refreshHome(): Promise<void> {
+/** `force` (the refresh button) recomputes the health instead of using the recent results. */
+export async function refreshHome(force = false): Promise<void> {
   const mine = ++ticket;
   const web = api().platform === 'web';
   for (const w of WIDGETS) if (w.id !== 'recent' && w.id !== 'health') loading(w.id);
   if (web) document.querySelector('.hw[data-id="health"]')?.classList.add('hidden');
-  else if (isOpen('health')) void loadHealth(mine);
+  else if (isOpen('health')) void loadHealth(mine, force);
   else idleHealth();
   renderRecent();
   void refreshTasks();
@@ -240,8 +241,20 @@ function idleHealth(): void {
   body('health').replaceChildren(el('p', 'muted hw-ok', 'Ábrelo para calcular la salud de tus proyectos locales.'));
 }
 
+/** Health results per project: Python runs over every project, so each visit to Home must not redo it. */
+const HEALTH_TTL_MS = 10 * 60_000;
+const healthCache = new Map<string, { at: number; result: Promise<HealthResult> }>();
+function healthOf(path: string, force: boolean): Promise<HealthResult> {
+  const hit = healthCache.get(path);
+  if (!force && hit && Date.now() - hit.at < HEALTH_TTL_MS) return hit.result;
+  const result = api().health.local(path);
+  healthCache.set(path, { at: Date.now(), result });
+  result.then((r) => !r.ok && healthCache.delete(path), () => healthCache.delete(path)); // failures are not kept
+  return result;
+}
+
 /** Health of every registered local project, scored by python/project_health.py. */
-async function loadHealth(mine: number): Promise<void> {
+async function loadHealth(mine: number, force = false): Promise<void> {
   const box = body('health');
   box.replaceChildren(el('div', 'skeleton row'));
   let projects: LocalProject[];
@@ -249,7 +262,7 @@ async function loadHealth(mine: number): Promise<void> {
   try {
     projects = (await api().local.list()).filter((p) => p.exists);
     if (!projects.length) return allGood('health', 'Aún no agregaste carpetas.');
-    results = await Promise.all(projects.map((p) => api().health.local(p.path)));
+    results = await Promise.all(projects.map((p) => healthOf(p.path, force)));
   } catch {
     if (mine === ticket) failed('health', 'No se pudo calcular la salud');
     return;
@@ -278,5 +291,5 @@ export function initHome(context: HomeContext): void {
   $('home-kpis').replaceChildren(...KPIS.map(kpi));
   $('home-grid').replaceChildren(...WIDGETS.map(widget));
   onTaskSummary((open) => setKpi('tasks', open));
-  $('home-refresh').onclick = () => void refreshHome();
+  $('home-refresh').onclick = () => void refreshHome(true);
 }
