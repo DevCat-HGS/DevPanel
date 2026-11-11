@@ -40,7 +40,8 @@ const server = http.createServer((req, res) => {
     return send(200, { workflow_runs: [{ id: 5, status: 'completed', conclusion: failing ? 'failure' : 'success', head_branch: 'main', html_url: `https://github.com/octocat/${run[1]}/actions/runs/5`, updated_at: new Date().toISOString() }] });
   }
   if (url.pathname === '/search/issues') {
-    if (mode.pulls === '403') return send(403, { message: 'rate limit' });
+    // a real rate limit: 403 with no requests left and the reset time (epoch seconds)
+    if (mode.pulls === '403') return send(403, { message: 'API rate limit exceeded' }, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 600) });
     return send(200, { items: [
       { title: 'Fix login redirect', repository_url: 'https://api.github.com/repos/octocat/web-app', html_url: 'https://github.com/octocat/web-app/pull/7', updated_at: new Date().toISOString(), draft: false, user: { login: 'mona' } },
       { title: 'WIP: new dashboard', repository_url: 'https://api.github.com/repos/octocat/api-service', html_url: 'https://github.com/octocat/api-service/pull/9', updated_at: new Date().toISOString(), draft: true, user: { login: 'octocat' } },
@@ -220,7 +221,7 @@ try {
   await page.waitForSelector('.hw[data-id="failing"] .hw-ok:not(.hw-err)', { timeout: 20000 });
   assert.ok(await widget(page, 'failing').locator('.hw-count').isHidden(), 'no count when there is nothing to fix');
   await page.waitForSelector('.hw[data-id="pulls"] .hw-ok.hw-err');
-  assert.match(await widget(page, 'pulls').locator('.hw-ok').getAttribute('title'), /Límite de la API/);
+  assert.match(await widget(page, 'pulls').locator('.hw-ok').getAttribute('title'), /^GitHub limitó las consultas hasta las \d{2}:\d{2}$/);
   await shot(page, 'h2-home-states');
   log('an all-good widget is a green check and a rate-limited one is a red cross with the reason as tooltip');
 

@@ -1,12 +1,13 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import type { FileEntry, FileRead, InspectResult, L10nResult, LocalProject, SecretFinding } from '../shared/api';
-import { arbKeys, compareLocales, flattenKeys, L10N_DIRS, langOf, type LocaleFile } from './l10n-core';
+import { arbKeys, compareLocales, flattenKeys, isLocaleFile, L10N_DIRS, langOf, type LocaleFile } from './l10n-core';
 import {
   buildAction, changedPaths, findOnPath, findRecipe, projectShellEnv, vscodeFolderUrl, isSafeRel, MAX_READ_BYTES, parseGrep, SKIP_DIRS, isSafeBranch, isSafeCommitMessage, isSafeScriptName, parseGitStatus,
-  recipeCommand, recipesFor, stripAnsi,
+  mapLimit, readHead, recipeCommand, recipesFor, stripAnsi,
 } from './local-core';
 import { isBinary, MAX_SCAN_BYTES, MAX_SCAN_FILES, scanName, scanText } from './secrets-core';
 import { loadSettings, saveSettings } from './settings';
@@ -65,28 +66,41 @@ function detectKinds(dir: string): string[] {
   return kinds;
 }
 
-/** The first translations folder with at least two readable language files. */
-function readL10n(dir: string): { rel: string; files: LocaleFile[] } | null {
+/** Language file names in one candidate translations folder (empty when the folder is missing or unreadable). */
+async function localeNames(dir: string, rel: string): Promise<string[]> {
+  try {
+    return (await readdir(join(dir, rel))).filter(isLocaleFile);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Whether the project has a translations folder with two or more language files. Only lists folders:
+ * `local:list` runs on every refresh, and parsing every JSON/ARB there froze the window on big projects.
+ */
+async function hasLocaleFiles(dir: string): Promise<boolean> {
+  for (const rel of L10N_DIRS) if ((await localeNames(dir, rel)).length >= 2) return true;
+  return false;
+}
+
+/** The first translations folder with at least two readable language files (parsed only when the user compares). */
+async function readL10n(dir: string): Promise<{ rel: string; files: LocaleFile[] } | null> {
   for (const rel of L10N_DIRS) {
-    const full = join(dir, rel);
-    if (!existsSync(full)) continue;
-    let names: string[] = [];
-    try {
-      names = readdirSync(full).filter((n) => /\.(json|arb)$/i.test(n));
-    } catch {
-      continue;
-    }
+    const names = await localeNames(dir, rel);
     if (names.length < 2) continue;
-    const files = names
-      .map((n): LocaleFile | null => {
-        try {
-          const obj = JSON.parse(readFileSync(join(full, n), 'utf8'));
-          return { lang: langOf(n), file: n, keys: n.toLowerCase().endsWith('.arb') ? arbKeys(obj) : flattenKeys(obj) };
-        } catch {
-          return null;
-        }
-      })
-      .filter((f): f is LocaleFile => !!f);
+    const files = (
+      await Promise.all(
+        names.map(async (n): Promise<LocaleFile | null> => {
+          try {
+            const obj = JSON.parse(await readFile(join(dir, rel, n), 'utf8'));
+            return { lang: langOf(n), file: n, keys: n.toLowerCase().endsWith('.arb') ? arbKeys(obj) : flattenKeys(obj) };
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((f): f is LocaleFile => !!f);
     if (files.length >= 2) return { rel, files };
   }
   return null;
@@ -103,7 +117,7 @@ async function describe(dir: string): Promise<LocalProject> {
   base.manager = lightManager(dir);
   base.kinds = kinds;
   base.recipes = recipesFor(kinds).map((r) => ({ id: r.id, icon: r.icon, tip: recipeCommand(r) }));
-  base.hasL10n = !!readL10n(dir);
+  base.hasL10n = await hasLocaleFiles(dir);
   const status = await git(dir, ['status', '--porcelain=v1', '-b']);
   if (!status.ok) return base;
   const log = await git(dir, ['log', '-1', '--format=%s%x1f%cr']);
@@ -117,20 +131,26 @@ function known(path: string): string | null {
   return loadSettings().localProjects.find((p) => resolve(p).toLowerCase() === wanted) ?? null;
 }
 
-function scanFile(dir: string, rel: string): SecretFinding[] {
+async function scanFile(dir: string, rel: string): Promise<SecretFinding[]> {
   const out: SecretFinding[] = [];
   const byName = scanName(rel);
   if (byName) out.push(byName);
   try {
     const full = join(dir, rel);
-    if (!existsSync(full) || statSync(full).size > MAX_SCAN_BYTES) return out;
-    const buf = readFileSync(full);
+    const st = await stat(full); // a deleted or missing file throws: nothing to scan
+    if (!st.isFile() || st.size > MAX_SCAN_BYTES) return out;
+    const buf = await readFile(full);
     if (!isBinary(buf)) out.push(...scanText(rel, buf.toString('utf8')));
   } catch {
     /* unreadable file: skip */
   }
   return out;
 }
+
+/** Async reads, a few files at a time: thousands of sync reads in the main process froze the window and the tray. */
+const SCAN_CONCURRENCY = 8;
+const scanFiles = async (dir: string, rels: string[]): Promise<SecretFinding[]> =>
+  (await mapLimit(rels, SCAN_CONCURRENCY, (rel) => scanFile(dir, rel))).flat();
 
 let nextId = 1;
 const running = new Map<number, ChildProcess>();
@@ -214,7 +234,7 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
     if (!st.out.split(/\r?\n/).some((l) => l && !l.startsWith('## '))) return { ok: false, output: 'No hay cambios para guardar' };
     const paths = changedPaths(st.out); // deletions are not here: a commit that only removes files is still a commit
     // never commit something that looks like a secret
-    const findings = paths.flatMap((p) => scanFile(dir, p));
+    const findings = await scanFiles(dir, paths);
     if (findings.length) return { ok: false, output: 'Posibles secretos en los cambios: no se hizo el commit', findings };
     const add = await git(dir, ['add', '-A']);
     if (!add.ok) return { ok: false, output: stripAnsi(add.out).trim() };
@@ -231,9 +251,9 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
   });
 
   // ---- translations and secrets ----
-  ipcMain.handle('local:l10n', (_e, path: string): L10nResult | null => {
+  ipcMain.handle('local:l10n', async (_e, path: string): Promise<L10nResult | null> => {
     const dir = known(path);
-    const found = dir ? readL10n(dir) : null;
+    const found = dir ? await readL10n(dir) : null;
     return found ? { dir: found.rel, ...compareLocales(found.files) } : null;
   });
 
@@ -243,7 +263,7 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
     const ls = await git(dir, ['-c', 'core.quotepath=off', 'ls-files']);
     if (!ls.ok) return [];
     const files = ls.out.split(/\r?\n/).filter(Boolean).slice(0, MAX_SCAN_FILES);
-    return files.flatMap((f) => scanFile(dir, f));
+    return scanFiles(dir, files);
   });
 
   // ---- running things ----
@@ -305,16 +325,17 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
     }
   });
 
-  ipcMain.handle('local:read', (_e, path: string, rel: string): FileRead => {
+  ipcMain.handle('local:read', async (_e, path: string, rel: string): Promise<FileRead> => {
     const dir = known(path);
     const full = dir ? inside(dir, String(rel ?? '')) : null;
     if (!full) return { ok: false, error: 'Archivo no disponible' };
     try {
-      const st = statSync(full);
-      if (!st.isFile()) return { ok: false, error: 'No es un archivo' };
-      const buf = readFileSync(full).subarray(0, MAX_READ_BYTES);
+      // stat first: opening a folder fails on Windows, and it deserves its own message
+      if (!(await stat(full)).isFile()) return { ok: false, error: 'No es un archivo' };
+      const { buf, size, isFile } = await readHead(full, MAX_READ_BYTES);
+      if (!isFile) return { ok: false, error: 'No es un archivo' };
       if (isBinary(buf)) return { ok: false, error: 'Archivo binario: no se puede mostrar como texto' };
-      return { ok: true, text: buf.toString('utf8'), size: st.size, truncated: st.size > MAX_READ_BYTES };
+      return { ok: true, text: buf.toString('utf8'), size, truncated: size > MAX_READ_BYTES };
     } catch {
       return { ok: false, error: 'No se pudo leer el archivo' };
     }

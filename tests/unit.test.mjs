@@ -527,3 +527,72 @@ test('project commands skip the current folder and VS Code opens through a URL',
   assert.equal(vscodeFolderUrl(w('C:/Users/Juan Perez/a&calc')),'vscode://file/C:/Users/Juan%20Perez/a%26calc');
   assert.equal(vscodeFolderUrl('/home/me/app #1'), 'vscode://file//home/me/app%20%231');
 });
+
+import { LruCache, rateLimitMessage, rateLimitReset } from '../dist/main/github-core.js';
+import { mapLimit, readHead } from '../dist/main/local-core.js';
+import { isLocaleFile } from '../dist/main/l10n-core.js';
+
+const hdrs = (o) => ({ get: (k) => (k in o ? String(o[k]) : null) });
+
+test('github cache: the LRU keeps at most N entries and drops the least recently used', () => {
+  const c = new LruCache(3);
+  c.set('a', 1); c.set('b', 2); c.set('c', 3);
+  assert.equal(c.get('a'), 1, 'reading "a" makes it the most recent');
+  c.set('d', 4);
+  assert.equal(c.size, 3);
+  assert.equal(c.get('b'), undefined, '"b" was the least recently used');
+  assert.deepEqual([c.get('a'), c.get('c'), c.get('d')], [1, 3, 4]);
+  for (let i = 0; i < 1000; i++) c.set(`k${i}`, i);
+  assert.equal(c.size, 3, 'never grows past the cap');
+  c.clear();
+  assert.equal(c.size, 0);
+});
+
+test('github: a rate limit is told apart from a permission error and gives a reset time', () => {
+  const now = 1_700_000_000_000;
+  assert.equal(rateLimitReset(403, hdrs({}), '{"message":"Resource not accessible by integration"}', now), null, 'plain 403 is permissions');
+  assert.equal(rateLimitReset(404, hdrs({ 'x-ratelimit-remaining': 0 }), '', now), null);
+  assert.equal(rateLimitReset(403, hdrs({ 'x-ratelimit-remaining': 0, 'x-ratelimit-reset': 1_700_000_600 }), '', now), 1_700_000_600_000);
+  assert.equal(rateLimitReset(429, hdrs({ 'retry-after': 30 }), '', now), now + 30_000, 'retry-after wins');
+  assert.equal(rateLimitReset(403, hdrs({ 'retry-after': 5, 'x-ratelimit-remaining': 10 }), '', now), now + 5000, 'secondary limit');
+  assert.equal(rateLimitReset(403, hdrs({}), '{"message":"You have exceeded a secondary rate limit"}', now), now + 60_000, 'no time given: one minute');
+  assert.equal(rateLimitReset(429, hdrs({}), '', now), now + 60_000);
+  assert.equal(rateLimitReset(403, hdrs({ 'x-ratelimit-remaining': 0, 'x-ratelimit-reset': 10 }), '', now), now, 'a reset in the past is "now"');
+  const at = new Date(2026, 0, 2, 9, 5).getTime();
+  assert.equal(rateLimitMessage(at), 'GitHub limitó las consultas hasta las 09:05');
+});
+
+test('explorer: readHead reads only the first bytes of a big file and reports its real size', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'devpanel-head-'));
+  const big = join(dir, 'big.log');
+  writeFileSync(big, Buffer.alloc(3 * 1024 * 1024, 'a'));
+  const r = await readHead(big, 1024);
+  assert.equal(r.buf.length, 1024);
+  assert.equal(r.size, 3 * 1024 * 1024);
+  assert.equal(r.isFile, true);
+  writeFileSync(join(dir, 'small.txt'), 'hola');
+  const s = await readHead(join(dir, 'small.txt'), 1024);
+  assert.equal(s.buf.toString(), 'hola');
+  assert.equal(s.size, 4);
+  writeFileSync(join(dir, 'empty.txt'), '');
+  assert.equal((await readHead(join(dir, 'empty.txt'), 1024)).buf.length, 0);
+});
+
+test('scans: mapLimit keeps the order and never runs more than the limit at once', async () => {
+  let active = 0;
+  let peak = 0;
+  const out = await mapLimit([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3, async (n) => {
+    peak = Math.max(peak, ++active);
+    await new Promise((r) => setTimeout(r, 5 * (n % 3)));
+    active--;
+    return n * 2;
+  });
+  assert.deepEqual(out, [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
+  assert.equal(peak, 3);
+  assert.deepEqual(await mapLimit([], 4, async (n) => n), []);
+});
+
+test('l10n: only JSON and ARB files count as language files', () => {
+  assert.ok(isLocaleFile('en.json') && isLocaleFile('app_es.ARB'));
+  assert.ok(!isLocaleFile('README.md') && !isLocaleFile('en.json.bak'));
+});

@@ -1,18 +1,37 @@
 import type { CommitPage, FailingRun, GithubProfile, ItemPage, PullSummary, Repo, RepoListKind, WorkflowRun } from '../shared/api';
 
 import type { RunInfo } from './alerts-core';
-import { getToken, tokenOwns } from './token';
+import { ETAG_CACHE_MAX, GITHUB_TIMEOUT_MS, isTimeout, LruCache, MAX_CACHED_BODY, rateLimitMessage, rateLimitReset, TIMEOUT_MESSAGE } from './github-core';
+import { getToken, onTokenChange, tokenOwns } from './token';
 
 const API = process.env.DEVPANEL_GITHUB_API ?? 'https://api.github.com';
 
 // Conditional requests: GitHub answers 304 (which does not count against the rate limit) when nothing changed.
-const etags = new Map<string, { etag: string; body: string; link: string | null }>();
+// Bounded (LRU): the app lives for days in the tray and each entry holds a whole response body.
+const etags = new LruCache<string, { etag: string; body: string; link: string | null }>(ETAG_CACHE_MAX);
+
+/** fetch with the timeout every GitHub call gets; a timeout becomes a readable Spanish error. */
+async function timedFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS) });
+  } catch (e) {
+    throw isTimeout(e) ? new Error(TIMEOUT_MESSAGE) : e;
+  }
+}
+
+/** Throws "GitHub limitó las consultas hasta las HH:MM" when the response is a rate limit, not a permission error. */
+async function throwIfRateLimited(res: Response): Promise<void> {
+  if (res.status !== 403 && res.status !== 429) return;
+  const body = await res.clone().text().catch(() => '');
+  const reset = rateLimitReset(res.status, res.headers, body);
+  if (reset !== null) throw new Error(rateLimitMessage(reset));
+}
 
 async function ghFetch(path: string): Promise<Response> {
   const token = getToken();
   const key = `${token ? 't' : 'p'}:${path}`; // a token can change what the same URL returns
   const cached = etags.get(key);
-  const res = await fetch(`${API}${path}`, {
+  const res = await timedFetch(`${API}${path}`, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'DevPanel',
@@ -23,9 +42,14 @@ async function ghFetch(path: string): Promise<Response> {
   if (res.status === 304 && cached) {
     return new Response(cached.body, { status: 200, headers: cached.link ? { link: cached.link } : {} });
   }
+  await throwIfRateLimited(res);
   if (!res.ok) throw new Error(`GitHub ${res.status}: ${path}`);
   const etag = res.headers.get('etag');
-  if (etag) etags.set(key, { etag, body: await res.clone().text(), link: res.headers.get('link') });
+  if (etag) {
+    const body = await res.clone().text();
+    if (body.length <= MAX_CACHED_BODY) etags.set(key, { etag, body, link: res.headers.get('link') });
+    else etags.delete(key);
+  }
   return res;
 }
 
@@ -122,6 +146,12 @@ export async function lookupUser(input: string): Promise<GithubProfile> {
 const RUN_TTL_MS = 5 * 60 * 1000;
 const runCache = new Map<string, { at: number; value: RunInfo | null }>();
 
+// A different token (or none) can see different repos and runs: nothing cached under the old one is reused.
+onTokenChange(() => {
+  etags.clear();
+  runCache.clear();
+});
+
 /** Latest Actions run of a repo, cached for a few minutes so alerts + Home don't double the API usage. */
 export async function latestRun(user: string, repo: string): Promise<RunInfo | null> {
   const key = `${user}/${repo}`;
@@ -216,15 +246,18 @@ export async function rerunFailed(user: string, repo: string, runId: number): Pr
   if (!token) return { ok: false, error: 'Necesitas un token de GitHub con permiso de Actions: guárdalo en Settings.' };
   if (!Number.isInteger(runId) || runId <= 0) return { ok: false, error: 'Ejecución no válida' };
   try {
-    const res = await fetch(`${API}/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/actions/runs/${runId}/rerun-failed-jobs`, {
+    const res = await timedFetch(`${API}/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/actions/runs/${runId}/rerun-failed-jobs`, {
       method: 'POST',
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel', Authorization: `Bearer ${token}` },
     });
     if (res.ok) return { ok: true };
+    // checked before the permission branch: a rate-limited 403 is not "your token lacks Actions: write"
+    const reset = rateLimitReset(res.status, res.headers, await res.text().catch(() => ''));
+    if (reset !== null) return { ok: false, error: rateLimitMessage(reset) };
     if (res.status === 403 || res.status === 401) return { ok: false, error: 'Tu token no tiene permiso para reintentar workflows (Actions: write).' };
     if (res.status === 404) return { ok: false, error: 'No se encontró esa ejecución.' };
     return { ok: false, error: `GitHub respondió ${res.status}` };
-  } catch {
-    return { ok: false, error: 'No se pudo contactar a GitHub' };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message === TIMEOUT_MESSAGE ? TIMEOUT_MESSAGE : 'No se pudo contactar a GitHub' };
   }
 }

@@ -2,6 +2,7 @@ import { app, ipcMain, safeStorage } from 'electron';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isUnlocked, LOCKED_ERROR } from './face';
+import { GITHUB_TIMEOUT_MS, isTimeout, TIMEOUT_MESSAGE } from './github-core';
 import { loadSettings } from './settings';
 
 // DEVPANEL_GITHUB_API lets automated tests talk to a local mock instead of api.github.com.
@@ -11,6 +12,13 @@ export const apiBase = () => process.env.DEVPANEL_GITHUB_API ?? 'https://api.git
 // Stored encrypted with the OS keychain; never sent anywhere except api.github.com.
 const binFile = () => join(app.getPath('userData'), 'token.bin');
 const metaFile = () => join(app.getPath('userData'), 'token.json');
+
+// Listeners (the GitHub response caches) that must forget everything fetched with the previous token.
+const tokenListeners: (() => void)[] = [];
+export function onTokenChange(fn: () => void): void {
+  tokenListeners.push(fn);
+}
+const tokenChanged = () => tokenListeners.forEach((fn) => fn());
 
 export function getToken(): string | null {
   try {
@@ -43,6 +51,7 @@ export function setupToken(): void {
     try {
       const res = await fetch(`${apiBase()}/rate_limit`, {
         headers: { Authorization: `Bearer ${getToken()}`, Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel' },
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       });
       const core = res.ok ? (await res.json()).resources?.core : null;
       return { has, login: tokenLogin() ?? undefined, limit: core?.limit, remaining: core?.remaining };
@@ -59,6 +68,7 @@ export function setupToken(): void {
     try {
       const res = await fetch(`${apiBase()}/user`, {
         headers: { Authorization: `Bearer ${t}`, Accept: 'application/vnd.github+json', 'User-Agent': 'DevPanel' },
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       });
       if (res.status === 401) return { ok: false, error: 'GitHub rechazó el token (inválido o vencido)' };
       if (!res.ok) return { ok: false, error: `GitHub respondió ${res.status}` };
@@ -68,9 +78,10 @@ export function setupToken(): void {
         return { ok: false, error: `Ese token es de @${login}, pero tu cuenta vinculada es @${linked}` };
       writeFileSync(binFile(), safeStorage.encryptString(t));
       writeFileSync(metaFile(), JSON.stringify({ login }));
+      tokenChanged();
       return { ok: true, login };
-    } catch {
-      return { ok: false, error: 'No se pudo contactar a GitHub' };
+    } catch (e) {
+      return { ok: false, error: isTimeout(e) ? TIMEOUT_MESSAGE : 'No se pudo contactar a GitHub' };
     }
   });
 
@@ -78,5 +89,6 @@ export function setupToken(): void {
     if (!isUnlocked()) return;
     rmSync(binFile(), { force: true });
     rmSync(metaFile(), { force: true });
+    tokenChanged();
   });
 }
