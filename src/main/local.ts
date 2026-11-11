@@ -10,6 +10,7 @@ import {
 } from './local-core';
 import { isBinary, MAX_SCAN_BYTES, MAX_SCAN_FILES, scanName, scanText } from './secrets-core';
 import { loadSettings, saveSettings } from './settings';
+import { killTree } from './proc';
 import { runSidecar } from './sidecar';
 
 /** git from PATH by absolute path, looked up once: never a `git.exe` sitting in the project folder (see findOnPath). */
@@ -337,11 +338,8 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
   });
 
   ipcMain.handle('local:stop', (_e, id: number) => {
-    const child = running.get(id);
-    if (!child?.pid) return;
     // kill the whole tree: `npm run` spawns children
-    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-    else child.kill('SIGTERM');
+    killTree(running.get(id));
   });
 
   ipcMain.handle('local:open', async (_e, path: string, how: 'folder' | 'code') => {
@@ -354,9 +352,5 @@ export function setupLocal(getWindow: () => BrowserWindow | null): void {
 }
 
 export function stopAllLocal(): void {
-  for (const id of running.keys()) {
-    const child = running.get(id);
-    if (child?.pid && process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-    else child?.kill();
-  }
+  for (const child of running.values()) killTree(child);
 }

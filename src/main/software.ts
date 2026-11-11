@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, shell } from 'electron';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import type { Catalog, CatalogItem, SoftwareProgress, SoftwareStatus } from '../shared/api';
 import catalogJson from '../shared/catalog.json';
+import { killTree } from './proc';
 import { extractVersion, findExisting, parseUpgradeList, parseWingetChunk, WINGET_OK_CODES } from './software-core';
 
 const catalog = catalogJson as Catalog;
@@ -96,10 +97,7 @@ export function setupSoftware(getWindow: () => BrowserWindow | null): void {
   });
 
   ipcMain.handle('software:cancel', (_e, id: string) => {
-    const child = running.get(String(id));
-    if (!child?.pid) return;
-    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-    else child.kill('SIGTERM');
+    killTree(running.get(String(id)));
   });
 
   const runWinget = async (rawId: string, mode: 'install' | 'upgrade'): Promise<{ ok: boolean; error?: string }> => {
@@ -171,8 +169,5 @@ export function setupSoftware(getWindow: () => BrowserWindow | null): void {
 }
 
 export function stopAllInstalls(): void {
-  for (const child of running.values()) {
-    if (child.pid && process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-    else child.kill();
-  }
+  for (const child of running.values()) killTree(child);
 }

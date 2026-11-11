@@ -18,7 +18,15 @@ writeFileSync(join(userData, 'settings.json'), JSON.stringify({ language: 'es', 
 writeFileSync(join(bin, 'fake.mjs'), `
 import { appendFileSync } from 'node:fs';
 import readline from 'node:readline';
+import { spawn } from 'node:child_process';
 const args = process.argv.slice(2);
+if (process.env.FAKE_HANG) {
+  // like a PyInstaller launcher whose Python child hangs on a model download: never ready, child keeps running.
+  // detached: a Node child would otherwise die with its parent (libuv job object), which a real launcher's does not
+  const kid = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: true });
+  appendFileSync(${JSON.stringify(join(root, 'hang.pids'))}, process.pid + ' ' + kid.pid + '\\n');
+  setInterval(() => {}, 1000);
+} else {
 appendFileSync(${JSON.stringify(starts)}, args.includes('serve') ? 'serve\\n' : 'oneshot\\n');
 if (!args.includes('serve')) { console.log(JSON.stringify({ ok: false, error: 'one-shot should not be used' })); process.exit(0); }
 console.log(JSON.stringify({ ready: true }));
@@ -32,7 +40,16 @@ rl.on('line', (line) => {
     console.log(JSON.stringify({ id: req.id, result: same ? { ok: true, score: 0.77 } : { ok: false, error: 'bad request' } }));
   }
 });
+}
 `);
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const env = { ...process.env, DEVPANEL_USER_DATA: userData, DEVPANEL_GITHUB_API: 'http://127.0.0.1:9', DEVPANEL_PYTHON: 'node', DEVPANEL_FACE_SCRIPT: join(bin, 'fake.mjs') };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -67,11 +84,32 @@ try {
   assert.ok((await page.evaluate(() => window.__prompts.length)) >= 2, 'the head-turn prompt still reaches the window');
   log('the live head-turn prompt is still forwarded to the window');
 
+  // a worker that never gets ready (hung model download): the login answers, and the worker's whole tree is gone
+  await app.close();
+  app = await electron.launch({ args: ['.'], env: { ...env, FAKE_HANG: '1', DEVPANEL_FACE_READY_MS: '1500' } });
+  const hung = await app.firstWindow();
+  await hung.waitForSelector('#lock:not(.hidden)');
+  const t0 = Date.now();
+  const v = await hung.evaluate(() => window.devpanel.face.verify());
+  assert.equal(v.ok, false);
+  assert.equal(v.error, 'El módulo facial tardó demasiado en arrancar');
+  assert.ok(Date.now() - t0 < 10_000, 'it answered within the ready timeout, not never');
+  const pids = readFileSync(join(root, 'hang.pids'), 'utf8').trim().split(/\s+/).map(Number);
+  const deadline = Date.now() + 10_000;
+  while (pids.some(alive) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
+  assert.deepEqual(pids.filter(alive), [], 'the worker and the process it started were both stopped');
+  assert.match(await hung.textContent('#lock-face'), /./, 'the lock screen is still usable');
+  log('a worker that never gets ready ends in a message, and its child processes are stopped too');
+
   console.log(`\nAll ${step} checks passed.`);
 } catch (e) {
   console.error('\n✘ Face worker test failed:', e.message);
   process.exitCode = 1;
 } finally {
-  await app?.close().catch(() => {});
+  // a failed run may leave the fake worker's processes behind: they must not keep this test (or CI) waiting
+  const leftover = existsSync(join(root, 'hang.pids')) ? readFileSync(join(root, 'hang.pids'), 'utf8').trim().split(/\s+/).map(Number) : [];
+  for (const pid of leftover.filter(alive)) process.kill(pid);
+  await Promise.race([app?.close().catch(() => {}), new Promise((r) => setTimeout(r, 10_000))]);
   if (existsSync(root)) rmSync(root, { recursive: true, force: true });
+  if (process.exitCode) process.exit();
 }
