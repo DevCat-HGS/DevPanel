@@ -33,19 +33,38 @@ function term(text: string, cls = ''): void {
   out.scrollTop = out.scrollHeight;
 }
 
+/** True from the click until the main process answers with the process id (an action may inspect the project for seconds first). */
+let starting = false;
+const busy = (): boolean => starting || activeRun !== null;
+
+/** The terminal runs one thing at a time: nothing else can be launched while a process is starting or running. */
+function syncRunButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>('.script-btn, .recipe-btn, .diag-run').forEach((b) => (b.disabled = busy()));
+}
+
 function setRunning(id: number | null, label = ''): void {
   activeRun = id;
   $('term-title').textContent = id ? `Ejecutando: ${label}` : 'Terminal';
   $<HTMLButtonElement>('term-stop').disabled = id === null;
-  document.querySelectorAll<HTMLButtonElement>('.script-btn, .recipe-btn').forEach((b) => (b.disabled = id !== null));
+  syncRunButtons();
 }
 
 async function runWith(label: string, start: () => Promise<{ id: number } | { error: string }>): Promise<void> {
-  if (activeRun !== null) return;
+  // the flag goes up before the await: a second click (or another script) must not start a process Stop cannot reach
+  if (busy()) return;
+  starting = true;
+  syncRunButtons();
   term(`\n$ ${label}\n`, 'cmd');
-  const r = await start();
-  if ('error' in r) return term(`${r.error}\n`, 'err');
-  setRunning(r.id, label);
+  try {
+    const r = await start();
+    if ('error' in r) term(`${r.error}\n`, 'err');
+    else setRunning(r.id, label);
+  } catch (e) {
+    term(`${e instanceof Error ? e.message : String(e)}\n`, 'err');
+  } finally {
+    starting = false;
+    syncRunButtons();
+  }
 }
 
 /** git result -> terminal + toast + refresh */
@@ -302,7 +321,7 @@ export async function refresh(): Promise<void> {
       c.querySelector<HTMLInputElement>('.commit-row input')!.value = v;
     }
   });
-  document.querySelectorAll<HTMLButtonElement>('.script-btn, .recipe-btn').forEach((b) => (b.disabled = activeRun !== null));
+  syncRunButtons();
 }
 
 export function initLocal(): void {
