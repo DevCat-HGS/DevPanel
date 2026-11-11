@@ -203,6 +203,7 @@ export const EN: Record<string, string> = {
   'Actividad en las últimas 24 h': 'Activity in the last 24 h',
   'Sin descripción': 'No description',
   'Marcar como favorito': 'Mark as favorite',
+  'Quitar de favoritos': 'Remove from favorites',
   'privado': 'private',
   'Sin Actions': 'No Actions',
   'En curso': 'In progress',

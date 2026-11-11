@@ -161,6 +161,28 @@ try {
   assert.ok('error' in refused.bad && 'error' in refused.other && 'error' in refused.device);
   log('Python diagnosis shows the manager, the missing dependencies with a fix and the scripts; unknown actions are refused');
 
+  // ---------- one process at a time ----------
+  const termCount = (re) => page.evaluate((src) => (document.getElementById('term-out').textContent.match(new RegExp(src, 'g')) ?? []).length, re);
+  const cmdsBefore = await page.locator('#term-out .cmd').count();
+  const exitsBefore = await termCount('proceso terminó');
+  // a diagnosis action inspects the project before it starts: the script button is clicked twice during that wait
+  const whileStarting = await page.evaluate(() => {
+    [...document.querySelectorAll('.diag .diag-run')].find((b) => b.textContent.includes('build')).click();
+    const script = document.querySelector('.script-btn');
+    const disabled = script.disabled;
+    script.click();
+    script.click();
+    return disabled;
+  });
+  assert.equal(whileStarting, true, 'the run buttons are disabled as soon as something is starting');
+  await page.waitForFunction((n) => (document.getElementById('term-out').textContent.match(/proceso terminó/g) ?? []).length > n, exitsBefore, { timeout: 60000 });
+  await page.waitForFunction(() => !document.querySelector('.script-btn').disabled);
+  await page.waitForTimeout(1500); // a second process would announce itself by now
+  assert.equal(await page.locator('#term-out .cmd').count(), cmdsBefore + 1, 'only one command was launched');
+  assert.equal(await termCount('proceso terminó'), exitsBefore + 1, 'and only one process ran');
+  assert.ok(await page.locator('#term-stop').isDisabled(), 'nothing is left running out of reach of Stop');
+  log('while a process is starting, a second script (or a double click) starts nothing and the run buttons stay disabled until it ends');
+
   // ---------- read-only explorer ----------
   await card(page).locator('button[title="Explorar archivos"]').click();
   await page.waitForSelector('#files-modal:not(.hidden) .ft-row');

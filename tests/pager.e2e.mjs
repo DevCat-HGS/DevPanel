@@ -192,6 +192,34 @@ try {
   await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
   log('the X, Escape and a click outside all close the dialog, and the page stays where it was');
 
+  // ---------- the star with the keyboard ----------
+  const star3 = '.repo:has(.name:text("repo-03")) .star';
+  const focusedStar = () => page.evaluate(() => (document.activeElement?.classList.contains('star') ? document.activeElement.dataset.repo : null));
+  assert.equal(await page.getAttribute(star3, 'aria-pressed'), 'false');
+  assert.equal(await page.getAttribute(star3, 'aria-label'), 'Marcar como favorito');
+  await page.focus(star3);
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#repo-pinned:not(.hidden)');
+  assert.deepEqual(await page.locator('#repo-pinned .repo .name').allTextContents(), ['repo-03']);
+  assert.ok(await page.locator('#repo-modal').isHidden(), 'Enter on the star does not open the repo');
+  assert.equal(await page.getAttribute(star3, 'aria-pressed'), 'true');
+  assert.equal(await page.getAttribute(star3, 'aria-label'), 'Quitar de favoritos');
+  assert.equal(await focusedStar(), 'repo-03', 'the focus stays on the star after the grid is redrawn');
+  await page.keyboard.press('Space');
+  await page.waitForSelector('#repo-pinned.hidden', { state: 'attached' });
+  assert.ok(await page.locator('#repo-modal').isHidden(), 'nor does Space');
+  assert.equal(await page.getAttribute(star3, 'aria-pressed'), 'false');
+  await page.focus('.repo:has(.name:text("repo-03"))');
+  await page.keyboard.press('Tab');
+  assert.equal(await focusedStar(), 'repo-03', 'Tab leaves the card and reaches its star (the card used to swallow every key)');
+  await page.focus('.repo:has(.name:text("repo-03"))');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#repo-modal:not(.hidden)');
+  assert.equal(await page.textContent('#rm-name'), 'repo-03');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#repo-modal.hidden', { state: 'attached' });
+  log('Enter and Space on the star toggle the favourite (pressed state and label announced) without opening the repo; on the card they still open it');
+
   // ---------- release notes dialog with real content ----------
   await page.click('#whatsnew-btn');
   await page.waitForSelector('#notes-body .ng');
@@ -215,7 +243,12 @@ try {
     assert.equal((await b.textContent()).trim(), '', 'tabs are icons');
     assert.ok(await b.getAttribute('title'));
   }
-  await page.click('.rm-tab[data-tab="pulls"]');
+  await page.waitForSelector('#rm-pager .pg-btn[aria-label="Siguiente"]:not([disabled])'); // the commits pager is up
+  const stalePager = await page.evaluate(() => {
+    document.querySelector('.rm-tab[data-tab="pulls"]').click();
+    return document.getElementById('rm-pager').childElementCount; // read before the pull requests answer
+  });
+  assert.equal(stalePager, 0, 'while a tab loads, the pager of the previous tab is gone (it would page commits under this tab)');
   await page.waitForFunction(() => document.querySelectorAll('#rm-commits .commit.item').length === 8);
   assert.equal(await page.textContent('#rm-commits .commit.item .sha'), '#1');
   await page.click('#rm-pager .pg-btn[aria-label="Siguiente"]');

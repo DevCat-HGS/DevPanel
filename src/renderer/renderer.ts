@@ -518,7 +518,13 @@ function repoCard(r: Repo, i: number): HTMLElement {
   const card = el('div', 'repo');
   card.tabIndex = 0;
   card.setAttribute('role', 'button');
-  card.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), card.click());
+  // only keys pressed on the card itself: Enter/Space on the star inside it belong to the star
+  // A block body on purpose: an `on*` handler that returns false cancels the event, which swallowed Tab and every other key.
+  card.onkeydown = (e) => {
+    if (e.target !== card || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    card.click();
+  };
   card.style.setProperty('--i', String(Math.min(i, 14)));
 
   const top = el('div', 'top');
@@ -540,10 +546,16 @@ function repoCard(r: Repo, i: number): HTMLElement {
   meta.append(lang, branch, el('span', undefined, ago(r.pushed_at)));
 
   const star = el('button', `star${favs.has(r.name) ? ' on' : ''}`, favs.has(r.name) ? '★' : '☆');
-  star.setAttribute('aria-label', 'Marcar como favorito');
+  (star as HTMLButtonElement).type = 'button';
+  star.dataset.repo = r.name;
+  star.setAttribute('aria-pressed', String(favs.has(r.name)));
+  star.setAttribute('aria-label', favs.has(r.name) ? 'Quitar de favoritos' : 'Marcar como favorito');
   star.onclick = (e) => {
     e.stopPropagation();
+    // the grid is redrawn (the card moves between sections): a keyboard user keeps the focus on the same star
+    const hadFocus = document.activeElement === star;
     toggleFav(r.name);
+    if (hadFocus) [...document.querySelectorAll<HTMLElement>('.repo .star')].find((s) => s.dataset.repo === r.name)?.focus();
   };
   top.append(star);
 

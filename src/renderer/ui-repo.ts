@@ -118,6 +118,8 @@ async function loadTab(repo: Repo, which: Tab, page: number): Promise<void> {
   const mine = ++ticket;
   const list = $('rm-commits');
   list.replaceChildren(...Array.from({ length: 4 }, () => el('div', 'skeleton row')));
+  // the pager on screen still pages the previous tab or repo: a click on it now would load that list under this one
+  $('rm-pager').replaceChildren();
   try {
     let rows: HTMLElement[];
     let hasMore: boolean;
@@ -197,7 +199,7 @@ export function openRepo(repo: Repo, startTab: Tab = 'commits'): void {
       badge.replaceChildren(statusBadge(runs[0]));
       if (runs[0]) actions.prepend(iconLink('play', runs[0].html_url, 'Ver Actions'));
     })
-    .catch(() => badge.replaceChildren(statusBadge(undefined)));
+    .catch(() => myId === openId && badge.replaceChildren(statusBadge(undefined))); // a late failure must not overwrite another repo's badge
 
   modal.classList.remove('hidden');
   document.documentElement.classList.add('modal-open');

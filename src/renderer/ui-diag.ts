@@ -23,6 +23,13 @@ function actionBtn(text: string, tip: string, onClick: () => void, name = 'play'
   return b;
 }
 
+/** A button that launches a process in the terminal: the Local view disables these while something is starting or running. */
+function runBtn(text: string, tip: string, onClick: () => void, name = 'play'): HTMLButtonElement {
+  const b = actionBtn(text, tip, onClick, name);
+  b.classList.add('diag-run');
+  return b;
+}
+
 function section(title: string): HTMLElement {
   const s = el('div', 'diag-sec');
   s.append(el('h4', undefined, title));
@@ -63,7 +70,7 @@ export function renderDiag(p: LocalProject, r: Ok, hooks: DiagHooks): HTMLElemen
   for (const pr of r.problems) {
     const row = el('div', `diag-row sev-${pr.severity}`);
     row.append(icon(SEV_ICON[pr.severity]), el('span', 'diag-msg', pr.message));
-    if (pr.fix && pr.label) row.append(actionBtn(pr.label, `Ejecutar: ${pr.label}`, () => hooks.run(pr.label!, pr.fix!), 'tools'));
+    if (pr.fix && pr.label) row.append(runBtn(pr.label, `Ejecutar: ${pr.label}`, () => hooks.run(pr.label!, pr.fix!), 'tools'));
     probs.append(row);
   }
   box.append(probs);
@@ -75,7 +82,7 @@ export function renderDiag(p: LocalProject, r: Ok, hooks: DiagHooks): HTMLElemen
     const list = el('div', 'diag-btns');
     for (const n of names) {
       const id = r.manager === 'deno' ? `task:${n}` : `script:${n}`;
-      list.append(actionBtn(n, r.manager === 'deno' ? `deno task ${n}` : `${r.manager} run ${n}`, () => hooks.run(`${r.manager} ${n}`, id)));
+      list.append(runBtn(n, r.manager === 'deno' ? `deno task ${n}` : `${r.manager} run ${n}`, () => hooks.run(`${r.manager} ${n}`, id)));
     }
     sec.append(list);
     box.append(sec);
@@ -94,13 +101,13 @@ export function renderDiag(p: LocalProject, r: Ok, hooks: DiagHooks): HTMLElemen
     if (f.devices.length) {
       sec.append(el('h5', undefined, 'Dispositivos conectados'));
       const l = el('div', 'diag-btns');
-      for (const d of f.devices) l.append(actionBtn(d.name, `flutter run -d ${d.id}`, () => hooks.run(`flutter run -d ${d.id}`, `flutter-run:${d.id}`)));
+      for (const d of f.devices) l.append(runBtn(d.name, `flutter run -d ${d.id}`, () => hooks.run(`flutter run -d ${d.id}`, `flutter-run:${d.id}`)));
       sec.append(l);
     }
     if (f.emulators.length) {
       sec.append(el('h5', undefined, 'Emuladores'));
       const l = el('div', 'diag-btns');
-      for (const e of f.emulators) l.append(actionBtn(e.name, `flutter emulators --launch ${e.id}`, () => hooks.run(`Iniciar ${e.name}`, `flutter-emulator:${e.id}`), 'phone'));
+      for (const e of f.emulators) l.append(runBtn(e.name, `flutter emulators --launch ${e.id}`, () => hooks.run(`Iniciar ${e.name}`, `flutter-emulator:${e.id}`), 'phone'));
       sec.append(l);
     }
     box.append(sec);
@@ -111,7 +118,7 @@ export function renderDiag(p: LocalProject, r: Ok, hooks: DiagHooks): HTMLElemen
   if (general.length) {
     const sec = section('Acciones');
     const l = el('div', 'diag-btns');
-    for (const a of general) l.append(actionBtn(a.label, a.label, () => hooks.run(a.label, a.id)));
+    for (const a of general) l.append(runBtn(a.label, a.label, () => hooks.run(a.label, a.id)));
     sec.append(l);
     box.append(sec);
   }
