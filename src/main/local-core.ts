@@ -37,6 +37,40 @@ export function parseGitStatus(output: string): GitStatus {
   return { branch, upstream, ahead, behind, dirty };
 }
 
+/**
+ * Absolute path of a program found on PATH, never in the current folder. Windows (libuv included) looks in the
+ * working directory first, and here the working directory is a project the user cloned: a `git.exe` planted in its
+ * root would otherwise run just by registering the folder. Relative PATH entries are skipped for the same reason.
+ */
+export function findOnPath(
+  name: string,
+  pathEnv: string,
+  opts: { win: boolean; pathExt?: string; exists: (p: string) => boolean },
+): string | null {
+  const sep = opts.win ? ';' : ':';
+  const isAbs = opts.win ? (d: string) => /^[a-zA-Z]:[\\/]|^\\\\/.test(d) : (d: string) => d.startsWith('/');
+  const exts = opts.win ? (opts.pathExt || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean).map((e) => e.toLowerCase()) : [''];
+  for (const raw of pathEnv.split(sep)) {
+    const dir = raw.trim().replace(/^"(.*)"$/, '$1');
+    if (!dir || !isAbs(dir)) continue;
+    for (const ext of exts) {
+      const full = `${dir.replace(/[\\/]+$/, '')}${opts.win ? '\\' : '/'}${name}${ext}`;
+      if (opts.exists(full)) return full;
+    }
+  }
+  return null;
+}
+
+/**
+ * Environment for commands that go through cmd.exe inside a project folder: `NoDefaultCurrentDirectoryInExePath`
+ * makes cmd skip the current folder when it looks up `npm`, `flutter` or `claude`, so a planted `npm.cmd` is ignored.
+ */
+export const projectShellEnv = (base: NodeJS.ProcessEnv): NodeJS.ProcessEnv => ({ ...base, FORCE_COLOR: '0', NoDefaultCurrentDirectoryInExePath: '1' });
+
+/** `vscode://file/...` link that opens a folder in VS Code without going through a shell. */
+export const vscodeFolderUrl = (dir: string): string =>
+  `vscode://file/${dir.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/').replace(/^([A-Za-z])%3A/, '$1:')}`;
+
 /** Script names we are willing to hand to `npm run`. */
 export const isSafeScriptName = (name: string) => /^[A-Za-z0-9:_.-]{1,64}$/.test(name);
 

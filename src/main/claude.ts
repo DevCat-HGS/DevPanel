@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
 import { isSessionId, parseStreamLine, splitLines } from './claude-core';
 import { projectBrief } from './health';
-import { stripAnsi } from './local-core';
+import { projectShellEnv, stripAnsi } from './local-core';
 import { loadSettings } from './settings';
 
 export const MAX_PROMPT = 8000;
@@ -41,14 +41,15 @@ export function setupClaude(getWindow: () => BrowserWindow | null): void {
     const dir = known(path);
     if (!dir) return { error: 'Proyecto no registrado' };
     if (!isValidPrompt(prompt)) return { error: 'Escribe una instrucción (máx. 8000 caracteres)' };
-    const permission = CLAUDE_MODES[mode] ?? CLAUDE_MODES.read;
+    // own keys only: `constructor` or `toString` must not turn into text on a shell command line
+    const permission = Object.hasOwn(CLAUDE_MODES, mode) ? CLAUDE_MODES[mode] : CLAUDE_MODES.read;
     if (session !== undefined && !isSessionId(session)) return { error: 'Sesión no válida' };
     // A new conversation starts with what DevPanel already knows (health score, problems); a resumed one already has it.
     const brief = session ? '' : await projectBrief(dir).catch(() => '');
     const framed = withContext(brief, prompt);
     const id = nextId++;
     // The command line is a constant; the user's text travels through stdin, so it can never become shell syntax.
-    const child = spawn(`claude -p --output-format stream-json --verbose --permission-mode ${permission}${session ? ` --resume ${session}` : ''}`, [], { cwd: dir, shell: true, windowsHide: true, env: { ...process.env, FORCE_COLOR: '0' } });
+    const child = spawn(`claude -p --output-format stream-json --verbose --permission-mode ${permission}${session ? ` --resume ${session}` : ''}`, [], { cwd: dir, shell: true, windowsHide: true, env: projectShellEnv(process.env) });
     running.set(id, child);
     const emit = (stream: 'out' | 'err') => (d: Buffer) => send('claude:output', { id, stream, text: stripAnsi(d.toString()).slice(0, 20_000) });
     let pending = '';
