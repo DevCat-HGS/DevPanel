@@ -2,7 +2,7 @@
 // secret scan and the fixed recipes. Everything runs on throwaway repos; no real flutter/firebase is started.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { _electron as electron } from 'playwright-core';
@@ -128,6 +128,24 @@ try {
   assert.ok(!(await term(page)).includes(fakeKey));
   await shot(page, 'l2-secrets');
   log('scanning the tracked files finds the leaked key and shows a red shield with the count');
+
+  // ---------- un-tracking a secret is the fix the scan asks for, so it has to be committable ----------
+  rmSync(join(proj, 'config.txt'));
+  writeFileSync(join(proj, '.env'), 'TOKEN=1\n');
+  run(proj, 'add', '-f', '.env');
+  run(proj, 'commit', '-q', '-m', 'sube el .env por error');
+  run(proj, 'rm', '-q', '--cached', '.env');
+  const stillThere = await page.evaluate((p) => window.devpanel.local.commit(p, 'sigue en disco y sin ignorar'), proj);
+  assert.equal(stillThere.ok, false, 'un-tracked but not ignored: add -A would bring it straight back');
+  assert.deepEqual(stillThere.findings.map((f) => f.rule), ['env-file']);
+  writeFileSync(join(proj, '.gitignore'), '.env\n');
+  const untrack = await page.evaluate((p) => window.devpanel.local.commit(p, 'deja de versionar .env'), proj);
+  assert.equal(untrack.ok, true, untrack.output);
+  assert.equal(run(proj, 'log', '-1', '--format=%s').trim(), 'deja de versionar .env');
+  assert.deepEqual(run(proj, 'ls-files').split('\n').filter((f) => f.startsWith('.')), ['.gitignore']);
+  assert.ok(existsSync(join(proj, '.env')), 'the file itself stays on disk');
+  assert.equal(run(proj, 'status', '--porcelain').trim(), '');
+  log('a .env that stops being tracked (git rm --cached + .gitignore) can be committed; without the ignore rule it is still refused');
 
   // ---------- the renderer cannot run anything outside the fixed lists ----------
   const bad = await page.evaluate(async (p) => ({

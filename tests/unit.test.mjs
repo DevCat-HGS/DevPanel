@@ -295,6 +295,17 @@ test('branch names, commit messages and porcelain paths are validated or parsed 
   assert.deepEqual(changedPaths('## main\n M a.txt\n?? dir/b.txt\nR  old.txt -> new.txt\n?? "sp ace.txt"\n'), ['a.txt', 'dir/b.txt', 'new.txt', 'sp ace.txt']);
 });
 
+test('porcelain paths skip deletions, which add no content to the commit', () => {
+  // staged (git rm --cached), unstaged, added-then-deleted, renamed-then-deleted and both-deleted entries
+  assert.deepEqual(changedPaths('D  .env\n D gone.txt\nAD tmp.txt\nMD was.txt\nRD old.txt -> new.txt\nDD both.txt\n M keep.txt\n'), ['keep.txt']);
+  // un-tracked but still on disk and not ignored: git lists it again as untracked, so it is still scanned
+  assert.deepEqual(changedPaths('D  .env\n?? .env\n'), ['.env']);
+  // a conflict where one side deleted the file still stages the surviving content
+  assert.deepEqual(changedPaths('DU ours-deleted.txt\nUD theirs-deleted.txt\n'), ['ours-deleted.txt', 'theirs-deleted.txt']);
+  // a path that merely contains or starts with "D" is not a deletion
+  assert.deepEqual(changedPaths(' M D.txt\n?? Docs/a.md\n'), ['D.txt', 'Docs/a.md']);
+});
+
 test('winget upgrade output is read by id, whatever language its headers are in', () => {
   const es = [
     'Nombre                  Id                    Versión   Disponible  Origen',
