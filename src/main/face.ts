@@ -279,7 +279,18 @@ export function setupFace(): void {
     return { ok: r.ok, score: r.score, error: r.error };
   });
 
-  ipcMain.handle('face:pin', async (_e, pin: string): Promise<FaceResult> => {
+  ipcMain.handle('face:pin', (_e, pin: string): Promise<FaceResult> => oneCodeAtATime(() => checkPin(pin)));
+  /**
+   * Codes are checked one after another. The hash is async, so calls fired in parallel would all read the
+   * attempt count before any of them wrote it, and a whole batch would skip the wait.
+   */
+  let pinQueue: Promise<unknown> = Promise.resolve();
+  function oneCodeAtATime<T>(fn: () => Promise<T>): Promise<T> {
+    const run = pinQueue.then(fn, fn);
+    pinQueue = run.catch(() => undefined);
+    return run;
+  }
+  async function checkPin(pin: string): Promise<FaceResult> {
     const stored = readPin();
     if (!stored) return { ok: false, error: 'No hay PIN configurado' };
     // after a few wrong codes, refuse without even checking: 10 000 combinations must not be a few minutes' work
@@ -295,7 +306,7 @@ export function setupFace(): void {
     }
     const after = waitSeconds(next, Date.now());
     return { ok: false, error: after ? `Demasiados intentos. Espera ${after} s.` : 'PIN incorrecto' };
-  });
+  }
 
   // Removes the face only: the code is the fallback and the lock itself, it stays.
   ipcMain.handle('face:remove', () => {

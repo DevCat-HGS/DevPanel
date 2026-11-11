@@ -78,11 +78,10 @@ try {
   assert.equal((await page.evaluate(() => window.devpanel.face.setPin('0000'))).ok, false, 'hiding locks the main process too');
 
   // wrong codes: the first ones are just wrong, then even the right code has to wait
+  // all at once: a tampered renderer would fire them in parallel, and every one must still count against the limit
   const tries = await page.evaluate(async () => {
-    const out = [];
-    for (let i = 0; i < 6; i++) out.push((await window.devpanel.face.unlockWithPin('9999')).error);
-    out.push((await window.devpanel.face.unlockWithPin('1234')).error ?? 'ok');
-    return out;
+    const calls = [...Array(6).fill('9999'), '1234'].map((pin) => window.devpanel.face.unlockWithPin(pin));
+    return (await Promise.all(calls)).map((r) => r.error ?? 'ok');
   });
   assert.deepEqual(tries.slice(0, 4), Array(4).fill('PIN incorrecto'));
   assert.equal(tries[4], 'Demasiados intentos. Espera 30 s.', 'the fifth wrong code starts the wait');
