@@ -4,7 +4,7 @@ import { setupAlerts } from './alerts';
 import { mt } from './i18n-main';
 import { setupClaude, stopAllClaude } from './claude';
 import { setupLocal, stopAllLocal } from './local';
-import { setupFace } from './face';
+import { relock, setupFace } from './face';
 import { setupHealth } from './health';
 import { listCommits, listFailing, listItems, listOpenPulls, listRepos, listRuns, lookupUser, rerunFailed } from './github';
 import { setupNotes } from './notes';
@@ -46,6 +46,8 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // the lock screen lives in this page: in the installed app nobody may open DevTools over it
+      devTools: !app.isPackaged,
     },
   });
   w.setMenuBarVisibility(false);
@@ -67,7 +69,10 @@ function createWindow(): BrowserWindow {
     }
   });
   // Whenever the window goes out of sight the renderer re-locks, so the panel is never left open.
-  w.on('hide', () => w.webContents.send('app:hidden'));
+  w.on('hide', () => {
+    relock(); // the main process forgets the unlock too, not only the screen
+    w.webContents.send('app:hidden');
+  });
 
   void w.loadFile(join(__dirname, '..', 'renderer', 'index.html'));
   return w;

@@ -4,7 +4,7 @@ import { hydrateIcons, icon } from './icons.js';
 import { runOnboarding } from './onboarding.js';
 import { initPalette } from './palette.js';
 import { analyzeRepos } from './recs.js';
-import { setLangPref, type LangPref } from './i18n.js';
+import { setLangPref, tr, type LangPref } from './i18n.js';
 import { mountCodeSetup, mountPad, type PadHandle } from './pinpad.js';
 import { renderPager } from './pager.js';
 import { initHome, refreshHome } from './ui-home.js';
@@ -191,17 +191,20 @@ async function initLock(): Promise<void> {
   };
 
   const tryFace = async () => {
+    if (faceBtn.disabled) return; // a verification is already running (e.g. hidden and shown again meanwhile)
     faceBtn.disabled = true;
     ring.classList.add('scanning');
     msg.textContent = 'Mirando… quédate frente a la cámara';
-    const r = await api.face.verify();
+    // a failure in the main process must never leave the ring spinning with the button disabled
+    const r = await api.face.verify().catch(() => ({ ok: false, error: 'No se pudo usar el reconocimiento facial. Entra con tu código.' }));
     faceBtn.disabled = false;
     if (r.ok) return unlock();
     fail(r.error ?? 'No te reconocí, intenta de nuevo o usa tu código');
   };
 
   onLockPin = async (pin: string) => {
-    const r = await api.face.unlockWithPin(pin);
+    // the pad is already locked waiting for this answer: on any failure it has to be reset, or it takes no more digits
+    const r = await api.face.unlockWithPin(pin).catch(() => ({ ok: false, error: 'No se pudo comprobar el código. Intenta de nuevo.' }));
     if (r.ok) {
       lockPad!.good();
       return unlock();
@@ -742,8 +745,11 @@ $('face-enroll').onclick = async () => {
 };
 
 $('face-remove').onclick = async () => {
+  if (!(await api.face.status()).enrolled) return toast('No hay rostro registrado', 'info');
+  // the code stays: it is the fallback and the lock itself
+  if (!window.confirm(tr('¿Eliminar tu rostro registrado? Seguirás entrando con tu código.'))) return;
   await api.face.remove();
-  toast('Datos faciales eliminados', 'info');
+  toast('Rostro eliminado. Tu código sigue protegiendo DevPanel.', 'info');
   await refreshFaceStatus();
 };
 

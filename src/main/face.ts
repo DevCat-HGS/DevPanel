@@ -1,14 +1,61 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FaceResult, FaceStatus } from '../shared/api';
+import { afterAttempt, parseAttempts, parsePinFile, waitSeconds, type Attempts } from './lock-core';
 import { loadSettings } from './settings';
 
 const faceFile = () => join(app.getPath('userData'), 'face.bin');
 const pinFile = () => join(app.getPath('userData'), 'pin.json');
 const modelsDir = () => join(app.getPath('userData'), 'models');
+const attemptsFile = () => join(app.getPath('userData'), 'pin-attempts.json');
+
+// ---------- lock state, owned by the main process ----------
+// The lock screen is drawn by the renderer, but the renderer can be tampered with: whether the session is unlocked
+// is decided here, and the IPC calls that change the code, the face or the token check it.
+
+/** The stored code, or null when there is none or the file is unreadable (a broken file must not lock the user out). */
+function readPin(): { salt: string; hash: string } | null {
+  try {
+    return existsSync(pinFile()) ? parsePinFile(JSON.parse(readFileSync(pinFile(), 'utf8'))) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The stored face (decrypted JSON), or null when there is none or it cannot be decrypted (e.g. a reset Windows password). */
+function readFace(): string | null {
+  try {
+    if (!existsSync(faceFile())) return null;
+    const json = safeStorage.decryptString(readFileSync(faceFile()));
+    JSON.parse(json);
+    return json;
+  } catch {
+    return null;
+  }
+}
+
+const hasCredential = (): boolean => readPin() !== null || readFace() !== null;
+
+let unlocked = true;
+/** True when nothing protects the app, or the user proved who they are since the last lock. */
+export const isUnlocked = (): boolean => unlocked || !hasCredential();
+/** Called when the window is hidden: the next sensitive call needs the face or the code again. */
+export function relock(): void {
+  unlocked = false;
+}
+export const LOCKED_ERROR = 'Desbloquea DevPanel primero';
+
+function readAttempts(): Attempts {
+  try {
+    return parseAttempts(existsSync(attemptsFile()) ? JSON.parse(readFileSync(attemptsFile(), 'utf8')) : null);
+  } catch {
+    return parseAttempts(null);
+  }
+}
+const writeAttempts = (a: Attempts): void => writeFileSync(attemptsFile(), JSON.stringify(a));
 
 const scriptPath = () =>
   process.env.DEVPANEL_FACE_SCRIPT ??
@@ -162,18 +209,19 @@ function runPython(mode: 'enroll' | 'verify', stdin?: string, onLine?: (line: st
   });
 }
 
-function hashPin(pin: string, salt: Buffer): Buffer {
-  return scryptSync(pin, salt, 32);
-}
+/** scrypt off the main thread: a sync hash per attempt froze the whole app. */
+const hashPin = (pin: string, salt: Buffer): Promise<Buffer> =>
+  new Promise((res, rej) => scrypt(pin, salt, 32, (err, key) => (err ? rej(err) : res(key))));
 
-function savePin(pin: string): FaceResult {
+async function savePin(pin: string): Promise<FaceResult> {
   if (typeof pin !== 'string' || !/^\d{4}$/.test(pin))
     return { ok: false, error: 'El código debe tener 4 dígitos' };
   const salt = randomBytes(16);
   writeFileSync(
     pinFile(),
-    JSON.stringify({ salt: salt.toString('hex'), hash: hashPin(pin, salt).toString('hex') }),
+    JSON.stringify({ salt: salt.toString('hex'), hash: (await hashPin(pin, salt)).toString('hex') }),
   );
+  writeAttempts({ fails: 0, until: 0 });
   return { ok: true };
 }
 
@@ -181,19 +229,24 @@ export function setupFace(): void {
   app.on('will-quit', stopWorker);
   // the lock screen is the first thing a returning user sees: have the models loaded by then
   if (existsSync(faceFile())) prewarmFace();
+  // A configured app starts locked. While onboarding (not finished yet) the user is creating the code, so it is open.
+  unlocked = !(loadSettings().onboarded && hasCredential());
 
   ipcMain.handle('face:status', (): FaceStatus => ({
-    enrolled: existsSync(faceFile()),
-    pinSet: existsSync(pinFile()),
+    enrolled: readFace() !== null,
+    pinSet: readPin() !== null,
   }));
 
-  ipcMain.handle('pin:set', (_e, pin: string): FaceResult => savePin(pin));
+  ipcMain.handle('pin:set', (_e, pin: string): Promise<FaceResult> | FaceResult =>
+    isUnlocked() ? savePin(pin) : { ok: false, error: LOCKED_ERROR },
+  );
 
   ipcMain.handle('face:enroll', async (_e, pin?: string): Promise<FaceResult> => {
+    if (!isUnlocked()) return { ok: false, error: LOCKED_ERROR };
     if (pin) {
-      const saved = savePin(pin);
+      const saved = await savePin(pin);
       if (!saved.ok) return saved;
-    } else if (!existsSync(pinFile())) {
+    } else if (!readPin()) {
       return { ok: false, error: 'Primero define tu código de verificación' };
     }
     if (!safeStorage.isEncryptionAvailable())
@@ -209,7 +262,8 @@ export function setupFace(): void {
 
   ipcMain.handle('face:verify', async (): Promise<FaceResult> => {
     if (!existsSync(faceFile())) return { ok: false, error: 'No hay rostro registrado' };
-    const embeddings = safeStorage.decryptString(readFileSync(faceFile()));
+    const embeddings = readFace();
+    if (!embeddings) return { ok: false, error: 'No se pudo leer tu rostro registrado. Entra con tu código y vuelve a registrarlo.' };
     const onLine = (line: string) => {
       try {
         const m = JSON.parse(line);
@@ -221,20 +275,42 @@ export function setupFace(): void {
     const r =
       (await viaWorker({ cmd: 'verify', embeddings: JSON.parse(embeddings), liveness: loadSettings().faceLiveness }, onLine)) ??
       (await runPython('verify', embeddings, onLine));
+    if (r.ok) unlocked = true;
     return { ok: r.ok, score: r.score, error: r.error };
   });
 
-  ipcMain.handle('face:pin', (_e, pin: string): FaceResult => {
-    if (!existsSync(pinFile())) return { ok: false, error: 'No hay PIN configurado' };
-    const { salt, hash } = JSON.parse(readFileSync(pinFile(), 'utf8'));
-    const given = hashPin(String(pin), Buffer.from(salt, 'hex'));
-    return timingSafeEqual(given, Buffer.from(hash, 'hex'))
-      ? { ok: true }
-      : { ok: false, error: 'PIN incorrecto' };
-  });
+  ipcMain.handle('face:pin', (_e, pin: string): Promise<FaceResult> => oneCodeAtATime(() => checkPin(pin)));
+  /**
+   * Codes are checked one after another. The hash is async, so calls fired in parallel would all read the
+   * attempt count before any of them wrote it, and a whole batch would skip the wait.
+   */
+  let pinQueue: Promise<unknown> = Promise.resolve();
+  function oneCodeAtATime<T>(fn: () => Promise<T>): Promise<T> {
+    const run = pinQueue.then(fn, fn);
+    pinQueue = run.catch(() => undefined);
+    return run;
+  }
+  async function checkPin(pin: string): Promise<FaceResult> {
+    const stored = readPin();
+    if (!stored) return { ok: false, error: 'No hay PIN configurado' };
+    // after a few wrong codes, refuse without even checking: 10 000 combinations must not be a few minutes' work
+    const wait = waitSeconds(readAttempts(), Date.now());
+    if (wait) return { ok: false, error: `Demasiados intentos. Espera ${wait} s.` };
+    const given = await hashPin(String(pin), Buffer.from(stored.salt, 'hex'));
+    const ok = timingSafeEqual(given, Buffer.from(stored.hash, 'hex'));
+    const next = afterAttempt(readAttempts(), ok, Date.now());
+    writeAttempts(next);
+    if (ok) {
+      unlocked = true;
+      return { ok: true };
+    }
+    const after = waitSeconds(next, Date.now());
+    return { ok: false, error: after ? `Demasiados intentos. Espera ${after} s.` : 'PIN incorrecto' };
+  }
 
+  // Removes the face only: the code is the fallback and the lock itself, it stays.
   ipcMain.handle('face:remove', () => {
+    if (!isUnlocked()) return;
     rmSync(faceFile(), { force: true });
-    rmSync(pinFile(), { force: true });
   });
 }
